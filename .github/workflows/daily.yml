@@ -1,0 +1,41 @@
+name: AfghanFollower Daily Videos
+
+# Runs in the cloud — your PC does NOT need to be on.
+on:
+  schedule:
+    - cron: "30 3 * * *"   # 08:00 Asia/Kabul (UTC+4:30) = 03:30 UTC
+  workflow_dispatch: {}     # manual "Run workflow" button — works from the GitHub phone app
+
+jobs:
+  render-and-send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install FFmpeg + headless-Chrome libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
+
+      - name: Build, render and send today's 4 videos
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node daily-render.mjs
+
+      - name: Keep the rendered videos as a downloadable artifact (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-videos
+          path: renders/daily/**/*.mp4
+          retention-days: 7
+          if-no-files-found: ignore

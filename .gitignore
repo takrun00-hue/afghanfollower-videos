@@ -1,0 +1,13 @@
+# secrets — never commit
+.env
+
+# generated / heavy
+node_modules/
+renders/
+compositions/daily/
+snapshots/
+index.html
+music/*.wav
+*.output
+c.txt
+css.txt
