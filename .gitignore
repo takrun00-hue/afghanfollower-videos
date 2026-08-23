@@ -11,3 +11,8 @@ music/*.wav
 *.output
 c.txt
 css.txt
+.telegram-offset
+music/auto/
+music/voice/
+.thumbnails/
+*.log

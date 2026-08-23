@@ -1,10 +1,13 @@
-// Telegram control bot for the AfghanFollower pipeline — trigger from your phone.
-// Runs on the PC (long-polls Telegram), responds ONLY to your chat id.
+// Telegram control bot — make videos on demand from your phone.
+// Runs on the PC, long-polls Telegram, and only answers your own chat.
+//
 // Commands (Persian or English, with or without a leading /):
-//   بساز | make | today   → build + render + send today's 4 videos
-//   بفرست | send          → resend today's videos to Telegram
-//   وضعیت | status        → report today's status
-//   راهنما | help | start → list commands
+//   بساز            → build + render + send today's 3 videos
+//   تیک‌تاک | انستا | ابزار → build just that one
+//   بفرست           → resend today's videos
+//   وضعیت           → what exists for today
+//   فردا            → build tomorrow's set early
+//   راهنما          → this list
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -19,48 +22,84 @@ const today = () => new Date().toISOString().slice(0, 10);
 const say = (text) => sendMessage({ token: tg.token, chatId: tg.chatId, text });
 
 const HELP =
-  "🤖 <b>ربات افغان فالور</b>\n\nدستورها:\n" +
-  "• <b>بساز</b> — ساخت و ارسال ۴ ویدیوی امروز\n" +
+  "🤖 <b>ربات افغان فالورز</b>\n\n" +
+  "• <b>بساز</b> — ساخت و ارسال هر ۳ ویدیوی امروز\n" +
+  "• <b>تیک‌تاک</b> / <b>انستا</b> / <b>ابزار</b> — فقط همان یکی\n" +
   "• <b>بفرست</b> — ارسال دوبارهٔ ویدیوهای امروز\n" +
-  "• <b>وضعیت</b> — وضعیت امروز\n" +
-  "• <b>راهنما</b> — همین راهنما";
+  "• <b>وضعیت</b> — چه چیزی برای امروز آماده است\n" +
+  "• <b>فردا</b> — ویدیوهای فردا را از حالا بساز\n" +
+  "• <b>راهنما</b> — همین فهرست";
 
-function norm(t) { return (t || "").trim().replace(/^\//, "").toLowerCase(); }
+const norm = (t) => (t || "").trim().replace(/^\//, "").replace(/‌/g, " ").toLowerCase();
+const has = (c, ...words) => words.some((w) => c === w || c.startsWith(w));
 
-async function handle(text) {
-  const c = norm(text);
-  if (["بساز", "make", "today", "ساخت", "بساز"].includes(c)) {
-    await say("🎬 در حال ساخت ۴ ویدیوی امروز... چند دقیقه صبر کن.");
-    try {
-      execSync("node daily-render.mjs", { stdio: "inherit", cwd: process.cwd() });
-      await say("✅ ۴ ویدیوی امروز ساخته و ارسال شد.");
-    } catch (e) { await say("✗ خطا در ساخت: " + (e.message || "")); }
-  } else if (["بفرست", "send", "ارسال"].includes(c)) {
-    await say("✈ در حال ارسال ویدیوهای امروز...");
-    try { execSync("node send-telegram.mjs", { stdio: "inherit", cwd: process.cwd() }); }
-    catch (e) { await say("✗ خطا: " + (e.message || "")); }
-  } else if (["وضعیت", "status", "وضيعت"].includes(c)) {
-    const mf = `renders/daily/${today()}/manifest.json`;
-    if (existsSync(mf)) {
-      const m = JSON.parse(readFileSync(mf, "utf8"));
-      await say(`📊 امروز (${m.date}): ${m.videos.length} ویدیو ساخته شده — کیفیت ${m.resolution}.`);
-    } else { await say("امروز هنوز ویدیویی ساخته نشده. «بساز» را بفرست."); }
-  } else if (["راهنما", "help", "start", "شروع"].includes(c)) {
-    await say(HELP);
+// one place that runs a build, so every command reports failures the same way
+function build(args, label) {
+  try {
+    execSync(`node daily-render.mjs ${args}`, { stdio: "inherit", cwd: process.cwd() });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, err: String(e.message).split(String.fromCharCode(10))[0] };
   }
 }
 
-console.log("bot: listening for commands from chat", tg.chatId);
+async function handle(text) {
+  const c = norm(text);
+
+  if (has(c, "راهنما", "help", "start", "شروع")) return say(HELP);
+
+  if (has(c, "وضعیت", "status")) {
+    const mf = `renders/daily/${today()}/manifest.json`;
+    if (!existsSync(mf)) return say("امروز هنوز ویدیویی ساخته نشده. «بساز» را بفرست.");
+    const m = JSON.parse(readFileSync(mf, "utf8"));
+    const lines = m.videos.map((v) => `• ${v.platform} — ${v.packId} ${v.telegram ? "✅" : "⏳"}`);
+    return say(`📊 امروز (${m.date}):\n${lines.join("\n")}`);
+  }
+
+  if (has(c, "بفرست", "send", "ارسال")) {
+    await say("✈ در حال ارسال ویدیوهای امروز…");
+    try { execSync("node send-telegram.mjs", { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+
+  const ONE = [
+    [["تیک تاک", "تیکتاک", "tiktok"], "tiktok", "تیک‌تاک"],
+    [["انستا", "اینستا", "instagram", "insta"], "instagram", "اینستاگرام"],
+    [["ابزار", "tools", "tool"], "tools", "ابزارها"],
+  ];
+  for (const [keys, cat, label] of ONE) {
+    if (keys.some((k) => c.startsWith(k))) {
+      await say(`🎬 در حال ساخت ویدیوی ${label}…`);
+      const r = build(`--only ${cat}`);
+      return say(r.ok ? `✅ ویدیوی ${label} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
+    }
+  }
+
+  if (has(c, "فردا", "tomorrow")) {
+    const d = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    await say(`🎬 در حال ساخت ویدیوهای فردا (${d})…`);
+    const r = build(d);
+    return say(r.ok ? `✅ ویدیوهای ${d} آماده و ارسال شد.` : "✗ خطا: " + r.err);
+  }
+
+  if (has(c, "بساز", "make", "today", "ساخت")) {
+    await say("🎬 در حال ساخت ۳ ویدیوی امروز… چند دقیقه صبر کن.");
+    const r = build("");
+    return say(r.ok ? "✅ هر ۳ ویدیوی امروز ساخته و ارسال شد." : "✗ خطا: " + r.err);
+  }
+}
+
+console.log("bot: listening for", tg.chatId);
 say("🤖 ربات آنلاین شد. «راهنما» را بفرست تا دستورها را ببینی.");
 
 let offset = 0;
-while (true) {
+for (;;) {
   try {
-    const updates = await getUpdates({ token: tg.token, offset, timeout: 50 });
-    for (const u of updates) {
+    for (const u of await getUpdates({ token: tg.token, offset, timeout: 50 })) {
       offset = u.update_id + 1;
       const msg = u.message || u.channel_post;
-      if (!msg || String(msg.chat.id) !== String(tg.chatId)) continue; // only owner
+      if (!msg || String(msg.chat.id) !== String(tg.chatId)) continue;  // owner only
       if (msg.text) await handle(msg.text);
     }
   } catch (e) {

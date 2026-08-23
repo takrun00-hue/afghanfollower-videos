@@ -4,6 +4,8 @@
 // can run in the background). Usage: node daily.mjs [YYYY-MM-DD]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { buildHTML } from "./lib/build.mjs";
+import { buildInkHTML } from "./lib/build-ink.mjs";
+import { buildNeonHTML } from "./lib/build-neon.mjs";
 import { packsForDate, CATEGORIES } from "./lib/content.mjs";
 
 const arg = process.argv[2];
@@ -18,7 +20,7 @@ const manifest = [];
 for (const platform of CATEGORIES) {
   const pack = sel[platform];
   const file = `${outDir}/${platform}.html`;
-  writeFileSync(file, buildHTML(pack));
+  writeFileSync(file, (process.env.STYLE === "neon" ? buildNeonHTML : process.env.STYLE === "legacy" ? buildHTML : buildInkHTML)(pack));
   manifest.push({ platform, packId: pack.id, file, title: pack.title });
   console.log(`built ${platform.padEnd(9)} → ${file}   (${pack.id})`);
 }

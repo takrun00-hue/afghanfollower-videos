@@ -1,15 +1,28 @@
-name: AfghanFollower Daily Videos
+name: Daily videos
 
-# Runs in the cloud — your PC does NOT need to be on.
+# Runs in GitHub's cloud — your PC does not need to be on.
 on:
   schedule:
-    - cron: "30 3 * * *"   # 08:00 Asia/Kabul (UTC+4:30) = 03:30 UTC
-  workflow_dispatch: {}     # manual "Run workflow" button — works from the GitHub phone app
+    - cron: "30 3 * * *"   # 08:00 Asia/Kabul (UTC+4:30)
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Just one category (tiktok / instagram / tools). Leave empty for all three."
+        required: false
+        default: ""
+      date:
+        description: "Build a specific day (YYYY-MM-DD). Leave empty for today."
+        required: false
+        default: ""
+
+concurrency:
+  group: render
+  cancel-in-progress: false
 
 jobs:
-  render-and-send:
+  render:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -17,25 +30,30 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install FFmpeg + headless-Chrome libraries
+      - name: System packages (ffmpeg + headless Chrome libs)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
-            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
             libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
 
-      - name: Build, render and send today's 4 videos
+      - name: Build, render and send
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node daily-render.mjs
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.only }}" ]; then ARGS="$ARGS --only ${{ github.event.inputs.only }}"; fi
+          if [ -n "${{ github.event.inputs.date }}" ]; then ARGS="$ARGS ${{ github.event.inputs.date }}"; fi
+          echo "running: node daily-render.mjs $ARGS"
+          node daily-render.mjs $ARGS
 
-      - name: Keep the rendered videos as a downloadable artifact (optional)
+      - name: Keep the MP4s downloadable for a week
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: daily-videos
-          path: renders/daily/**/*.mp4
+          name: videos
+          path: renders/daily/**/afghanfollower-*.mp4
           retention-days: 7
           if-no-files-found: ignore

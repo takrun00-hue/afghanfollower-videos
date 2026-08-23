@@ -1,0 +1,58 @@
+name: Telegram commands
+
+# Checks Telegram for a command every few minutes and builds in the cloud when
+# one arrives — so videos can be ordered from the phone with the PC switched off.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: telegram-listen
+  cancel-in-progress: false
+
+jobs:
+  listen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # remembers the last message id so one order never runs twice
+      - name: Restore command cursor
+        uses: actions/cache@v4
+        with:
+          path: .telegram-offset
+          key: tg-offset-${{ github.run_id }}
+          restore-keys: tg-offset-
+
+      - name: Read commands
+        id: cmd
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
+
+      - name: System packages
+        if: steps.cmd.outputs.ACTION != 'none'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
+
+      - name: Build what was asked for
+        if: steps.cmd.outputs.ACTION != 'none'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ "${{ steps.cmd.outputs.ACTION }}" = "all" ]; then
+            node daily-render.mjs
+          else
+            node daily-render.mjs --only "${{ steps.cmd.outputs.ACTION }}"
+          fi
