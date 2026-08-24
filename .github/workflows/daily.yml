@@ -2,8 +2,12 @@ name: Daily videos
 
 # Runs in GitHub's cloud — your PC does not need to be on.
 on:
+  # GitHub cron is UTC only and has no daylight-saving awareness, so 08:00 in
+  # Germany is 06:00 UTC in summer (CEST) and 07:00 UTC in winter (CET). We fire
+  # at BOTH and let the first step drop the run that is not actually 08:00 Berlin.
   schedule:
-    - cron: "30 3 * * *"   # 08:00 Asia/Kabul (UTC+4:30)
+    - cron: "0 6 * * *"    # 08:00 Europe/Berlin while CEST is in effect
+    - cron: "0 7 * * *"    # 08:00 Europe/Berlin while CET is in effect
   workflow_dispatch:
     inputs:
       only:
@@ -24,13 +28,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      # Only one of the two cron slots is the real 08:00 in Berlin on any given
+      # day; the other must exit quietly. Manual runs always proceed.
+      - name: Is it 08:00 in Germany?
+        id: gate
+        run: |
+          HOUR=$(TZ=Europe/Berlin date +%H)
+          echo "Berlin local time: $(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "$HOUR" = "08" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=no" >> "$GITHUB_OUTPUT"
+            echo "Not the 08:00 Berlin slot — skipping."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.go == 'yes'
 
       - uses: actions/setup-node@v4
+        if: steps.gate.outputs.go == 'yes'
         with:
           node-version: "22"
 
       - name: System packages (ffmpeg + headless Chrome libs)
+        if: steps.gate.outputs.go == 'yes'
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
@@ -39,6 +60,7 @@ jobs:
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
 
       - name: Build, render and send
+        if: steps.gate.outputs.go == 'yes'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -50,7 +72,7 @@ jobs:
           node daily-render.mjs $ARGS
 
       - name: Keep the MP4s downloadable for a week
-        if: always()
+        if: always() && steps.gate.outputs.go == 'yes'
         uses: actions/upload-artifact@v4
         with:
           name: videos

@@ -138,7 +138,7 @@ function kick(t0, gain = 1) {
     const body = Math.sin(2 * Math.PI * (48 * t + (120 / 34) * (1 - Math.exp(-t * 34)))) * Math.exp(-t * 8.5);
     // sub tail
     const sub = Math.sin(2 * Math.PI * 46 * t) * Math.exp(-t * 5.2) * 0.5;
-    const s = (click + body * 1.05 + sub) * gain * 0.95;
+    const s = (click + body * 1.05 + sub) * gain * 1.15;
     return [s, s];
   });
 }
@@ -152,7 +152,7 @@ function clap(t0, gain = 1) {
       if (dt >= 0) n += noise() * Math.exp(-dt * 120);
     }
     const tail = noise() * Math.exp(-t * 16) * 0.55;
-    let s = hp(bp(n + tail, 2200, 0.9), 700) * gain * 0.72;
+    let s = hp(bp(n + tail, 2200, 0.9), 700) * gain * 0.9;
     return [s * 0.95, s];
   });
   // reverb send
@@ -301,11 +301,14 @@ function chordOf(root, type) {
 }
 const prog = V.roots.map((r, i) => ({ root: r, notes: chordOf(r, V.types[i]) }));
 const nBars = Math.max(4, Math.floor(DUR / bar));
+const PROGRESSION_FIRST = prog[0] ? prog[0].root : null;
 
 // section per bar: 0=intro 1=build 2=drop 3=break
 const OUTRO_BARS = Number(process.env.MUSIC_OUTRO_BARS || 4);
+const SHORT_CUT = DUR < 25;   // a 15s clip cannot afford an intro
 function sectionOf(b) {
   if (b >= nBars - OUTRO_BARS) return 4;   // final: lighter, lets the CTA land
+  if (SHORT_CUT) return 2;                 // full energy from the very first bar
   const p = b / nBars;
   if (p < 0.10) return 0;
   if (p < 0.17) return 1;
@@ -417,6 +420,32 @@ for (let b = 0; b < nBars; b++) {
   if (sec !== 2 && nextSec === 2) impact(t0 + bar);
 }
 
+// ---------- opening hit ----------
+function openingHit() {
+  const hp = svfHP(), bp = svf();
+  write(drumL, drumR, 0, 1.4, (t) => {
+    // bright transient — this is what cuts through a phone speaker
+    const crash = hp(noise(), 4200, 0.7) * Math.exp(-t * 5.5) * 0.5;
+    // mid punch — the part that reads as "loud" on small drivers
+    const punch = bp(noise(), 260, 1.6) * Math.exp(-t * 26) * 0.55
+                + Math.sin(2 * Math.PI * (210 * Math.exp(-t * 24) + 90) * t) * Math.exp(-t * 13) * 0.6;
+    // sub boom — felt on headphones, harmless on phones
+    const boom = Math.sin(2 * Math.PI * (58 * Math.exp(-t * 4)) * t) * Math.exp(-t * 4.2) * 0.75;
+    const v = crash + punch + boom;
+    return [v, v];
+  });
+  write(revL, revR, 0, 1.1, (t) => {
+    const v = noise() * Math.exp(-t * 6) * 0.2;
+    return [v, v * 0.9];
+  });
+  // a bright stinger right after the hit so the ear has something to follow
+  const st = PROGRESSION_FIRST;
+  if (st) {
+    lead(0.14, 0.5, st + 24, 1.15);
+    lead(0.42, 0.42, st + 19, 0.9);
+  }
+}
+
 // ---------- scene-change accents ----------
 // The picture changing is the event the ear should feel: a rising whoosh into
 // each cut, then a hit on the frame where the new scene lands.
@@ -447,6 +476,7 @@ function hit(t0) {
 }
 
 // paint the accents last so they sit on top of the arrangement
+openingHit();
 for (const c of CUTS) { whoosh(Math.max(0, c - 0.45), 0.45); hit(c); }
 
 // ---------- delay (dotted 8th feedback) ----------
@@ -491,7 +521,7 @@ const rvL = reverb(revL, 0), rvR = reverb(revR, 23);
 // ---------- sidechain duck ----------
 const duck = new Float32Array(N).fill(1);
 {
-  const rel = 0.26;
+  const rel = 0.22;
   for (const kt of kickTimes) {
     const s = Math.floor(kt * SR), e = Math.min(N, s + Math.floor(rel * SR));
     for (let i = Math.max(0, s); i < e; i++) {
@@ -506,8 +536,8 @@ const duck = new Float32Array(N).fill(1);
 const outL = new Float32Array(N), outR = new Float32Array(N);
 for (let i = 0; i < N; i++) {
   const d = duck[i];
-  outL[i] = drumL[i] * 1.0 + musL[i] * d + rvL[i] * d * 0.55;
-  outR[i] = drumR[i] * 1.0 + musR[i] * d + rvR[i] * d * 0.55;
+  outL[i] = drumL[i] * 1.35 + musL[i] * d * 0.9 + rvL[i] * d * 0.42;
+  outR[i] = drumR[i] * 1.35 + musR[i] * d * 0.9 + rvR[i] * d * 0.42;
 }
 
 // gentle bus compression + soft clip + fades
@@ -519,9 +549,9 @@ function master(buf) {
     // simple peak follower compressor
     const a = Math.abs(s);
     envF = a > envF ? a * 0.35 + envF * 0.65 : envF * 0.9995;
-    const thr = 0.62;
-    if (envF > thr) s /= 1 + (envF - thr) * 1.5;
-    s = Math.tanh(s * 1.08);                      // soft clip / glue
+    const thr = 0.78;
+    if (envF > thr) s /= 1 + (envF - thr) * 0.8;
+    s = Math.tanh(s * 1.02);                      // soft clip / glue
     if (i < fin) s *= i / fin;
     if (i > N - fout) s *= (N - i) / fout;
     buf[i] = s;

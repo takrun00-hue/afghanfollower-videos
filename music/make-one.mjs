@@ -25,7 +25,7 @@ execFileSync("node", ["music/synth.mjs", String(dur), String(variant), wav], {
 });
 execFileSync("ffmpeg", [
   "-y", "-hide_banner", "-loglevel", "error", "-i", wav,
-  "-af", "loudnorm=I=-13:TP=-2.5:LRA=9",
+  "-af", "loudnorm=I=-9.5:TP=-2:LRA=11,alimiter=limit=0.72:attack=1:release=60:level=false",
   "-c:a", "aac", "-b:a", "192k", outM4a,
 ], { stdio: "inherit" });
 if (existsSync(wav)) unlinkSync(wav);
