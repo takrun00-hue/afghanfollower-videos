@@ -27,8 +27,18 @@ const env = loadEnv();
 const tg = telegramConfig(env);
 const KEY = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
 
+// Say so out loud. A silent exit is indistinguishable from a silent failure:
+// the user sends «خبر», nothing arrives, and there is no way to tell whether the
+// key is missing, the search failed, or there simply was no news.
 if (!KEY) {
-  console.log("EXA_API_KEY is not set — nothing to do.");
+  const msg =
+    "🔑 <b>کلید جستجو تنظیم نشده</b>\n\n" +
+    "برای فعال شدن جستجوی خودکار، در گیت‌هاب این را اضافه کن:\n" +
+    "<b>Settings → Secrets and variables → Actions → New repository secret</b>\n\n" +
+    "نام: <code>EXA_API_KEY</code>\n" +
+    "مقدار: کلیدی که از dashboard.exa.ai می‌گیری";
+  if (tg.enabled) await sendMessage({ token: tg.token, chatId: tg.chatId, text: msg });
+  console.log("EXA_API_KEY is not set — told the user.");
   process.exit(0);
 }
 
