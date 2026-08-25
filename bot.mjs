@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage, getUpdates } from "./lib/telegram.mjs";
+import { parseCommand, normalize } from "./lib/commands.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const tg = telegramConfig(loadEnv());
@@ -23,15 +24,21 @@ const say = (text) => sendMessage({ token: tg.token, chatId: tg.chatId, text });
 
 const HELP =
   "🤖 <b>ربات افغان فالورز</b>\n\n" +
-  "• <b>بساز</b> — ساخت و ارسال هر ۳ ویدیوی امروز\n" +
-  "• <b>تیک‌تاک</b> / <b>انستا</b> / <b>ابزار</b> — فقط همان یکی\n" +
+  "🎬 <b>ساخت ویدیو</b>\n" +
+  "• <b>تیک‌تاک بساز</b> — فقط ویدیوی تیک‌تاک\n" +
+  "• <b>انستا بساز</b> — فقط ویدیوی اینستاگرام\n" +
+  "• <b>ابزار بساز</b> — فقط ویدیوی ابزارها\n" +
+  "• <b>بساز</b> — هر ۳ ویدیوی امروز\n" +
+  "• <b>فردا</b> — ویدیوهای فردا را از حالا بساز\n\n" +
+  "🔎 <b>بقیه</b>\n" +
+  "• <b>خبر</b> — آپدیت‌های تازه‌ای که هنوز ویدیو نشده‌اند\n" +
   "• <b>بفرست</b> — ارسال دوبارهٔ ویدیوهای امروز\n" +
   "• <b>وضعیت</b> — چه چیزی برای امروز آماده است\n" +
-  "• <b>فردا</b> — ویدیوهای فردا را از حالا بساز\n" +
-  "• <b>راهنما</b> — همین فهرست";
+  "• <b>راهنما</b> — همین فهرست\n\n" +
+  "جمله را هر طور خواستی بنویس — «یک ویدیوی تیک تاک برایم بساز» هم کار می‌کند.";
 
-const norm = (t) => (t || "").trim().replace(/^\//, "").replace(/‌/g, " ").toLowerCase();
-const has = (c, ...words) => words.some((w) => c === w || c.startsWith(w));
+const norm = normalize;
+const has = (c, ...words) => words.some((w) => c.includes(w));
 
 // one place that runs a build, so every command reports failures the same way
 function build(args, label) {
@@ -63,24 +70,26 @@ async function handle(text) {
     return;
   }
 
-  const ONE = [
-    [["تیک تاک", "تیکتاک", "tiktok"], "tiktok", "تیک‌تاک"],
-    [["انستا", "اینستا", "instagram", "insta"], "instagram", "اینستاگرام"],
-    [["ابزار", "tools", "tool"], "tools", "ابزارها"],
-  ];
-  for (const [keys, cat, label] of ONE) {
-    if (keys.some((k) => c.startsWith(k))) {
-      await say(`🎬 در حال ساخت ویدیوی ${label}…`);
-      const r = build(`--only ${cat}`);
-      return say(r.ok ? `✅ ویدیوی ${label} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
-    }
-  }
-
   if (has(c, "فردا", "tomorrow")) {
     const d = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     await say(`🎬 در حال ساخت ویدیوهای فردا (${d})…`);
     const r = build(d);
     return say(r.ok ? `✅ ویدیوهای ${d} آماده و ارسال شد.` : "✗ خطا: " + r.err);
+  }
+
+  const cmd = parseCommand(text);
+  const LABEL = { tiktok: "تیک‌تاک", instagram: "اینستاگرام", tools: "ابزارها" };
+  if (cmd && LABEL[cmd.action]) {
+    await say(`🎬 در حال ساخت ویدیوی ${LABEL[cmd.action]}…`);
+    const r = build(`--only ${cmd.action}`);
+    return say(r.ok ? `✅ ویدیوی ${LABEL[cmd.action]} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
+  }
+
+  if (cmd && cmd.action === "research") {
+    await say("🔎 در حال جستجوی آپدیت‌های تازه…");
+    try { execSync("node research.mjs", { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
   }
 
   if (has(c, "بساز", "make", "today", "ساخت")) {
