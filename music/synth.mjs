@@ -322,7 +322,10 @@ function chordOf(root, type) {
   return [root, third, root + 7, root + 12];
 }
 const prog = V.roots.map((r, i) => ({ root: r, notes: chordOf(r, V.types[i]) }));
-const nBars = Math.max(4, Math.floor(DUR / bar));
+// ceil, not floor: with floor, the final partial bar was never rendered and the
+// track ended in digital silence — up to 4.7s of it on a slow-tempo 15s clip,
+// nearly a third of the video. write() clips at N, so an overhanging bar is safe.
+const nBars = Math.max(4, Math.ceil(DUR / bar));
 const PROGRESSION_FIRST = prog[0] ? prog[0].root : null;
 
 // section per bar: 0=intro 1=build 2=drop 3=break
@@ -545,12 +548,15 @@ function chime(t0) {
   });
 }
 // A filter sweep across the noise floor — the sound of audio being processed.
+// Q stays at 1.6: the Chamberlin SVF here goes unstable at high Q with a moving
+// cutoff and returns NaN, which then propagates through the mix and silences the
+// REST OF THE TRACK. That bug cost the tools video its last 4.7 seconds.
 function sweep(t0) {
   const bp = svf();
   write(musL, musR, t0 - 0.3, 0.85, (t) => {
     const x = Math.min(1, t / 0.85);
-    const v = bp(noise(), 300 + 4200 * Math.sin(x * Math.PI), 3.2) * 0.34
-            * Math.sin(x * Math.PI);
+    const cut = 320 + 3400 * Math.sin(x * Math.PI);
+    const v = bp(noise(), cut, 1.6) * 0.32 * Math.sin(x * Math.PI);
     return [v * (1 - x * 0.4), v * (0.6 + x * 0.4)];
   });
 }
@@ -621,10 +627,14 @@ const duck = new Float32Array(N).fill(1);
 
 // ---------- mix ----------
 const outL = new Float32Array(N), outR = new Float32Array(N);
+// A non-finite sample from any one voice used to poison the mix from that point
+// on and leave the rest of the video silent. Clamp here so one bad voice can
+// only ever lose its own sample, never the remainder of the track.
+const safe = (x) => (Number.isFinite(x) ? x : 0);
 for (let i = 0; i < N; i++) {
   const d = duck[i];
-  outL[i] = drumL[i] * 1.35 + musL[i] * d * 0.9 + rvL[i] * d * 0.42;
-  outR[i] = drumR[i] * 1.35 + musR[i] * d * 0.9 + rvR[i] * d * 0.42;
+  outL[i] = safe(drumL[i]) * 1.35 + safe(musL[i]) * d * 0.9 + safe(rvL[i]) * d * 0.42;
+  outR[i] = safe(drumR[i]) * 1.35 + safe(musR[i]) * d * 0.9 + safe(rvR[i]) * d * 0.42;
 }
 
 // gentle bus compression + soft clip + fades
