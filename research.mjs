@@ -26,13 +26,18 @@ process.chdir(dirname(fileURLToPath(import.meta.url)));
 const env = loadEnv();
 const tg = telegramConfig(env);
 const KEY = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
+// Which machine produced this. Without it, a digest from the laptop and one from
+// the cloud look identical, so there is no way to tell whether the repository
+// secret is actually working.
+const WHERE = process.env.GITHUB_ACTIONS === "true" ? "☁️ از فضای ابری" : "💻 از کامپیوتر";
 
 // Say so out loud. A silent exit is indistinguishable from a silent failure:
 // the user sends «خبر», nothing arrives, and there is no way to tell whether the
 // key is missing, the search failed, or there simply was no news.
 if (!KEY) {
   const msg =
-    "🔑 <b>کلید جستجو تنظیم نشده</b>\n\n" +
+    "🔑 <b>کلید جستجو تنظیم نشده</b>\n" +
+    "<i>" + WHERE + "</i>\n\n" +
     "برای فعال شدن جستجوی خودکار، در گیت‌هاب این را اضافه کن:\n" +
     "<b>Settings → Secrets and variables → Actions → New repository secret</b>\n\n" +
     "نام: <code>EXA_API_KEY</code>\n" +
@@ -135,7 +140,7 @@ for (const { cat, q } of QUERIES) {
 
 const text =
   `🔎 <b>گزارش هفتگی آپدیت‌ها</b>\n` +
-  `<i>${DAYS} روز گذشته</i>\n\n` +
+  `<i>${DAYS} روز گذشته · ${WHERE}</i>\n\n` +
   sections.join("\n\n") +
   (found
     ? `\n\n<b>${found}</b> مورد تازه که هنوز در بانک محتوا نیست. ` +
