@@ -1,0 +1,48 @@
+// Deletes the videos the bot last posted to Telegram.
+//
+// Usage:  node undo-send.mjs        # the last 3 (one day's batch)
+//         node undo-send.mjs 6      # the last 6
+//
+// Telegram only lets a bot delete its own messages, and only for 48 hours after
+// posting. Anything older has to be removed by hand in the app — the script says
+// so rather than failing silently.
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+import { loadEnv, telegramConfig, deleteMessage, sendMessage } from "./lib/telegram.mjs";
+
+process.chdir(dirname(fileURLToPath(import.meta.url)));
+
+const LOG = ".telegram-sent.json";
+const n = Math.max(1, Number(process.argv[2]) || 3);
+const tg = telegramConfig(loadEnv());
+
+if (!tg.enabled) { console.error("Telegram is not configured."); process.exit(1); }
+if (!existsSync(LOG)) { console.log("Nothing recorded as sent yet."); process.exit(0); }
+
+const log = JSON.parse(readFileSync(LOG, "utf8"));
+const batch = log.slice(-n);
+if (!batch.length) { console.log("Nothing to delete."); process.exit(0); }
+
+const DAY2 = 48 * 60 * 60 * 1000;
+let removed = 0, tooOld = 0, failed = [];
+
+for (const item of batch) {
+  if (Date.now() - item.at > DAY2) { tooOld++; continue; }
+  const r = await deleteMessage({ token: tg.token, chatId: tg.chatId, messageId: item.messageId });
+  if (r.ok) removed++;
+  else failed.push(`${item.platform}: ${r.error}`);
+}
+
+// keep only what is still standing
+writeFileSync(LOG, JSON.stringify(log.slice(0, log.length - batch.length).concat(
+  batch.filter((b) => Date.now() - b.at > DAY2)
+), null, 2));
+
+const lines = [`🗑 ${removed} ویدیو حذف شد.`];
+if (tooOld) lines.push(`${tooOld} تا قدیمی‌تر از ۴۸ ساعت بود و تلگرام اجازهٔ حذفش را نمی‌دهد — دستی پاکشان کن.`);
+if (failed.length) lines.push("خطا: " + failed.join(" · "));
+
+const text = lines.join("\n");
+await sendMessage({ token: tg.token, chatId: tg.chatId, text });
+console.log(text);

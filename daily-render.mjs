@@ -6,7 +6,7 @@
 //   node daily-render.mjs --4k         # today, 2160x3840
 // This script self-locates the project dir, so a scheduler can call it directly.
 import { execSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
@@ -57,6 +57,17 @@ const forcedCat = featureId ? sel[Object.keys(sel).find((k) => sel[k] && sel[k].
 const pick = only || forcedCat;
 const cats = pick ? CATEGORIES.filter((c) => c === pick) : CATEGORIES;
 if (pick && cats.length === 0) { console.error(`✗ unknown category "${pick}". Use one of: ${CATEGORIES.join(", ")}`); process.exit(1); }
+
+const SENT_LOG = ".telegram-sent.json";
+
+// A small rolling log of what the bot posted, so "پاک کن" has something to act
+// on. Kept to the last 30 entries — anything older is past the delete window.
+function recordSent(entry) {
+  let log = [];
+  try { log = JSON.parse(readFileSync(SENT_LOG, "utf8")); } catch {}
+  log.push(entry);
+  writeFileSync(SENT_LOG, JSON.stringify(log.slice(-30), null, 2));
+}
 
 const results = [];
 for (const platform of cats) {
@@ -157,9 +168,14 @@ for (const platform of cats) {
   let sent = false;
   if (tg.enabled) {
     try {
-      await sendVideo({ token: tg.token, chatId: tg.chatId, file: final, caption: pack.tgTitle });
+      const res = await sendVideo({ token: tg.token, chatId: tg.chatId, file: final, caption: pack.tgTitle });
       console.log(`   ✈ sent to Telegram`);
       sent = true;
+      // remember the message so it can be taken back; Telegram allows a bot to
+      // delete its own messages for 48 hours and nothing else
+      if (res && res.message_id) {
+        recordSent({ platform, packId: pack.id, messageId: res.message_id, at: Date.now() });
+      }
     } catch (e) {
       console.error(`   ✗ Telegram send failed: ${e.message}`);
     }

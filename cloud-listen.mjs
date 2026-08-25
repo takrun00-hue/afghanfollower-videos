@@ -42,6 +42,8 @@ if (action === "help") {
     text: "✅ سیستم ابری فعال است. هر روز ساعت ۸ صبح خودکار می‌سازد، و هر وقت «بساز» بفرستی هم می‌سازد.",
   });
   console.log("ACTION=none");
+} else if (action === "undo") {
+  console.log("ACTION=undo");
 } else if (action !== "none") {
   await sendMessage({
     token: tg.token, chatId: tg.chatId,

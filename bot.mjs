@@ -85,6 +85,12 @@ async function handle(text) {
     return say(r.ok ? `✅ ویدیوی ${LABEL[cmd.action]} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
   }
 
+  if (cmd && cmd.action === "undo") {
+    try { execSync("node undo-send.mjs", { encoding: "utf8" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;   // undo-send.mjs reports the result itself
+  }
+
   if (cmd && cmd.action === "research") {
     await say("🔎 در حال جستجوی آپدیت‌های تازه…");
     try {
