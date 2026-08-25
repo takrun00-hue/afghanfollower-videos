@@ -33,6 +33,7 @@ for (const u of updates) {
   else if (c.startsWith("انستا") || c.startsWith("اینستا") || c.startsWith("insta")) { action = "instagram"; label = "اینستاگرام"; }
   else if (c.startsWith("ابزار") || c.startsWith("tool")) { action = "tools"; label = "ابزارها"; }
   else if (c.startsWith("بساز") || c.startsWith("make") || c.startsWith("ساخت")) { action = "all"; label = "هر ۳ ویدیو"; }
+  else if (c.startsWith("خبر") || c.startsWith("تحقیق") || c.startsWith("news") || c.startsWith("research")) { action = "research"; label = "گزارش آپدیت‌ها"; }
   else if (c.startsWith("راهنما") || c.startsWith("help") || c.startsWith("start")) action = "help";
   else if (c.startsWith("وضعیت") || c.startsWith("status")) action = "status";
 }

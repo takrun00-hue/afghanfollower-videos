@@ -1,0 +1,54 @@
+name: Weekly content research
+
+# Looks for platform updates that the content bank does not cover yet and sends
+# a short Persian digest to Telegram. Costs nothing to run when EXA_API_KEY is
+# absent — research.mjs exits immediately in that case.
+on:
+  schedule:
+    # Saturdays; the guard below keeps it to 09:00 Europe/Berlin year-round.
+    - cron: "0 7 * * 6"
+    - cron: "0 8 * * 6"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back to search (default 10)"
+        required: false
+        default: ""
+
+concurrency:
+  group: research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Is it 09:00 in Germany?
+        id: gate
+        run: |
+          HOUR=$(TZ=Europe/Berlin date +%H)
+          echo "Berlin local time: $(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "$HOUR" = "09" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=no" >> "$GITHUB_OUTPUT"
+            echo "Not the 09:00 Berlin slot — skipping."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.go == 'yes'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          node-version: "22"
+
+      - name: Search and send the digest
+        if: steps.gate.outputs.go == 'yes'
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RESEARCH_DAYS: ${{ github.event.inputs.days }}
+        run: node research.mjs

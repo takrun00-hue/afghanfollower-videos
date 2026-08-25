@@ -37,7 +37,7 @@ jobs:
         run: node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
 
       - name: System packages
-        if: steps.cmd.outputs.ACTION != 'none'
+        if: steps.cmd.outputs.ACTION != 'none' && steps.cmd.outputs.ACTION != 'research'
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
@@ -45,8 +45,16 @@ jobs:
             libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
 
+      - name: Research on demand
+        if: steps.cmd.outputs.ACTION == 'research'
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node research.mjs
+
       - name: Build what was asked for
-        if: steps.cmd.outputs.ACTION != 'none'
+        if: steps.cmd.outputs.ACTION != 'none' && steps.cmd.outputs.ACTION != 'research'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
