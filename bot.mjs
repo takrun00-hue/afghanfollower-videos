@@ -85,6 +85,24 @@ async function handle(text) {
     return say(r.ok ? `✅ ویدیوی ${LABEL[cmd.action]} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
   }
 
+  if (cmd && (cmd.action === "news-breaking" || cmd.action === "news-today")) {
+    await say("📰 در حال جستجوی خبر…");
+    const flag = cmd.action === "news-today" ? " --today" : "";
+    try { execSync("node news-build.mjs --fetch" + flag, { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+
+  if (cmd && cmd.action === "news-text") {
+    const payload = text.replace(/^\s*(خبر|news)\s*[:：]\s*/i, "").trim();
+    if (payload.length < 20) return say("متن خبر خیلی کوتاه است. این شکل را بفرست:\nخبر: تیتر | جمله ۱ | جمله ۲ | جمله ۳ | جمله ۴");
+    await say("🎬 در حال ساخت ویدیوی خبری…");
+    try {
+      execSync("node news-build.mjs --text " + JSON.stringify(payload), { stdio: "inherit" });
+      return say("✅ ویدیوی خبری ساخته و فرستاده شد.");
+    } catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+  }
+
   if (cmd && cmd.action === "undo") {
     try { execSync("node undo-send.mjs", { encoding: "utf8" }); }
     catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }

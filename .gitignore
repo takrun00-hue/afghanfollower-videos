@@ -17,3 +17,4 @@ music/voice/
 .thumbnails/
 *.log
 .telegram-sent.json
+lib/generated/

@@ -41,7 +41,14 @@ const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
 
 const sel = packsForDate(date);
 if (featureId) {
-  const p = packForFeature(featureId, date);
+  // a news item just written by news-build.mjs lives in a generated file rather
+  // than in the feature banks
+  let generated = null;
+  if (args.includes("--news-generated")) {
+    const mod = await import("./lib/generated/news-current.mjs?t=" + Date.now());
+    generated = mod.CURRENT_NEWS;
+  }
+  const p = packForFeature(featureId, date, generated);
   if (!p) {
     console.error(`✗ unknown feature "${featureId}".`);
     process.exit(1);
