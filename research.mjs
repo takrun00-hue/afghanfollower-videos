@@ -46,10 +46,19 @@ if (!KEY) {
 const DAYS = Number(process.env.RESEARCH_DAYS || 10);
 const since = new Date(Date.now() - DAYS * 86400000).toISOString();
 
+// Press releases and self-submitted product directories dominate any search
+// phrased as "new free AI tool" — vendors pay to rank for exactly those words.
+// Excluding them is what separates news from advertising.
+const AD_DOMAINS = [
+  "prnewswire.com", "businesswire.com", "globenewswire.com", "einpresswire.com",
+  "peerpush.com", "producthunt.com", "betalist.com", "uneed.best",
+];
+
 const QUERIES = [
-  { cat: "instagram", q: "new Instagram feature for creators announced this month" },
-  { cat: "tiktok", q: "new TikTok feature for creators announced this month" },
-  { cat: "tools", q: "new free AI tool for video or image creators released this month" },
+  { cat: "instagram", q: "Instagram announced a new feature for creators, reported by a tech news site" },
+  { cat: "tiktok", q: "TikTok announced a new feature for creators, reported by a tech news site" },
+  // ask for editorial coverage of a tool, not for the tool's own landing page
+  { cat: "tools", q: "hands-on review or news article about a genuinely useful new AI tool for video or image creators" },
 ];
 
 // Everything the bank already teaches, so the digest only reports what is new.
@@ -86,6 +95,7 @@ async function search(q) {
       numResults: 8,
       startPublishedDate: since,
       type: "auto",
+      excludeDomains: AD_DOMAINS,
       contents: { text: { maxCharacters: 400 } },
     }),
   });
