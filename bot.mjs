@@ -93,6 +93,21 @@ async function handle(text) {
     return;
   }
 
+  if (cmd && (cmd.action === "news-germany" || cmd.action === "news-europe")) {
+    const eu = cmd.action === "news-europe";
+    await say(eu ? "🇪🇺 در حال جستجوی خبرهای اروپا و مهاجرت…" : "🇩🇪 در حال جستجوی خبرهای آلمان…");
+    try { execSync("node news-build.mjs --fetch --list" + (eu ? " --europe" : ""), { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+
+  if (cmd && cmd.action === "europe-pick") {
+    const n = String(text).replace(/[^0-9۰-۹]/g, "").replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+    await say("🎬 در حال ساخت ویدیو از خبر اروپای شمارهٔ " + n + "…");
+    try { execSync("node news-build.mjs --fetch --europe --pick " + (Number(n) || 1), { stdio: "inherit" }); return say("✅ ساخته و فرستاده شد."); }
+    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+  }
+
   if (cmd && cmd.action === "news-pick") {
     const n = String(text).replace(/[^0-9۰-۹]/g, "").replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
     await say("🎬 در حال ساخت ویدیو از خبر شمارهٔ " + n + "…");

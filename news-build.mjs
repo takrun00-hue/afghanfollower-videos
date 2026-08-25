@@ -14,7 +14,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
-import { TOPICS, topicFor, SOURCES, FA_DOMAINS } from "./lib/news-templates.mjs";
+import { TOPICS, topicFor, SOURCES, FA_DOMAINS, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -36,7 +36,9 @@ if (has("--fetch")) {
     await say("🔑 برای جستجوی خبر، EXA_API_KEY لازم است.");
     process.exit(0);
   }
-  const days = has("--today") ? 2 : 6;
+  const days = has("--today") ? 3 : 7;
+  const scope = has("--europe") ? "europe" : "germany";
+  const SC = SCOPES[scope];
 
   // Persian and Dari outlets first. They already write for this audience in this
   // language, so their sentences can be used as they stand — no translation step,
@@ -46,7 +48,7 @@ if (has("--fetch")) {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": KEY },
       body: JSON.stringify({
-        query: "خبر تازه دربارهٔ مهاجران و پناهجویان افغان در آلمان و اروپا: اخراج، پناهندگی، اقامت، ویزا، رأی دادگاه",
+        query: SC.query,
         numResults: 10,
         startPublishedDate: new Date(Date.now() - (days + extraDays) * 86400000).toISOString(),
         includeDomains: domains,
@@ -58,11 +60,22 @@ if (has("--fetch")) {
     return (await res.json()).results || [];
   }
 
-  let results = await search(FA_DOMAINS);
-  if (!results.length) results = await search(FA_DOMAINS, 8);
+  const keep = (rs) => rs.filter((r) => inScope(scope, r.title, String(r.text || "").slice(0, 600)));
+  // Germany first asks Amal, whose whole beat is Afghans living in Germany, then
+  // widens to the general Persian outlets if that turns up nothing.
+  let results = [];
+  if (scope === "germany") {
+    results = keep(await search(DE_DOMAINS));
+    const wider = keep(await search(FA_DOMAINS));
+    const seen = new Set(results.map((r) => r.url));
+    results = results.concat(wider.filter((r) => !seen.has(r.url)));
+  } else {
+    results = keep(await search(FA_DOMAINS));
+  }
+  if (!results.length) results = keep(await search(FA_DOMAINS, 10));
 
   if (!results.length) {
-    await say("📭 در منابع فارسی/دری مورد اعتماد، خبر تازه‌ای دربارهٔ افغان‌ها پیدا نشد.");
+    await say(`📭 ${SC.label}: خبر تازه‌ای در این حوزه پیدا نشد.`);
     process.exit(0);
   }
 
@@ -73,8 +86,8 @@ if (has("--fetch")) {
     const lines = results.slice(0, 6).map((r, i) =>
       `${i + 1}. <a href="${r.url}">${String(r.title).slice(0, 90)}</a>\n   <i>${new URL(r.url).hostname.replace(/^www\./, "")} · ${String(r.publishedDate || "").slice(0, 10)}</i>`
     );
-    await say("📰 <b>خبرهای تازه دربارهٔ افغان‌ها</b>\n\n" + lines.join("\n\n") +
-      "\n\nبرای ساخت ویدیو از یکی، شماره‌اش را بفرست: <code>خبر ۱</code>");
+    await say(`📰 <b>${SC.label}</b>\n\n` + lines.join("\n\n") +
+      `\n\nبرای ساخت ویدیو از یکی، شماره‌اش را بفرست: <code>${scope === "europe" ? "اروپا" : "خبر"} ۱</code>`);
     process.exit(0);
   }
 
