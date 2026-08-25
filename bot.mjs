@@ -87,8 +87,16 @@ async function handle(text) {
 
   if (cmd && cmd.action === "research") {
     await say("🔎 در حال جستجوی آپدیت‌های تازه…");
-    try { execSync("node research.mjs", { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    try {
+      const out = execSync("node research.mjs", { encoding: "utf8" });
+      const line = out.trim().split(String.fromCharCode(10)).pop() || "";
+      if (/sent digest/.test(line)) return;                 // the digest speaks for itself
+      if (/not set/.test(line)) return;                     // research.mjs already explained
+      await say("⚠️ جستجو تمام شد ولی گزارشی فرستاده نشد: " + line.slice(0, 160));
+    } catch (e) {
+      const msg = [e.stdout, e.stderr, e.message].filter(Boolean).join(" ").trim();
+      await say("✗ خطای جستجو: " + msg.split(String.fromCharCode(10)).slice(-1)[0].slice(0, 200));
+    }
     return;
   }
 
