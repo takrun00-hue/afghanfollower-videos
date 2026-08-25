@@ -1,7 +1,12 @@
 name: Telegram commands
 
-# Checks Telegram for a command every few minutes and builds in the cloud when
-# one arrives — so videos can be ordered from the phone with the PC switched off.
+# Checks Telegram for a command every few minutes and acts on it in the cloud —
+# so videos can be ordered from the phone with the PC switched off.
+#
+# Every action the command parser can return must be handled here. It was not:
+# after the news commands were added, the listener started returning actions like
+# "news-germany" and this workflow passed them to `--only`, which is a category
+# flag. Twelve runs in a row failed on "unknown category" before anyone looked.
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -36,8 +41,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
 
-      - name: System packages
-        if: steps.cmd.outputs.ACTION != 'none' && steps.cmd.outputs.ACTION != 'research' && steps.cmd.outputs.ACTION != 'undo'
+      # Only the actions that actually render a video need ffmpeg and a headless
+      # browser. Listing news or deleting a message does not.
+      - name: System packages (ffmpeg + headless Chrome libs)
+        if: contains(fromJSON('["all","tiktok","instagram","tools","news-breaking","news-pick","europe-pick","news-text"]'), steps.cmd.outputs.ACTION)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
@@ -45,23 +52,9 @@ jobs:
             libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
 
-      - name: Undo the last send
-        if: steps.cmd.outputs.ACTION == 'undo'
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node undo-send.mjs
-
-      - name: Research on demand
-        if: steps.cmd.outputs.ACTION == 'research'
-        env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node research.mjs
-
-      - name: Build what was asked for
-        if: steps.cmd.outputs.ACTION != 'none' && steps.cmd.outputs.ACTION != 'research'
+      # ---- tutorials -------------------------------------------------------
+      - name: Build tutorial videos
+        if: contains(fromJSON('["all","tiktok","instagram","tools"]'), steps.cmd.outputs.ACTION)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -70,4 +63,55 @@ jobs:
             node daily-render.mjs
           else
             node daily-render.mjs --only "${{ steps.cmd.outputs.ACTION }}"
+          fi
+
+      - name: Research digest
+        if: steps.cmd.outputs.ACTION == 'research'
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node research.mjs
+
+      # ---- news channel ----------------------------------------------------
+      - name: List news
+        if: contains(fromJSON('["news-germany","news-europe","news-today"]'), steps.cmd.outputs.ACTION)
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          case "${{ steps.cmd.outputs.ACTION }}" in
+            news-europe) node news-build.mjs --fetch --list --europe ;;
+            news-today)  node news-build.mjs --fetch --list --today ;;
+            *)           node news-build.mjs --fetch --list ;;
+          esac
+
+      - name: Build a news video
+        if: contains(fromJSON('["news-breaking","news-pick","europe-pick","news-text"]'), steps.cmd.outputs.ACTION)
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PICK: ${{ steps.cmd.outputs.PICK }}
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+        run: |
+          case "${{ steps.cmd.outputs.ACTION }}" in
+            news-pick)   node news-build.mjs --fetch --pick "${PICK:-1}" ;;
+            europe-pick) node news-build.mjs --fetch --europe --pick "${PICK:-1}" ;;
+            news-text)   node news-build.mjs --text "$PAYLOAD" ;;
+            *)           node news-build.mjs --fetch ;;
+          esac
+
+      # ---- deleting --------------------------------------------------------
+      - name: Undo the last send
+        if: contains(fromJSON('["undo","undo-news"]'), steps.cmd.outputs.ACTION)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ "${{ steps.cmd.outputs.ACTION }}" = "undo-news" ]; then
+            node undo-send.mjs 1 --news
+          else
+            node undo-send.mjs 3 --daily
           fi

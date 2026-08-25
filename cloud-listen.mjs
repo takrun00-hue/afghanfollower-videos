@@ -21,14 +21,25 @@ const stored = existsSync(STATE) ? Number(readFileSync(STATE, "utf8").trim()) ||
 // timeout=0 → return immediately; a scheduled job must not sit and wait
 const updates = await getUpdates({ token: tg.token, offset: stored ? stored + 1 : 0, timeout: 0 });
 
-let action = "none", label = "", highest = stored;
+let action = "none", label = "", highest = stored, pick = 1, payloadText = "";
+
+const cleanPayload = (t) =>
+  String(t)
+    .replace(/^\s*(?:خبر|news)\s*[:：]\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 900);
 
 for (const u of updates) {
   highest = Math.max(highest, u.update_id);
   const msg = u.message || u.channel_post;
   if (!msg || String(msg.chat.id) !== String(tg.chatId) || !msg.text) continue;
   const cmd = parseCommand(msg.text);
-  if (cmd) { action = cmd.action; label = cmd.label; }
+  if (cmd) {
+    action = cmd.action; label = cmd.label; payloadText = msg.text;
+    const digits = String(msg.text).replace(/[^0-9۰-۹]/g, "").replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+    pick = Number(digits) || 1;
+  }
 }
 
 writeFileSync(STATE, String(highest));
@@ -50,6 +61,10 @@ if (action === "help") {
     text: `🎬 دستور دریافت شد: ${label}. ساخت در فضای ابری شروع شد — چند دقیقه صبر کن.`,
   });
   console.log(`ACTION=${action}`);
+  console.log(`PICK=${pick}`);
+  // strip the "خبر:" prefix and flatten newlines — GITHUB_OUTPUT is line-based,
+  // so a multi-line value would break the parsing of everything after it
+  console.log(`PAYLOAD=${cleanPayload(payloadText)}`);
 } else {
   console.log("ACTION=none");
 }
