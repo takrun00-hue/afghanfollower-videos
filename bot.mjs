@@ -87,10 +87,17 @@ async function handle(text) {
 
   if (cmd && (cmd.action === "news-breaking" || cmd.action === "news-today")) {
     await say("📰 در حال جستجوی خبر…");
-    const flag = cmd.action === "news-today" ? " --today" : "";
+    const flag = cmd.action === "news-today" ? " --today --list" : "";
     try { execSync("node news-build.mjs --fetch" + flag, { stdio: "inherit" }); }
     catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
     return;
+  }
+
+  if (cmd && cmd.action === "news-pick") {
+    const n = String(text).replace(/[^0-9۰-۹]/g, "").replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+    await say("🎬 در حال ساخت ویدیو از خبر شمارهٔ " + n + "…");
+    try { execSync("node news-build.mjs --fetch --pick " + (Number(n) || 1), { stdio: "inherit" }); return say("✅ ساخته و فرستاده شد."); }
+    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
   }
 
   if (cmd && cmd.action === "news-text") {

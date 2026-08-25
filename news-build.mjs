@@ -14,7 +14,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
-import { TOPICS, topicFor, SOURCE_DOMAINS } from "./lib/news-templates.mjs";
+import { TOPICS, topicFor, SOURCES, FA_DOMAINS } from "./lib/news-templates.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -36,52 +36,83 @@ if (has("--fetch")) {
     await say("🔑 برای جستجوی خبر، EXA_API_KEY لازم است.");
     process.exit(0);
   }
-  const days = has("--today") ? 2 : 5;
-  const res = await fetch("https://api.exa.ai/search", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": KEY },
-    body: JSON.stringify({
-      query: "news about Afghan refugees and migrants in Germany or Europe: asylum, deportation, visa, court ruling",
-      numResults: 6,
-      startPublishedDate: new Date(Date.now() - days * 86400000).toISOString(),
-      includeDomains: SOURCE_DOMAINS,
-      type: "auto",
-      contents: { text: { maxCharacters: 1200 } },
-    }),
-  });
-  const j = await res.json();
-  const top = (j.results || [])[0];
-  if (!top) {
-    await say("📭 در منابع مورد اعتماد، خبر تازه‌ای دربارهٔ افغان‌ها پیدا نشد.");
+  const days = has("--today") ? 2 : 6;
+
+  // Persian and Dari outlets first. They already write for this audience in this
+  // language, so their sentences can be used as they stand — no translation step,
+  // which is where a migration story would pick up errors.
+  async function search(domains, extraDays = 0) {
+    const res = await fetch("https://api.exa.ai/search", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": KEY },
+      body: JSON.stringify({
+        query: "خبر تازه دربارهٔ مهاجران و پناهجویان افغان در آلمان و اروپا: اخراج، پناهندگی، اقامت، ویزا، رأی دادگاه",
+        numResults: 10,
+        startPublishedDate: new Date(Date.now() - (days + extraDays) * 86400000).toISOString(),
+        includeDomains: domains,
+        type: "auto",
+        contents: { text: { maxCharacters: 2000 } },
+      }),
+    });
+    if (!res.ok) throw new Error("Exa " + res.status + ": " + (await res.text()).slice(0, 160));
+    return (await res.json()).results || [];
+  }
+
+  let results = await search(FA_DOMAINS);
+  if (!results.length) results = await search(FA_DOMAINS, 8);
+
+  if (!results.length) {
+    await say("📭 در منابع فارسی/دری مورد اعتماد، خبر تازه‌ای دربارهٔ افغان‌ها پیدا نشد.");
     process.exit(0);
   }
-  headline = String(top.title || "").trim();
-  source = `${new URL(top.url).hostname.replace(/^www\./, "")} · ${String(top.publishedDate || "").slice(0, 10)}`;
+
+  // Newest first — a two-day-old story is not "فوری".
+  results.sort((a, b) => String(b.publishedDate || "").localeCompare(String(a.publishedDate || "")));
+
+  if (has("--list")) {
+    const lines = results.slice(0, 6).map((r, i) =>
+      `${i + 1}. <a href="${r.url}">${String(r.title).slice(0, 90)}</a>\n   <i>${new URL(r.url).hostname.replace(/^www\./, "")} · ${String(r.publishedDate || "").slice(0, 10)}</i>`
+    );
+    await say("📰 <b>خبرهای تازه دربارهٔ افغان‌ها</b>\n\n" + lines.join("\n\n") +
+      "\n\nبرای ساخت ویدیو از یکی، شماره‌اش را بفرست: <code>خبر ۱</code>");
+    process.exit(0);
+  }
+
+  const pick = Math.max(1, Number(arg("--pick")) || 1) - 1;
+  const top = results[Math.min(pick, results.length - 1)];
+
+  headline = String(top.title || "").replace(/\s*[-–|]\s*(BBC News دری|DW\.com|.*اینترنشنال).*$/, "").trim();
+  const host = new URL(top.url).hostname.replace(/^www\./, "");
+  const known = Object.values(SOURCES).find((x) => host.includes(x.domain));
+  source = `${known ? known.name : host} · ${String(top.publishedDate || "").slice(0, 10)}`;
+
+  // Persian sentences, long enough to carry a fact, short enough to read on a card
   body = String(top.text || "")
-    .split(/(?<=[.!?؟])\s+/)
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!؟])\s+/)
     .map((x) => x.trim())
-    .filter((x) => x.length > 40)
-    .slice(0, 4);
-  // The fetched text is German or English; a person still has to write the
-  // Persian. Say so rather than publishing a machine-mangled translation.
-  await say(
-    `📰 <b>خبر تازه پیدا شد</b>\n\n<b>${headline}</b>\n${source}\n<a href="${top.url}">لینک خبر</a>\n\n` +
-      `متن فارسی‌اش را بنویس و بفرست تا ویدیو بسازم:\n<code>خبر: تیتر | جملهٔ ۱ | جملهٔ ۲ | جملهٔ ۳ | جملهٔ ۴</code>`
-  );
-  process.exit(0);
+    .filter((x) => x.length > 45 && x.length < 190)
+    .slice(0, 6);
+
+  if (body.length < 2) {
+    await say(`📰 <b>${headline}</b>\n${source}\n<a href="${top.url}">لینک</a>\n\n` +
+      "متن این خبر برای ساخت خودکار کافی نبود. جمله‌ها را خودت بفرست:\n" +
+      "<code>خبر: تیتر | جمله ۱ | جمله ۲ | جمله ۳ | جمله ۴</code>");
+    process.exit(0);
+  }
 }
 
 const text = arg("--text");
-if (!text) {
+if (!text && !has("--fetch")) {
   console.error('usage: node news-build.mjs --text "تیتر | جمله ۱ | جمله ۲ | جمله ۳ | جمله ۴" [--source "DW · تاریخ"]');
   process.exit(1);
 }
 
-if (text.includes("|")) {
+if (text && text.includes("|")) {
   const parts = text.split("|").map((x) => x.trim()).filter(Boolean);
   headline = parts[0];
   body = parts.slice(1, 9);
-} else {
+} else if (text) {
   const sentences = text.split(/(?<=[.!?؟])\s+/).map((x) => x.trim()).filter(Boolean);
   headline = sentences[0] || text.slice(0, 90);
   body = sentences.slice(1, 9);
