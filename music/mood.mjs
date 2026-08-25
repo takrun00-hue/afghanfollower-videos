@@ -15,21 +15,24 @@
 // cut times and the rendered audio can never disagree about the tempo.
 
 export const MOODS = {
+  // Every mood is upbeat — the channel's videos are cheerful how-tos, so even the
+  // "focused" one should feel good. Lead melody is always on: a track without a
+  // tune reads as background noise rather than something you want to hear.
   // focused, driving — data, keywords, analytics, rules
-  focus: { bpm: [112, 120], bright: 0.80, groove: "four", palette: "soft",
-           useLead: false, usePluck: true, openHats: false, swing: 0.010 },
+  focus: { bpm: [120, 128], bright: 1.00, groove: "four", palette: "bright",
+           useLead: true, usePluck: true, openHats: true, swing: 0.010 },
   // warm and melodic — anything about sound, music or voice
-  warm: { bpm: [100, 108], bright: 0.72, groove: "half", palette: "soft",
-          useLead: true, usePluck: true, openHats: true, swing: 0.028 },
+  warm: { bpm: [116, 124], bright: 1.02, groove: "half", palette: "soft",
+          useLead: true, usePluck: true, openHats: true, swing: 0.022 },
   // bright and lifting — growth, publishing, reach, monetisation
-  lift: { bpm: [124, 132], bright: 1.06, groove: "four", palette: "bright",
+  lift: { bpm: [126, 134], bright: 1.16, groove: "four", palette: "bright",
           useLead: true, usePluck: true, openHats: true, swing: 0.006 },
   // clean and modern — creation tools, editing, design
-  craft: { bpm: [118, 126], bright: 0.94, groove: "broken", palette: "saw",
-           useLead: true, usePluck: false, openHats: true, swing: 0.014 },
+  craft: { bpm: [122, 130], bright: 1.08, groove: "broken", palette: "bright",
+           useLead: true, usePluck: true, openHats: true, swing: 0.014 },
   // punchy and playful — social features, stories, community
-  play: { bpm: [126, 134], bright: 1.00, groove: "broken", palette: "bright",
-          useLead: true, usePluck: true, openHats: true, swing: 0.020 },
+  play: { bpm: [128, 136], bright: 1.12, groove: "broken", palette: "bright",
+          useLead: true, usePluck: true, openHats: true, swing: 0.018 },
 };
 
 // Which mood a video gets, read from what it actually teaches.

@@ -36,6 +36,16 @@ const PROGRESSIONS = [
   { off: [0, 3, 5, 7], typ: ["min", "maj", "maj", "maj"] },   // i - III - IV - V
   { off: [0, -2, 5, -4], typ: ["maj", "min", "maj", "maj"] }, // I - vi - IV - VI
 ];
+// Bright, unambiguously happy progressions — every one opens on a major chord
+// and resolves upward. Short-form needs to feel good in the first bar, and a
+// track that opens on a minor chord reads as serious no matter how fast it is.
+const HAPPY_PROGRESSIONS = [
+  { off: [0, 5, 7, 5], typ: ["maj", "maj", "maj", "maj"] },   // I - IV - V - IV
+  { off: [0, 7, 5, 7], typ: ["maj", "maj", "maj", "maj"] },   // I - V - IV - V
+  { off: [0, 5, -3, 7], typ: ["maj", "maj", "maj", "maj"] },  // I - IV - bVI - V
+  { off: [0, 2, 5, 7], typ: ["maj", "min", "maj", "maj"] },   // I - ii - IV - V
+  { off: [0, 9, 5, 7], typ: ["maj", "min", "maj", "maj"] },   // I - vi - IV - V
+];
 const MOTIFS = [
   [0, 3, 7, 3, 5, 3, 0, -2],
   [7, 5, 4, 0, 2, 4, 7, 9],
@@ -51,7 +61,8 @@ const MOOD = process.env.MUSIC_MOOD || "";
 const _moodBpm = Number(process.env.MUSIC_BPM || 0);
 const _bpm = _moodBpm || 116 + Math.floor(SR_() * 20);
 const _key = 53 + Math.floor(SR_() * 8);          // F3..C4 centre
-const _prog = pick(PROGRESSIONS);
+const HAPPY = process.env.MUSIC_HAPPY !== "0";
+const _prog = pick(HAPPY ? HAPPY_PROGRESSIONS : PROGRESSIONS);
 const V = {
   bpm: _bpm,
   key: "seed" + VAR,
