@@ -2,6 +2,8 @@
 // Both the synth (which renders the audio) and the composition builder (which
 // places the cuts) read this, so every cut still lands on a beat even though the
 // tempo now comes from the chosen style rather than a fixed table.
+import { bpmFor } from "./mood.mjs";
+
 export const STYLES = ["uplift", "lofi", "cinematic", "percussive", "trap", "corporate"];
 
 const TEMPO = {
@@ -22,18 +24,17 @@ function mulberry32(a) {
   };
 }
 
-export function styleFor(seed) {
-  // MUST match music/synth.mjs: bpm is the first draw from the seeded RNG.
-  const s = Math.max(1, Math.floor(seed || 1));
-  const R = mulberry32((s * 2654435761) % 2147483647 || 7);
-  const bpm = 116 + Math.floor(R() * 20);
-  return { style: "energetic", bpm, beat: 60 / bpm };
+export function styleFor(seed, mood) {
+  // Tempo comes from music/mood.mjs so the composition's cut times and the
+  // rendered audio can never disagree — there is exactly one bpm function.
+  const bpm = bpmFor(seed, mood);
+  return { style: mood || "play", bpm, beat: 60 / bpm };
 }
 
 // Slow styles need fewer beats to fill the same wall-clock time, so the section
 // lengths are derived from the tempo instead of being hard-coded.
-export function beatPlan(seed, targetSeconds, tipCount) {
-  const { beat } = styleFor(seed);
+export function beatPlan(seed, targetSeconds, tipCount, mood) {
+  const { beat } = styleFor(seed, mood);
   const total = Math.max(8, Math.round(targetSeconds / beat));
   const hook = Math.max(3, Math.round(total * 0.16));
   const outro = Math.max(3, Math.round(total * 0.2));

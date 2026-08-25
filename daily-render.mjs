@@ -14,6 +14,8 @@ import { buildHTML } from "./lib/build.mjs";
 import { buildInkHTML } from "./lib/build-ink.mjs";
 import { buildNeonHTML } from "./lib/build-neon.mjs";
 import { packsForDate, CATEGORIES } from "./lib/content.mjs";
+import { sceneArtPlan } from "./lib/scene-art.mjs";
+import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo } from "./lib/telegram.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -87,7 +89,17 @@ for (const platform of cats) {
   if (pack.duration && pack.musicVariant) {
     execSync(
       `node music/make-one.mjs ${pack.duration} ${pack.musicVariant} "${pack.music}" ${pack.musicOutroBars || 4}`,
-      { stdio: "inherit", env: { ...process.env, MUSIC_CUTS: cutTimes.join(",") } }
+      {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          MUSIC_CUTS: cutTimes.join(","),
+          // mood from the video's topic, one accent per slide from that slide's art
+          MUSIC_MOOD: pack.mood || "",
+          MUSIC_BPM: String(pack.bpm || ""),
+          MUSIC_ACCENTS: accentSpec(cutTimes, ["", ...sceneArtPlan(pack.tips)]),
+        },
+      }
     );
   }
   if (!existsSync(music)) music = "music/bed-60s-v1.m4a";

@@ -6,6 +6,7 @@
 // filtered plucks w/ dotted-8th delay, lead hook, risers/impacts, sidechain
 // pumping, Schroeder reverb, and an intro→build→drop→break→drop→outro arc.
 import { writeFileSync } from "node:fs";
+import { moodParams, MOODS } from "./mood.mjs";
 
 const DUR = Number(process.argv[2]) || 60;
 const VAR = Math.max(1, Math.floor(Number(process.argv[3]) || 1)); // seed
@@ -24,6 +25,7 @@ function seedRand(a) {
   };
 }
 const SR_ = seedRand((VAR * 2654435761) % 2147483647 || 7);
+const MOOD_PARAMS = Object.fromEntries(Object.keys(MOODS).map((k) => [k, moodParams(k)]));
 const pick = (arr) => arr[Math.floor(SR_() * arr.length)];
 
 // chord-root offsets in semitones from the key centre (bar 1..4)
@@ -42,7 +44,12 @@ const MOTIFS = [
   [0, 2, 3, 5, 7, 5, 3, 2],
 ];
 
-const _bpm = 116 + Math.floor(SR_() * 20);        // 116..135
+// The mood comes from the video's content (music/mood.mjs). The seed still
+// varies key, chords and motif so two videos of the same mood differ, but tempo
+// and instrumentation follow what the video is ABOUT.
+const MOOD = process.env.MUSIC_MOOD || "";
+const _moodBpm = Number(process.env.MUSIC_BPM || 0);
+const _bpm = _moodBpm || 116 + Math.floor(SR_() * 20);
 const _key = 53 + Math.floor(SR_() * 8);          // F3..C4 centre
 const _prog = pick(PROGRESSIONS);
 const V = {
@@ -60,6 +67,10 @@ const V = {
   groove: ["four", "half", "broken"][Math.floor(SR_() * 3)],
   palette: ["saw", "soft", "bright"][Math.floor(SR_() * 3)],
 };
+if (MOOD) {
+  const P = MOOD_PARAMS[MOOD];
+  if (P) Object.assign(V, P);
+}
 const BPM = V.bpm, beat = 60 / BPM, bar = beat * 4, eighth = beat / 2, sixteenth = beat / 4;
 
 // ---------- buses ----------
@@ -452,6 +463,15 @@ function openingHit() {
 const CUTS = String(process.env.MUSIC_CUTS || "")
   .split(",").map(Number).filter((t) => t > 0.05 && t < DUR - 0.05);
 
+// Each slide's accent is chosen from that slide's own art (music/mood.mjs), so
+// the ear hears WHICH kind of step just happened: sending rises and releases,
+// writing ticks, opening clicks, finishing chimes, audio sweeps.
+// Format: "12.34:riser,15.02:tick"
+const ACCENTS = String(process.env.MUSIC_ACCENTS || "")
+  .split(",")
+  .map((p) => { const [t, k] = p.split(":"); return { t: Number(t), k: (k || "").trim() }; })
+  .filter((a) => a.t > 0.05 && a.t < DUR - 0.05 && a.k);
+
 function whoosh(t0, wdur) {
   const bp = svf(), hp = svfHP();
   write(musL, musR, t0, wdur, (t) => {
@@ -477,7 +497,63 @@ function hit(t0) {
 
 // paint the accents last so they sit on top of the arrangement
 openingHit();
-for (const c of CUTS) { whoosh(Math.max(0, c - 0.45), 0.45); hit(c); }
+
+// ---- per-slide accent voices ------------------------------------------------
+// A tick that reads as typing: short, dry, mid-band clicks.
+function tick(t0) {
+  for (let i = 0; i < 4; i++) {
+    const lp = svf();
+    write(drumL, drumR, t0 - 0.18 + i * 0.06, 0.07, (t) => {
+      const v = lp(noise(), 2600, 1.2) * Math.exp(-t * 90) * 0.30;
+      return [v, v * 0.92];
+    });
+  }
+}
+// A single bright click, like a UI tap.
+function click(t0) {
+  const hp = svfHP();
+  write(drumL, drumR, t0, 0.16, (t) => {
+    const v = hp(noise(), 2200) * Math.exp(-t * 46) * 0.34
+            + Math.sin(2 * Math.PI * 1400 * t) * Math.exp(-t * 60) * 0.16;
+    return [v, v];
+  });
+}
+// A bright bell that says "done".
+function chime(t0) {
+  const f = 1174.7; // D6
+  write(musL, musR, t0, 1.1, (t) => {
+    const e = Math.exp(-t * 4.2);
+    const v = (Math.sin(2 * Math.PI * f * t) * 0.5
+             + Math.sin(2 * Math.PI * f * 2.01 * t) * 0.22
+             + Math.sin(2 * Math.PI * f * 3.02 * t) * 0.10) * e * 0.30;
+    return [v * 0.9, v];
+  });
+  write(revL, revR, t0, 1.1, (t) => {
+    const v = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 4.2) * 0.16;
+    return [v, v];
+  });
+}
+// A filter sweep across the noise floor — the sound of audio being processed.
+function sweep(t0) {
+  const bp = svf();
+  write(musL, musR, t0 - 0.3, 0.85, (t) => {
+    const x = Math.min(1, t / 0.85);
+    const v = bp(noise(), 300 + 4200 * Math.sin(x * Math.PI), 3.2) * 0.34
+            * Math.sin(x * Math.PI);
+    return [v * (1 - x * 0.4), v * (0.6 + x * 0.4)];
+  });
+}
+
+for (const c of CUTS) {
+  const a = ACCENTS.find((x) => Math.abs(x.t - c) < 0.06);
+  const kind = a ? a.k : "impact";
+  if (kind === "riser") { whoosh(Math.max(0, c - 0.55), 0.55); hit(c); }
+  else if (kind === "tick") { tick(c); click(c); }
+  else if (kind === "click") { click(c); }
+  else if (kind === "chime") { chime(c); hit(c); }
+  else if (kind === "sweep") { sweep(c); hit(c); }
+  else { whoosh(Math.max(0, c - 0.45), 0.45); hit(c); }
+}
 
 // ---------- delay (dotted 8th feedback) ----------
 {

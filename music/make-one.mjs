@@ -21,7 +21,7 @@ const wav = outM4a.replace(/\.m4a$/, ".wav");
 
 execFileSync("node", ["music/synth.mjs", String(dur), String(variant), wav], {
   stdio: "inherit",
-  env: { ...process.env, MUSIC_OUTRO_BARS: String(outroBars) },
+  env: { ...process.env, MUSIC_OUTRO_BARS: String(outroBars) },  // MUSIC_MOOD/BPM/ACCENTS pass through
 });
 execFileSync("ffmpeg", [
   "-y", "-hide_banner", "-loglevel", "error", "-i", wav,
