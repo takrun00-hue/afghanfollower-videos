@@ -33,10 +33,14 @@ export const MOODS = {
   // punchy and playful — social features, stories, community
   play: { bpm: [128, 136], bright: 1.12, groove: "broken", palette: "bright",
           useLead: true, usePluck: true, openHats: true, swing: 0.018 },
+  // steady and serious — a deportation story must not sound celebratory
+  news: { bpm: [96, 104], bright: 0.72, groove: "half", palette: "soft",
+          useLead: false, usePluck: true, openHats: false, swing: 0.004 },
 };
 
 // Which mood a video gets, read from what it actually teaches.
 export function moodFor(pack) {
+  if (pack.platform === "news" || /bverfg|legal-route|deport|asylum/.test(String(pack.id))) return "news";
   const id = String(pack.id || "").toLowerCase();
   const text = (
     (pack.feature || "") + " " + (pack.hook?.l1 || "") + " " + (pack.hook?.l2 || "") + " " +

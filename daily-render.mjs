@@ -55,8 +55,9 @@ mkdirSync(outDir, { recursive: true });
 
 const forcedCat = featureId ? sel[Object.keys(sel).find((k) => sel[k] && sel[k].id === featureId)]?.platform : null;
 const pick = only || forcedCat;
-const cats = pick ? CATEGORIES.filter((c) => c === pick) : CATEGORIES;
-if (pick && cats.length === 0) { console.error(`✗ unknown category "${pick}". Use one of: ${CATEGORIES.join(", ")}`); process.exit(1); }
+const ALL_CATS = forcedCat && !CATEGORIES.includes(forcedCat) ? [...CATEGORIES, forcedCat] : CATEGORIES;
+const cats = pick ? ALL_CATS.filter((c) => c === pick) : CATEGORIES;
+if (pick && cats.length === 0) { console.error(`✗ unknown category "${pick}". Use one of: ${ALL_CATS.join(", ")}`); process.exit(1); }
 
 const SENT_LOG = ".telegram-sent.json";
 
