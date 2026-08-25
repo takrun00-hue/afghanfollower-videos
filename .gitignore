@@ -18,3 +18,5 @@ music/voice/
 *.log
 .telegram-sent.json
 lib/generated/
+renders/news/
+compositions/news/

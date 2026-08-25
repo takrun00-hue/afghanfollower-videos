@@ -20,8 +20,11 @@ const tg = telegramConfig(loadEnv());
 if (!tg.enabled) { console.error("Telegram is not configured."); process.exit(1); }
 if (!existsSync(LOG)) { console.log("Nothing recorded as sent yet."); process.exit(0); }
 
-const log = JSON.parse(readFileSync(LOG, "utf8"));
-const batch = log.slice(-n);
+const all = JSON.parse(readFileSync(LOG, "utf8"));
+const want = process.argv.includes("--news") ? "news" : process.argv.includes("--daily") ? "daily" : null;
+const log = all;
+const pool = want ? all.filter((x) => (x.kind || "daily") === want) : all;
+const batch = pool.slice(-n);
 if (!batch.length) { console.log("Nothing to delete."); process.exit(0); }
 
 const DAY2 = 48 * 60 * 60 * 1000;
@@ -35,9 +38,8 @@ for (const item of batch) {
 }
 
 // keep only what is still standing
-writeFileSync(LOG, JSON.stringify(log.slice(0, log.length - batch.length).concat(
-  batch.filter((b) => Date.now() - b.at > DAY2)
-), null, 2));
+const removedIds = new Set(batch.filter((b) => Date.now() - b.at <= DAY2).map((b) => b.messageId));
+writeFileSync(LOG, JSON.stringify(all.filter((x) => !removedIds.has(x.messageId)), null, 2));
 
 const lines = [`🗑 ${removed} ویدیو حذف شد.`];
 if (tooOld) lines.push(`${tooOld} تا قدیمی‌تر از ۴۸ ساعت بود و تلگرام اجازهٔ حذفش را نمی‌دهد — دستی پاکشان کن.`);

@@ -55,8 +55,12 @@ if (featureId) {
   }
   sel[p.platform] = p;
 }
-const compDir = `compositions/daily/${iso}`;
-const outDir = `renders/daily/${iso}`;
+// A news run is a separate channel: separate folder, separate filename, and a
+// separate manifest, so it can never overwrite the tutorials' record for the day.
+const isNewsRun = !!featureId && (args.includes("--news-generated") ||
+  ["bverfg-ruling", "legal-route-works"].includes(featureId) || /^news-/.test(featureId));
+const compDir = isNewsRun ? `compositions/news/${iso}` : `compositions/daily/${iso}`;
+const outDir = isNewsRun ? `renders/news/${iso}` : `renders/daily/${iso}`;
 mkdirSync(compDir, { recursive: true });
 mkdirSync(outDir, { recursive: true });
 
@@ -159,7 +163,10 @@ for (const platform of cats) {
   }
 
   const silent = `${outDir}/${platform}-silent.mp4`;
-  const final = `${outDir}/afghanfollower-${platform}-${iso}.mp4`;
+  const stamp = isNewsRun ? new Date().toISOString().slice(11, 16).replace(":", "") : "";
+  const final = isNewsRun
+    ? `${outDir}/khabar-${iso}-${stamp}.mp4`
+    : `${outDir}/afghanfollower-${platform}-${iso}.mp4`;
   console.log(`\n=== ${platform} (${pack.id}) — ${is4k ? "4K" : "1080p"} — ${music} ===`);
   execSync(`${HF} render -c "${comp}" --quality high --fps 30 ${resFlag} --skill=faceless-explainer -o "${silent}"`, { stdio: "inherit" });
   if (voice) {
@@ -182,7 +189,7 @@ for (const platform of cats) {
       // remember the message so it can be taken back; Telegram allows a bot to
       // delete its own messages for 48 hours and nothing else
       if (res && res.message_id) {
-        recordSent({ platform, packId: pack.id, messageId: res.message_id, at: Date.now() });
+        recordSent({ kind: isNewsRun ? "news" : "daily", platform, packId: pack.id, messageId: res.message_id, at: Date.now() });
       }
     } catch (e) {
       console.error(`   ✗ Telegram send failed: ${e.message}`);
@@ -195,5 +202,5 @@ if (!tg.enabled && !noTelegram) {
   console.log("\nℹ Telegram not configured — videos saved locally only. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env to auto-send.");
 }
 
-writeFileSync(`${outDir}/manifest.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
+writeFileSync(`${outDir}/${isNewsRun ? "news-manifest" : "manifest"}.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
 console.log(`\n✅ ${iso}: ${results.length} videos ready in ${outDir}\n` + results.map((r) => "   " + r.file).join("\n"));

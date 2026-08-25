@@ -125,6 +125,12 @@ async function handle(text) {
     } catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
   }
 
+  if (cmd && cmd.action === "undo-news") {
+    try { execSync("node undo-send.mjs 1 --news", { encoding: "utf8" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+
   if (cmd && cmd.action === "undo") {
     try { execSync("node undo-send.mjs", { encoding: "utf8" }); }
     catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
