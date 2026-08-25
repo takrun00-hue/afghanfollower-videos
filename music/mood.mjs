@@ -87,10 +87,25 @@ const ACCENT_BY_ART = {
   write: "tick", chat: "tick",
   browser: "click", menu: "click", toolbox: "click", phone: "click", chip: "click",
   sparkle: "chime", star: "chime", heart: "chime", wand: "chime", play: "chime",
+  bookmark: "chime", resume: "impact", studio: "sweep", screen: "click", brand: "click",
   mic: "sweep", wave: "sweep", music: "sweep", globe: "sweep",
   chart: "impact", trend: "impact", target: "impact", search: "impact",
   camera: "impact", clock: "impact", calendar: "impact",
 };
+
+// How hard each slide should land. A payoff slide — the thing saved, sent or
+// finished — deserves more push than "open the menu", and a flat sequence of
+// four identical hits is what makes a track feel lifeless no matter its tempo.
+const WEIGHT_BY_ART = {
+  send: 1.25, upload: 1.15, rocket: 1.25, sparkle: 1.2, bookmark: 1.2,
+  star: 1.15, heart: 1.15, studio: 1.15, resume: 1.1, chart: 1.1, trend: 1.1,
+  browser: 0.85, menu: 0.8, toolbox: 0.85, chip: 0.8, phone: 0.85,
+  write: 0.9, chat: 0.9, clock: 0.9, calendar: 0.95,
+};
+
+export function weightFor(artName) {
+  return WEIGHT_BY_ART[artName] ?? 1;
+}
 
 export function accentFor(artName) {
   return ACCENT_BY_ART[artName] || "impact";
@@ -99,6 +114,6 @@ export function accentFor(artName) {
 // Serialise "time:type,time:type" for the synth to read from the environment.
 export function accentSpec(cutTimes, artNames) {
   return cutTimes
-    .map((t, i) => `${t.toFixed(3)}:${accentFor(artNames[i] || "")}`)
+    .map((t, i) => `${t.toFixed(3)}:${accentFor(artNames[i] || "")}:${weightFor(artNames[i] || "").toFixed(2)}`)
     .join(",");
 }

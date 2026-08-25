@@ -483,23 +483,23 @@ const CUTS = String(process.env.MUSIC_CUTS || "")
 // Format: "12.34:riser,15.02:tick"
 const ACCENTS = String(process.env.MUSIC_ACCENTS || "")
   .split(",")
-  .map((p) => { const [t, k] = p.split(":"); return { t: Number(t), k: (k || "").trim() }; })
+  .map((p) => { const [t, k, w] = p.split(":"); return { t: Number(t), k: (k || "").trim(), w: Number(w) || 1 }; })
   .filter((a) => a.t > 0.05 && a.t < DUR - 0.05 && a.k);
 
-function whoosh(t0, wdur) {
+function whoosh(t0, wdur, g = 1) {
   const bp = svf(), hp = svfHP();
   write(musL, musR, t0, wdur, (t) => {
     const x = Math.min(1, t / wdur);
     const e = x * x * x;                    // quiet, then rushes in
-    const nz = hp(bp(noise(), 500 + 5200 * x, 1.7), 350) * 0.42 * e;
+    const nz = hp(bp(noise(), 500 + 5200 * x, 1.7), 350) * 0.42 * e * g;
     return [nz * (1 - x * 0.35), nz * (0.65 + x * 0.35)];  // sweeps across the field
   });
 }
-function hit(t0) {
+function hit(t0, g = 1) {
   const hp = svfHP();
   write(drumL, drumR, t0, 0.9, (t) => {
-    const crash = hp(noise(), 3800, 0.8) * Math.exp(-t * 7) * 0.34;
-    const thump = Math.sin(2 * Math.PI * (68 * Math.exp(-t * 6)) * t) * Math.exp(-t * 9) * 0.5;
+    const crash = hp(noise(), 3800, 0.8) * Math.exp(-t * 7) * 0.34 * g;
+    const thump = Math.sin(2 * Math.PI * (68 * Math.exp(-t * 6)) * t) * Math.exp(-t * 9) * 0.5 * g;
     const v = crash + thump;
     return [v, v];
   });
@@ -524,22 +524,22 @@ function tick(t0) {
   }
 }
 // A single bright click, like a UI tap.
-function click(t0) {
+function click(t0, g = 1) {
   const hp = svfHP();
   write(drumL, drumR, t0, 0.16, (t) => {
-    const v = hp(noise(), 2200) * Math.exp(-t * 46) * 0.34
-            + Math.sin(2 * Math.PI * 1400 * t) * Math.exp(-t * 60) * 0.16;
+    const v = (hp(noise(), 2200) * Math.exp(-t * 46) * 0.34
+            + Math.sin(2 * Math.PI * 1400 * t) * Math.exp(-t * 60) * 0.16) * g;
     return [v, v];
   });
 }
 // A bright bell that says "done".
-function chime(t0) {
+function chime(t0, g = 1) {
   const f = 1174.7; // D6
   write(musL, musR, t0, 1.1, (t) => {
     const e = Math.exp(-t * 4.2);
     const v = (Math.sin(2 * Math.PI * f * t) * 0.5
              + Math.sin(2 * Math.PI * f * 2.01 * t) * 0.22
-             + Math.sin(2 * Math.PI * f * 3.02 * t) * 0.10) * e * 0.30;
+             + Math.sin(2 * Math.PI * f * 3.02 * t) * 0.10) * e * 0.30 * g;
     return [v * 0.9, v];
   });
   write(revL, revR, t0, 1.1, (t) => {
@@ -564,12 +564,13 @@ function sweep(t0) {
 for (const c of CUTS) {
   const a = ACCENTS.find((x) => Math.abs(x.t - c) < 0.06);
   const kind = a ? a.k : "impact";
-  if (kind === "riser") { whoosh(Math.max(0, c - 0.55), 0.55); hit(c); }
-  else if (kind === "tick") { tick(c); click(c); }
-  else if (kind === "click") { click(c); }
-  else if (kind === "chime") { chime(c); hit(c); }
-  else if (kind === "sweep") { sweep(c); hit(c); }
-  else { whoosh(Math.max(0, c - 0.45), 0.45); hit(c); }
+  const w = a ? a.w : 1;                       // how hard this slide should land
+  if (kind === "riser") { whoosh(Math.max(0, c - 0.6), 0.6, w); hit(c, w); }
+  else if (kind === "tick") { tick(c); click(c, w * 0.9); }
+  else if (kind === "click") { click(c, w); }
+  else if (kind === "chime") { chime(c, w); hit(c, w * 0.9); }
+  else if (kind === "sweep") { sweep(c); hit(c, w * 0.95); }
+  else { whoosh(Math.max(0, c - 0.45), 0.45, w); hit(c, w); }
 }
 
 // ---------- delay (dotted 8th feedback) ----------
