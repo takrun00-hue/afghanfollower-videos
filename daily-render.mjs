@@ -13,7 +13,7 @@ import { existsSync } from "node:fs";
 import { buildHTML } from "./lib/build.mjs";
 import { buildInkHTML } from "./lib/build-ink.mjs";
 import { buildNeonHTML } from "./lib/build-neon.mjs";
-import { packsForDate, CATEGORIES } from "./lib/content.mjs";
+import { packsForDate, packForFeature, CATEGORIES } from "./lib/content.mjs";
 import { sceneArtPlan } from "./lib/scene-art.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo } from "./lib/telegram.mjs";
@@ -34,14 +34,29 @@ const iso = date.toISOString().slice(0, 10);
 const HF = "npx --yes hyperframes@0.7.109";
 const resFlag = is4k ? "--resolution portrait-4k" : "";
 
+// --feature <id> publishes one named feature immediately, whatever the rotation
+// says. A freshly researched update is worth shipping the day it lands.
+const featIdx = args.indexOf("--feature");
+const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
+
 const sel = packsForDate(date);
+if (featureId) {
+  const p = packForFeature(featureId, date);
+  if (!p) {
+    console.error(`✗ unknown feature "${featureId}".`);
+    process.exit(1);
+  }
+  sel[p.platform] = p;
+}
 const compDir = `compositions/daily/${iso}`;
 const outDir = `renders/daily/${iso}`;
 mkdirSync(compDir, { recursive: true });
 mkdirSync(outDir, { recursive: true });
 
-const cats = only ? CATEGORIES.filter((c) => c === only) : CATEGORIES;
-if (only && cats.length === 0) { console.error(`✗ unknown category "${only}". Use one of: ${CATEGORIES.join(", ")}`); process.exit(1); }
+const forcedCat = featureId ? sel[Object.keys(sel).find((k) => sel[k] && sel[k].id === featureId)]?.platform : null;
+const pick = only || forcedCat;
+const cats = pick ? CATEGORIES.filter((c) => c === pick) : CATEGORIES;
+if (pick && cats.length === 0) { console.error(`✗ unknown category "${pick}". Use one of: ${CATEGORIES.join(", ")}`); process.exit(1); }
 
 const results = [];
 for (const platform of cats) {
