@@ -1,0 +1,209 @@
+// Hourly news scan for the German Insider channel.
+//
+//   node news-scan.mjs            # scan, queue anything new, send it to Telegram
+//   node news-scan.mjs --quiet    # queue silently (no Telegram message)
+//
+// This runs on a schedule and does NOT build anything. It finds candidate
+// stories, writes them to a queue, and sends the text and the link for a human
+// to read. A video is only built after an explicit "بساز ۱".
+//
+// Why a queue rather than re-running the search at approval time: the old
+// `--pick N` re-ran the query, so by the time the approval arrived an hour later
+// the numbering could point at a different story than the one that was read and
+// approved. The queue freezes exactly what was shown.
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
+import { SOURCES, FA_DOMAINS, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
+
+process.chdir(dirname(fileURLToPath(import.meta.url)));
+
+const argv = process.argv.slice(2);
+const quiet = argv.includes("--quiet");
+
+const env = loadEnv();
+const tg = telegramConfig(env);
+const KEY = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
+
+const QUEUE = ".news-queue.json";
+const SEEN = ".news-seen.json";
+const MAX_QUEUE = 9;      // the approval message says "بساز ۱".."بساز ۹"
+const SEEN_KEEP = 400;    // enough history that a story is never offered twice
+
+const readJSON = (p, fallback) => {
+  try { return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : fallback; }
+  catch { return fallback; }
+};
+
+if (!KEY) {
+  console.log("EXA_API_KEY missing — nothing scanned");
+  process.exit(0);
+}
+
+// Amal writes in Persian specifically for Afghans living in Germany, so its
+// sentences can go on a card as they stand. Everything else is a second pass.
+const AMAL = ["amalnews.de", "amalberlin.de", "amalhamburg.de"];
+const REST_DE = DE_DOMAINS.filter((d) => !AMAL.includes(d));
+
+async function search(domains, days, n = 10) {
+  if (!domains.length) return [];
+  const res = await fetch("https://api.exa.ai/search", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": KEY },
+    body: JSON.stringify({
+      query: SCOPES.germany.query,
+      numResults: n,
+      startPublishedDate: new Date(Date.now() - days * 86400000).toISOString(),
+      includeDomains: domains,
+      type: "auto",
+      contents: { text: { maxCharacters: 2000 } },
+    }),
+  });
+  if (!res.ok) {
+    console.error("Exa " + res.status + ": " + (await res.text()).slice(0, 160));
+    return [];
+  }
+  return (await res.json()).results || [];
+}
+
+// The cards are Persian, so an English article is unusable whatever it says —
+// its sentences cannot go on screen and it arrives as a "new" story even when it
+// is the same deportation flight an Amal piece already covered.
+const isPersian = (t) => {
+  const x = String(t || "").slice(0, 600);
+  const fa = (x.match(/[؀-ۿ]/g) || []).length;
+  const en = (x.match(/[A-Za-z]/g) || []).length;
+  return fa > 40 && fa > en;
+};
+
+const inGermanyScope = (r) =>
+  isPersian(r.title) && isPersian(r.text) &&
+  inScope("germany", r.title, String(r.text || "").slice(0, 600));
+
+// Amal first and on a wider window — being the channel's home source, an Amal
+// story from yesterday still beats a fresher one from a general outlet.
+let found = (await search(AMAL, 4)).filter(inGermanyScope);
+const seenNow = new Set(found.map((r) => r.url));
+for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
+  if (!seenNow.has(r.url)) { found.push(r); seenNow.add(r.url); }
+}
+if (found.length < 3) {
+  for (const r of (await search(FA_DOMAINS, 2)).filter(inGermanyScope)) {
+    if (!seenNow.has(r.url)) { found.push(r); seenNow.add(r.url); }
+  }
+}
+
+// Nothing that has already been offered, whatever the outcome was. A URL match
+// only catches the same page twice — the same deportation flight written up by
+// Amal, DW and BBC is three different URLs and would arrive as three "new"
+// stories, so headlines are compared on their content words too.
+const STOP = new Set(["از", "به", "در", "را", "که", "با", "این", "برای", "است", "شد",
+  "شده", "های", "یک", "بر", "تا", "هم", "و", "بود", "کرد", "می", "خود", "بین", "دو"]);
+
+// "گروه دیگری" and "گروهی دیگر" are the same story told twice, so the plural and
+// possessive endings come off before comparing — without a light stem the two
+// share too few exact words and both get sent.
+const stem = (w) => w.replace(/(های|ها|ان|ی)$/, "") || w;
+
+const keyOf = (title) =>
+  // "…اخراج شدند - اطلاعات روز" — the outlet's own name at the end is noise that
+  // pushes two reports of one event below the similarity threshold.
+  String(title).replace(/\s*[-–|]\s*[^-–|]{1,30}$/, "")
+    .replace(/[‌‏]/g, " ")
+    .replace(/[يى]/g, "ی").replace(/ك/g, "ک")
+    .replace(/[،؛؟«»ـً-ٟٔ]/g, " ")
+    .replace(/[^؀-ۿ\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP.has(w))
+    .map(stem)
+    .filter((w) => w.length > 2)
+    .sort();
+
+// "افغان" and "افغانستان" are the same subject, and one stem rule cannot flatten
+// both, so words also count as shared when one is a prefix of the other.
+const akin = (x, y) =>
+  x === y || (x.length >= 3 && y.startsWith(x)) || (y.length >= 3 && x.startsWith(y));
+
+const sameStory = (a, b) => {
+  if (!a.length || !b.length) return false;
+  const shared = a.filter((w) => b.some((v) => akin(w, v))).length;
+  return shared / Math.min(a.length, b.length) >= 0.55;
+};
+
+const store = readJSON(SEEN, []);
+// older files held a bare array of URLs; keep reading those
+const past = store.map((x) => (typeof x === "string" ? { url: x, key: [] } : x));
+const pastUrls = new Set(past.map((x) => x.url));
+
+found = found.filter((r) => {
+  if (pastUrls.has(r.url)) return false;
+  const k = keyOf(r.title);
+  return !past.some((p) => sameStory(k, p.key || []));
+});
+
+// and no two versions of the same story inside one scan either
+const batch = [];
+for (const r of found) {
+  const k = keyOf(r.title);
+  if (batch.some((b) => sameStory(k, b.key))) continue;
+  batch.push({ ...r, key: k });
+}
+found = batch;
+
+if (!found.length) {
+  console.log("no new stories");
+  process.exit(0);
+}
+
+found.sort((a, b) => String(b.publishedDate || "").localeCompare(String(a.publishedDate || "")));
+
+// Persian sentences long enough to carry a fact, short enough to read on a card.
+const sentencesOf = (text) =>
+  String(text || "")
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!؟])\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 45 && x.length < 190);
+
+const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+
+const queue = found.slice(0, MAX_QUEUE).map((r, i) => {
+  const host = hostOf(r.url);
+  const known = Object.values(SOURCES).find((x) => host.includes(x.domain));
+  return {
+    n: i + 1,
+    title: String(r.title || "").replace(/\s*[-–|]\s*(BBC News دری|DW\.com|.*اینترنشنال).*$/, "").trim(),
+    url: r.url,
+    // kept for the operator's own reading, never rendered into the video
+    source: `${known ? known.name : host} · ${String(r.publishedDate || "").slice(0, 10)}`,
+    date: String(r.publishedDate || "").slice(0, 10),
+    sentences: sentencesOf(r.text).slice(0, 6),
+    scannedAt: new Date().toISOString(),
+  };
+});
+
+writeFileSync(QUEUE, JSON.stringify(queue, null, 2));
+writeFileSync(SEEN, JSON.stringify(
+  [...queue.map((q) => ({ url: q.url, key: keyOf(q.title) })), ...past].slice(0, SEEN_KEEP), null, 2));
+
+console.log(`queued ${queue.length}`);
+
+if (quiet || !tg.enabled) process.exit(0);
+
+// One message per story: the headline, the text to read, and the link. Splitting
+// them means the approval reply lands under the story it belongs to.
+const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const FA = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+
+for (const q of queue) {
+  const preview = q.sentences.slice(0, 3).map((s) => "• " + esc(s)).join("\n") || "<i>متن کامل در لینک</i>";
+  await sendMessage({
+    token: tg.token,
+    chatId: tg.chatId,
+    text:
+      `📰 <b>${esc(q.title)}</b>\n\n${preview}\n\n` +
+      `🔗 <a href="${q.url}">${esc(hostOf(q.url))}</a> · ${esc(q.date)}\n\n` +
+      `اگر تأیید می‌کنی: <code>بساز ${FA(q.n)}</code>`,
+  });
+}

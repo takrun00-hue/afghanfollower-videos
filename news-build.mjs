@@ -10,7 +10,7 @@
 // lines themselves the video is better, so --text accepts a "|"-separated form:
 //   "تیتر | جملهٔ ۱ | جملهٔ ۲ | جملهٔ ۳ | جملهٔ ۴"
 import { execSync } from "node:child_process";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
@@ -31,7 +31,22 @@ const say = async (t) => { if (tg.enabled) await sendMessage({ token: tg.token, 
 // ---- get the story ---------------------------------------------------------
 let headline = "", body = [], source = arg("--source") || "";
 
-if (has("--fetch")) {
+// --from-queue N builds the story the operator actually read and approved.
+// Re-running the search at approval time was a correctness bug: an hour later
+// the same number could point at a different story than the one in the message.
+if (has("--from-queue")) {
+  const n = Math.max(1, Number(arg("--from-queue")) || 1);
+  const q = existsSync(".news-queue.json")
+    ? JSON.parse(readFileSync(".news-queue.json", "utf8")).find((x) => x.n === n)
+    : null;
+  if (!q) {
+    await say("❌ خبر شماره " + n + " در فهرست نیست.");
+    process.exit(1);
+  }
+  headline = q.title;
+  body = q.sentences.slice();
+  source = q.source;
+} else if (has("--fetch")) {
   if (!KEY) {
     await say("🔑 برای جستجوی خبر، EXA_API_KEY لازم است.");
     process.exit(0);
@@ -116,7 +131,7 @@ if (has("--fetch")) {
 }
 
 const text = arg("--text");
-if (!text && !has("--fetch")) {
+if (!text && !has("--fetch") && !has("--from-queue")) {
   console.error('usage: node news-build.mjs --text "تیتر | جمله ۱ | جمله ۲ | جمله ۳ | جمله ۴" [--source "DW · تاریخ"]');
   process.exit(1);
 }
@@ -239,7 +254,6 @@ const feature = {
   })),
   tgTitle:
     `📰 ${headline}\n\n` +
-    (source ? `منبع: ${source}\n` : "") +
     `
 #afghanistan #germany #migration #asylum #news`,
 };

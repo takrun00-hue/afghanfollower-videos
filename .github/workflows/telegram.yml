@@ -44,7 +44,7 @@ jobs:
       # Only the actions that actually render a video need ffmpeg and a headless
       # browser. Listing news or deleting a message does not.
       - name: System packages (ffmpeg + headless Chrome libs)
-        if: contains(fromJSON('["all","tiktok","instagram","tools","news-breaking","news-pick","europe-pick","news-text"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["all","tiktok","instagram","tools","news-breaking","news-pick","europe-pick","news-text","news-approve"]'), steps.cmd.outputs.ACTION)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
@@ -74,6 +74,23 @@ jobs:
         run: node research.mjs
 
       # ---- news channel ----------------------------------------------------
+      - name: Scan for new stories now
+        if: steps.cmd.outputs.ACTION == 'news-scan'
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node news-scan.mjs
+
+      - name: Commit the news queue
+        if: steps.cmd.outputs.ACTION == 'news-scan'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f .news-queue.json .news-seen.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "news: queue from manual scan"
+          git push || true
+
       - name: List news
         if: contains(fromJSON('["news-germany","news-europe","news-today"]'), steps.cmd.outputs.ACTION)
         env:
@@ -99,6 +116,7 @@ jobs:
           case "${{ steps.cmd.outputs.ACTION }}" in
             news-pick)   node news-build.mjs --fetch --pick "${PICK:-1}" ;;
             europe-pick) node news-build.mjs --fetch --europe --pick "${PICK:-1}" ;;
+            news-approve) node news-build.mjs --from-queue "${PICK:-1}" ;;
             news-text)   node news-build.mjs --text "$PAYLOAD" ;;
             *)           node news-build.mjs --fetch ;;
           esac

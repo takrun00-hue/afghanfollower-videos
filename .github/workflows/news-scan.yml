@@ -1,0 +1,46 @@
+name: Hourly news scan
+
+# Looks for new German/Afghan migration stories every hour and sends each one to
+# Telegram with its text and its link. It never builds a video: a story is only
+# rendered after an explicit "بساز N" reply, handled by the telegram workflow.
+#
+# The queue and the seen-list are committed back, because the runner is thrown
+# away after every job. Without that, "بساز ۲" would find no queue to read, and
+# every scan would re-send the same stories as if they were new.
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: news-scan
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Scan
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node news-scan.mjs
+
+      - name: Remember what was offered
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f .news-queue.json .news-seen.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "news: hourly scan"
+          git pull --rebase --autostash || true
+          git push || true
