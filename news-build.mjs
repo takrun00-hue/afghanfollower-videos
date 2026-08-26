@@ -187,12 +187,10 @@ function dropUnterminated(list) {
 body = dropUnterminated(body);
 body = body.flatMap((x) => splitLong(x));
 
-// A minute needs at least six scenes. Rather than padding with empty cards,
-// close on the two lines every migration story owes the viewer.
-if (body.length < 6) {
-  body.push("این خبر از منبع نام‌برده گرفته شده و تاریخش روی ویدیو است.");
-  body.push("شرایط هر پرونده فرق می‌کند؛ برای پروندهٔ خودت با وکیل مشورت کن.");
-}
+// Splitting long sentences already yields enough cards for a minute. The two
+// boilerplate lines that used to close every story — "this is news, not legal
+// advice" and a note that the source is named — are gone: the source is printed
+// on the hook, and ending on a disclaimer ends the video on nothing.
 body = body.slice(0, 10);
 
 // Strip what a headline carries for a newspaper column but not for a 9:16 hook:
@@ -231,7 +229,7 @@ const feature = {
     l1: body[0] ? body[0].slice(0, 44) : "",
     l2: "",
   },
-  payoff: T.disclaimer,
+  payoff: "",
   outroAsk: "نظرت دربارهٔ این خبر چیست؟",
   steps: body.map((t, i) => ({
     path: "",
@@ -242,7 +240,8 @@ const feature = {
   tgTitle:
     `📰 ${headline}\n\n` +
     (source ? `منبع: ${source}\n` : "") +
-    `⚠️ ${T.disclaimer}\n\n#افغانستان #آلمان #مهاجرت #پناهندگی`,
+    `
+#afghanistan #germany #migration #asylum #news`,
 };
 
 mkdirSync("lib/generated", { recursive: true });
