@@ -130,13 +130,89 @@ if (text && text.includes("|")) {
   headline = sentences[0] || text.slice(0, 90);
   body = sentences.slice(1, 9);
 }
+// A news sentence runs 120-160 characters. On a card that becomes a wall of bold
+// type — the thing that makes the news channel look heavier and duller than the
+// tutorials, where every band holds one short line. So a long sentence is split
+// at its own clause boundaries into cards of readable length. Nothing is
+// rewritten or dropped: the words and their order are the source's.
+function splitLong(sentence, max = 78) {
+  const t = String(sentence).trim();
+  if (t.length <= max) return [t];
+  // Break where the sentence itself breaks: a comma, a semicolon, or a
+  // connective word. Filling each card to the brim instead lands the cut
+  // between «به» and «دلیل», which reads worse than a long line.
+  const marks = [];
+  for (const re of [/،/g, /؛/g, /\s(?:که|و|اما|ولی|زیرا|تا|چون|هرچند)\s/g]) {
+    for (const m of t.matchAll(re)) marks.push({ at: m.index + (m[0][0] === " " ? 1 : 1), w: re.source.length });
+  }
+  const mid = t.length / 2;
+  // Never cut inside a quotation. The ؛ in «اخراج‌ها را متوقف کنید؛ پناهجویان
+  // خوش آمدید» is a real boundary in Persian, but splitting there severs a
+  // slogan across two cards and leaves the quote marks unbalanced — on a news
+  // video that changes what the source appears to have said.
+  const inQuote = (i) => {
+    const head = t.slice(0, i);
+    return (head.split("«").length - 1) !== (head.split("»").length - 1);
+  };
+  const usable = marks.filter((m) => m.at > 18 && m.at < t.length - 18 && !inQuote(m.at));
+  let cut;
+  if (usable.length) {
+    cut = usable.reduce((a, b) => (Math.abs(a.at - mid) <= Math.abs(b.at - mid) ? a : b)).at;
+  } else {
+    const w = t.slice(0, Math.ceil(mid) + 12);
+    cut = w.lastIndexOf(" ");
+    // A card must not end on a preposition — "…معترضان با در" then "دست داشتن…"
+    // leaves the reader hanging on a word that means nothing by itself.
+    const DANGLING = ["با", "در", "به", "از", "بر", "تا", "که", "و", "را", "این", "یک"];
+    let guard = 0;
+    while (cut > 18 && guard++ < 4 && DANGLING.includes(t.slice(0, cut).trim().split(" ").pop())) {
+      cut = t.lastIndexOf(" ", cut - 1);
+    }
+    if (cut < 18) return [t];
+  }
+  const head = t.slice(0, cut).replace(/[،؛\s]+$/, "");
+  const tail = t.slice(cut).replace(/^[،؛\s]+/, "");
+  return [...splitLong(head, max), ...splitLong(tail, max)];
+}
+
+// Exa returns a truncated article body, so the last fragment often stops
+// mid-word ("... نیز به افغانستا"). A half sentence on screen reads as a bug and,
+// worse, can change what the news appears to say.
+function dropUnterminated(list) {
+  if (!list.length) return list;
+  const last = list[list.length - 1];
+  return /[.!؟?»]\s*$/.test(last) ? list : list.slice(0, -1);
+}
+
+body = dropUnterminated(body);
+body = body.flatMap((x) => splitLong(x));
+
 // A minute needs at least six scenes. Rather than padding with empty cards,
 // close on the two lines every migration story owes the viewer.
 if (body.length < 6) {
   body.push("این خبر از منبع نام‌برده گرفته شده و تاریخش روی ویدیو است.");
   body.push("شرایط هر پرونده فرق می‌کند؛ برای پروندهٔ خودت با وکیل مشورت کن.");
 }
-body = body.slice(0, 8);
+body = body.slice(0, 10);
+
+// Strip what a headline carries for a newspaper column but not for a 9:16 hook:
+// the reporting verb up front ("به گزارش ...، "), a trailing question mark, and
+// anything past the point where the fact is already delivered. Nothing is added
+// — an invented word in a news hook is a lie, however well it performs.
+function punchHeadline(h) {
+  let t = String(h).trim()
+    .replace(/^(?:به گزارش|بر اساس گزارش|بر اساس|طبق گزارش|طبق)\s+[^،]{0,40}،\s*/, "")
+    .replace(/^(?:آیا)\s+/, "")
+    .replace(/\s*[؟?]\s*$/, "")
+    .replace(/\s+/g, " ");
+  if (t.length > 96) {
+    // cut on the last clause boundary that still fits, never mid-word
+    const cut = t.slice(0, 96);
+    const at = Math.max(cut.lastIndexOf("،"), cut.lastIndexOf(" و "), cut.lastIndexOf(" "));
+    t = (at > 40 ? cut.slice(0, at) : cut).replace(/[،\s]+$/, "");
+  }
+  return t;
+}
 
 // ---- shape it into a pack --------------------------------------------------
 const topic = topicFor(headline, body.join(" "));
@@ -148,7 +224,10 @@ const feature = {
   source: source || "—",
   title: headline.slice(0, 70) + " — افغان فالورز",
   hook: {
-    ask: headline.endsWith("؟") ? headline : `آیا از این خبر باخبرید؟ ${headline}`.slice(0, 120),
+    // News does not ask. A viewer scrolling past a migration story wants the
+    // fact, and "آیا از این خبر باخبرید؟" delays it by a whole line. The
+    // headline itself is the hook; the detail follows on the slides after it.
+    ask: punchHeadline(headline),
     l1: body[0] ? body[0].slice(0, 44) : "",
     l2: "",
   },
