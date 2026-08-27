@@ -50,15 +50,21 @@ if (action === "help") {
 } else if (action === "status") {
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
-    text: "✅ سیستم ابری فعال است. هر روز ساعت ۸ صبح خودکار می‌سازد، و هر وقت «بساز» بفرستی هم می‌سازد.",
+    text: "✅ سیستم ابری فعال است. ساعت ۸ فقط موضوع‌های تحقیق‌شده را برای تأیید می‌فرستد؛ ویدیوی آموزشی تنها پس از «تأیید شناسهٔ موضوع» ساخته می‌شود.",
   });
   console.log("ACTION=none");
 } else if (action === "undo") {
   console.log("ACTION=undo");
 } else if (action !== "none") {
+  const planning = action.startsWith("plan-") || action === "research";
+  const approved = action === "approved-feature";
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
-    text: `🎬 دستور دریافت شد: ${label}. ساخت در فضای ابری شروع شد — چند دقیقه صبر کن.`,
+    text: planning
+      ? `🔎 دستور دریافت شد: ${label}. موضوع‌ها و لینک‌های تحقیق‌شده را می‌فرستم؛ هنوز ویدیویی ساخته نمی‌شود.`
+      : approved
+        ? `✅ موضوع تأیید شد: ${label}. ساخت همان ویدیو در فضای ابری شروع شد.`
+        : `📩 دستور دریافت شد: ${label}.`,
   });
   console.log(`ACTION=${action}`);
   console.log(`PICK=${pick}`);

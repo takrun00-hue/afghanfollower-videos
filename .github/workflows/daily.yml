@@ -1,4 +1,4 @@
-name: Daily videos
+name: Daily topic approval
 
 # Runs in GitHub's cloud — your PC does not need to be on.
 on:
@@ -10,14 +10,10 @@ on:
     - cron: "0 7 * * *"    # 08:00 Europe/Berlin while CET is in effect
   workflow_dispatch:
     inputs:
-      only:
-        description: "Just one category (tiktok / instagram / tools). Leave empty for all three."
+      weekly:
+        description: "Send the weekly topic plan instead of tomorrow's shortlist."
         required: false
-        default: ""
-      date:
-        description: "Build a specific day (YYYY-MM-DD). Leave empty for today."
-        required: false
-        default: ""
+        default: "false"
 
 concurrency:
   group: render
@@ -50,32 +46,17 @@ jobs:
         with:
           node-version: "22"
 
-      - name: System packages (ffmpeg + headless Chrome libs)
-        if: steps.gate.outputs.go == 'yes'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg \
-            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
-            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
-
-      - name: Build, render and send
+      - name: Send researched topics for approval
         if: steps.gate.outputs.go == 'yes'
         env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          ARGS=""
-          if [ -n "${{ github.event.inputs.only }}" ]; then ARGS="$ARGS --only ${{ github.event.inputs.only }}"; fi
-          if [ -n "${{ github.event.inputs.date }}" ]; then ARGS="$ARGS ${{ github.event.inputs.date }}"; fi
-          echo "running: node daily-render.mjs $ARGS"
-          node daily-render.mjs $ARGS
-
-      - name: Keep the MP4s downloadable for a week
-        if: always() && steps.gate.outputs.go == 'yes'
-        uses: actions/upload-artifact@v4
-        with:
-          name: videos
-          path: renders/daily/**/afghanfollower-*.mp4
-          retention-days: 7
-          if-no-files-found: ignore
+          if [ "${{ github.event.inputs.weekly }}" = "true" ]; then
+            node topic-plan.mjs --week
+          elif [ "$(TZ=Europe/Berlin date +%u)" = "1" ]; then
+            node topic-plan.mjs --tomorrow --week
+          else
+            node topic-plan.mjs --tomorrow
+          fi

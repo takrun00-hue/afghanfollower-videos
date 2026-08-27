@@ -44,7 +44,7 @@ jobs:
       # Only the actions that actually render a video need ffmpeg and a headless
       # browser. Listing news or deleting a message does not.
       - name: System packages (ffmpeg + headless Chrome libs)
-        if: contains(fromJSON('["all","tiktok","instagram","tools","news-breaking","news-pick","europe-pick","news-text","news-approve"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["approved-feature","news-breaking","news-pick","europe-pick","news-text","news-approve"]'), steps.cmd.outputs.ACTION)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
@@ -53,17 +53,29 @@ jobs:
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
 
       # ---- tutorials -------------------------------------------------------
-      - name: Build tutorial videos
-        if: contains(fromJSON('["all","tiktok","instagram","tools"]'), steps.cmd.outputs.ACTION)
+      - name: Send tutorial topics for approval
+        if: contains(fromJSON('["plan-tomorrow","plan-week","plan-tiktok","plan-instagram","plan-tools"]'), steps.cmd.outputs.ACTION)
         env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ "${{ steps.cmd.outputs.ACTION }}" = "all" ]; then
-            node daily-render.mjs
-          else
-            node daily-render.mjs --only "${{ steps.cmd.outputs.ACTION }}"
-          fi
+          case "${{ steps.cmd.outputs.ACTION }}" in
+            plan-week)      node topic-plan.mjs --week ;;
+            plan-tiktok)    node topic-plan.mjs --tomorrow --category=tiktok ;;
+            plan-instagram) node topic-plan.mjs --tomorrow --category=instagram ;;
+            plan-tools)     node topic-plan.mjs --tomorrow --category=tools ;;
+            *)              node topic-plan.mjs --tomorrow ;;
+          esac
+
+      - name: Build an explicitly approved tutorial
+        if: steps.cmd.outputs.ACTION == 'approved-feature'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+        run: |
+          node approve-feature.mjs "$PAYLOAD"
 
       - name: Research digest
         if: steps.cmd.outputs.ACTION == 'research'
@@ -105,7 +117,7 @@ jobs:
           esac
 
       - name: Build a news video
-        if: contains(fromJSON('["news-breaking","news-pick","europe-pick","news-text"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["news-breaking","news-pick","europe-pick","news-text","news-approve"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
