@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { TOPICS, topicFor, SOURCES, FA_DOMAINS, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
-import { photoPlan } from "./lib/news-media.mjs";
+import { photoFor, photoPlan } from "./lib/news-media.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -233,8 +233,11 @@ const topic = topicFor(headline, body.join(" "));
 const T = TOPICS[topic];
 // Archive B-roll illustrates the subject; it is never presented as footage of
 // this event. Only public-domain / CC0 assets are accepted by news-media.
-let photos = [];
-try { photos = await photoPlan(topic, headline, 2); } catch {}
+let photos = [], hookPhoto = null;
+try {
+  hookPhoto = await photoFor(topic, headline + ":hook");
+  photos = await photoPlan(topic, headline + ":slides", 4);
+} catch {}
 
 const feature = {
   id: "news-" + Date.now().toString(36),
@@ -252,6 +255,7 @@ const feature = {
   },
   payoff: "",
   outroAsk: "نظرت دربارهٔ این خبر چیست؟",
+  hookPhoto,
   photos,
   steps: body.map((t, i) => ({
     path: "",
