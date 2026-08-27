@@ -88,6 +88,14 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node research.mjs
 
+      - name: Send MiniMax voice IDs
+        if: steps.cmd.outputs.ACTION == 'voice-list'
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node music/minimax-voices.mjs --telegram
+
       # ---- news channel ----------------------------------------------------
       - name: Scan for new stories now
         if: steps.cmd.outputs.ACTION == 'news-scan'

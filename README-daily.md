@@ -57,4 +57,6 @@ schtasks /Create /TN "AfghanFollower Daily Videos" /TR "node \"D:\ClaudeFile\Cre
 node music/minimax-voices.mjs
 ```
 
+یا از تلگرام فقط <code>صداها</code> بفرست تا فهرست Voice IDهای همان حساب برایت ارسال شود.
+
 با تأیید یک موضوع، صدا به‌صورت خودکار روی ویدیو می‌آید و موسیقی هنگام گفتار پایین می‌رود.
