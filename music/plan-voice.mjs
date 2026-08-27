@@ -16,10 +16,7 @@ const featureId = process.argv[2];
 const vo = narrationFor(featureId);
 if (!vo) { console.log(JSON.stringify({ ok: false })); process.exit(0); }
 
-const TTS = process.env.TTS_SCRIPT ||
-  "C:/Users/mohse/.claude/skills/media-use/audio/scripts/heygen-tts.mjs";
-const VOICE = process.env.VOICE_ID || "330290724a1b470fb63153f34d4c0183";
-const SPEED = process.env.VOICE_SPEED || "1.0";
+const TTS = "music/minimax-tts.mjs";
 
 mkdirSync("music/voice", { recursive: true });
 
@@ -33,9 +30,9 @@ function dur(file) {
 const texts = [vo.hook, ...vo.steps, vo.outro];
 const files = [], durs = [];
 for (let i = 0; i < texts.length; i++) {
-  const f = `music/voice/${featureId}-line${i}.mp3`;
+  const f = `music/voice/${featureId}-minimax-line${i}.mp3`;
   if (!existsSync(f)) {
-    execFileSync("node", [TTS, sayable(texts[i]), "-o", f, "--voice", VOICE, "--speed", SPEED], {
+    execFileSync("node", [TTS, sayable(texts[i]), "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],
     });
   }

@@ -1,7 +1,6 @@
 // Persian voiceover for one video, laid out on the scene timings.
-// Uses the skill's heygen-tts helper (the only path that reaches a working TTS
-// endpoint) with the voice the user picked, feeding it Persian script directly —
-// the "B1" option they judged best.
+// Uses MiniMax TTS with a Persian account voice. The API key and voice ID stay
+// in environment variables, never in source code.
 //
 // Usage: node music/make-voice.mjs <feature-id> <hookDur> <tipDur> <tipCount> <outroAt> <total> <out.m4a>
 import { execFileSync } from "node:child_process";
@@ -29,10 +28,7 @@ const OUT_AT = Number(outroAt), TOTAL = Number(total);
 const vo = narrationFor(featureId);
 if (!vo) { console.log(`  no narration for ${featureId} — silent`); process.exit(0); }
 
-const TTS = process.env.TTS_SCRIPT ||
-  "C:/Users/mohse/.claude/skills/media-use/audio/scripts/heygen-tts.mjs";
-const VOICE = process.env.VOICE_ID || "330290724a1b470fb63153f34d4c0183"; // the voice the user chose
-const SPEED = process.env.VOICE_SPEED || "1.0";
+const TTS = "music/minimax-tts.mjs";
 
 mkdirSync("music/voice", { recursive: true });
 
@@ -48,8 +44,8 @@ const lines = [
 
 const parts = [];
 for (let i = 0; i < lines.length; i++) {
-  const f = `music/voice/${featureId}-${i}.mp3`;
-  execFileSync("node", [TTS, sayable(lines[i].text), "-o", f, "--voice", VOICE, "--speed", SPEED], {
+  const f = `music/voice/${featureId}-minimax-${i}.mp3`;
+  execFileSync("node", [TTS, sayable(lines[i].text), "-o", f], {
     stdio: ["ignore", "ignore", "inherit"],
   });
   parts.push({ file: f, at: lines[i].at });

@@ -45,5 +45,16 @@ schtasks /Create /TN "AfghanFollower Daily Videos" /TR "node \"D:\ClaudeFile\Cre
 
 ## گوینده فارسی (اختیاری)
 
-این نسخه‌ها **بدون گوینده** و با زیرنویس + موزیک هستند. برای افزودن صدای فارسی،
-در یک ترمینال تعاملی `npx hyperframes auth login` را اجرا و وارد HeyGen شو.
+گویندگی فارسی از MiniMax انجام می‌شود. این دو Secret را در GitHub اضافه کن و کلید را
+هرگز در پیام یا فایل Git ننویس:
+
+- `MINIMAX_API_KEY`
+- `MINIMAX_VOICE_ID`
+
+برای پیدا کردن صدای قابل استفاده در حساب MiniMax، پس از تنظیم کلید در `.env` اجرا کن:
+
+```bash
+node music/minimax-voices.mjs
+```
+
+با تأیید یک موضوع، صدا به‌صورت خودکار روی ویدیو می‌آید و موسیقی هنگام گفتار پایین می‌رود.
