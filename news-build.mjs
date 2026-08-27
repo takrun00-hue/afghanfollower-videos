@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { TOPICS, topicFor, SOURCES, FA_DOMAINS, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
+import { photoPlan } from "./lib/news-media.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -230,12 +231,17 @@ function punchHeadline(h) {
 // ---- shape it into a pack --------------------------------------------------
 const topic = topicFor(headline, body.join(" "));
 const T = TOPICS[topic];
+// Archive B-roll illustrates the subject; it is never presented as footage of
+// this event. Only public-domain / CC0 assets are accepted by news-media.
+let photos = [];
+try { photos = await photoPlan(topic, headline, 2); } catch {}
 
 const feature = {
   id: "news-" + Date.now().toString(36),
   name: T.kicker,
   source: source || "—",
-  title: headline.slice(0, 70) + " — افغان فالورز",
+  // News is an independent German Insider channel, never AfghanFollowers.
+  title: headline.slice(0, 70) + " — German Insider",
   hook: {
     // News does not ask. A viewer scrolling past a migration story wants the
     // fact, and "آیا از این خبر باخبرید؟" delays it by a whole line. The
@@ -246,6 +252,7 @@ const feature = {
   },
   payoff: "",
   outroAsk: "نظرت دربارهٔ این خبر چیست؟",
+  photos,
   steps: body.map((t, i) => ({
     path: "",
     icon: ["chart", "target", "key", "users", "clock", "globe", "chat", "bulb"][i % 8],
