@@ -121,7 +121,7 @@ jobs:
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
-              approved-feature|topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools) ;;
+              approved-feature|topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
               *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
             esac
             safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
@@ -227,21 +227,29 @@ jobs:
 
       # ---- news channel ----------------------------------------------------
       - name: Scan for new stories now
-        if: contains(fromJSON('["news-scan","news-search-live"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["news-scan","news-search-live","amal-berlin","amal-hamburg","amal-frankfurt","amal-farsi"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
         run: |
-          if [ "${{ steps.cmd.outputs.ACTION }}" = "news-search-live" ]; then
+          if [ "${{ steps.cmd.outputs.ACTION }}" = "amal-berlin" ]; then
+            node news-scan.mjs --amal berlin
+          elif [ "${{ steps.cmd.outputs.ACTION }}" = "amal-hamburg" ]; then
+            node news-scan.mjs --amal hamburg
+          elif [ "${{ steps.cmd.outputs.ACTION }}" = "amal-frankfurt" ]; then
+            node news-scan.mjs --amal frankfurt
+          elif [ "${{ steps.cmd.outputs.ACTION }}" = "amal-farsi" ]; then
+            node news-scan.mjs --amal farsi
+          elif [ "${{ steps.cmd.outputs.ACTION }}" = "news-search-live" ]; then
             node news-scan.mjs --query "$PAYLOAD"
           else
             node news-scan.mjs
           fi
 
       - name: Commit the news queue
-        if: contains(fromJSON('["news-scan","news-search-live"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["news-scan","news-search-live","amal-berlin","amal-hamburg","amal-frankfurt","amal-farsi"]'), steps.cmd.outputs.ACTION)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

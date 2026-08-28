@@ -23,6 +23,8 @@ const argv = process.argv.slice(2);
 const quiet = argv.includes("--quiet");
 const queryAt = argv.indexOf("--query");
 const liveQuery = queryAt >= 0 ? String(argv[queryAt + 1] || "").trim().slice(0, 300) : "";
+const amalAt = argv.indexOf("--amal");
+const amalTarget = amalAt >= 0 ? String(argv[amalAt + 1] || "").trim().toLowerCase() : "";
 
 const env = loadEnv();
 const tg = telegramConfig(env);
@@ -45,7 +47,14 @@ if (!KEY) {
 
 // Amal writes in Persian specifically for Afghans living in Germany, so its
 // sentences can go on a card as they stand. Everything else is a second pass.
-const AMAL = ["amalnews.de", "amalberlin.de", "amalhamburg.de"];
+const AMAL = ["amalnews.de", "amalberlin.de", "amalhamburg.de", "amalfrankfurt.de"];
+const AMAL_TARGETS = {
+  berlin: { label: "امل برلین", domains: ["amalberlin.de"] },
+  hamburg: { label: "امل هامبورگ", domains: ["amalhamburg.de"] },
+  frankfurt: { label: "امل فرانکفورت", domains: ["amalfrankfurt.de"] },
+  farsi: { label: "امل فارسی", domains: AMAL },
+};
+const target = AMAL_TARGETS[amalTarget] || null;
 const REST_DE = DE_DOMAINS.filter((d) => !AMAL.includes(d));
 
 async function search(domains, days, n = 10) {
@@ -54,7 +63,7 @@ async function search(domains, days, n = 10) {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": KEY },
     body: JSON.stringify({
-      query: liveQuery ? `${SCOPES.germany.query} ${liveQuery}` : SCOPES.germany.query,
+      query: liveQuery ? `${SCOPES.germany.query} ${liveQuery}` : target ? `خبر تازه ${target.label} به فارسی` : SCOPES.germany.query,
       numResults: n,
       startPublishedDate: new Date(Date.now() - days * 86400000).toISOString(),
       includeDomains: domains,
@@ -85,14 +94,20 @@ const inGermanyScope = (r) =>
 
 // Amal first and on a wider window — being the channel's home source, an Amal
 // story from yesterday still beats a fresher one from a general outlet.
-let found = (await search(AMAL, 4)).filter(inGermanyScope);
+// A named Amal command is a source digest: it stays Persian but does not throw
+// away useful local information merely because it does not contain migration
+// keywords. The normal German Insider scan remains migration-impact only.
+const keep = target ? (r) => isPersian(r.title) && isPersian(r.text) : inGermanyScope;
+let found = (await search(target ? target.domains : AMAL, 4)).filter(keep);
 const seenNow = new Set(found.map((r) => r.url));
-for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
-  if (!seenNow.has(r.url)) { found.push(r); seenNow.add(r.url); }
-}
-if (found.length < 3) {
-  for (const r of (await search(FA_DOMAINS, 2)).filter(inGermanyScope)) {
+if (!target) {
+  for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
     if (!seenNow.has(r.url)) { found.push(r); seenNow.add(r.url); }
+  }
+  if (found.length < 3) {
+    for (const r of (await search(FA_DOMAINS, 2)).filter(inGermanyScope)) {
+      if (!seenNow.has(r.url)) { found.push(r); seenNow.add(r.url); }
+    }
   }
 }
 
@@ -158,6 +173,7 @@ if (!found.length) {
     const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     await sendMessage({ token: tg.token, chatId: tg.chatId, text: `🔎 برای «${esc(liveQuery)}» خبر معتبرِ تازه پیدا نشد.\n\nبرای ادامه بنویس: <code>جستجوی جدید خبر: عبارت تازه</code>` });
   }
+  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 خبر فارسیِ تازه‌ای از ${target.label} پیدا نشد.` });
   console.log("no new stories");
   process.exit(0);
 }

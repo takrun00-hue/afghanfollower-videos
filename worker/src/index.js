@@ -27,6 +27,10 @@ const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b
 <b>۱۶</b> ادیت قلاب خبر
 <b>۱۷</b> ادیت متن خبر
 <b>۱۸</b> ساخت خبر تأییدشده با صدا
+<b>۲۲</b> خبرهای امل برلین
+<b>۲۳</b> خبرهای امل هامبورگ
+<b>۲۴</b> خبرهای امل فرانکفورت
+<b>۲۵</b> خبرهای امل فارسی
 
 ⚙️ <b>مدیریت</b>
 <b>۱۹</b> وضعیت
@@ -50,6 +54,8 @@ const NUMBERED_ACTIONS = {
   "17": { pending: "news-edit-text", ask: "✏️ متن تازهٔ خبر را با | جدا کنید." },
   "18": { action: "news-approve-draft", voiceMode: "on" }, "19": { action: "status" },
   "20": { action: "undo" }, "21": { action: "undo-news" },
+  "22": { action: "amal-berlin" }, "23": { action: "amal-hamburg" },
+  "24": { action: "amal-frankfurt" }, "25": { action: "amal-farsi" },
 };
 
 function normalize(value = "") {
@@ -107,6 +113,10 @@ function videoAction(text) {
   }
   if (any("جستجوی محتوا", "جستجو محتوا", "ایده محتوا", "ترند محتوا", "موضوع بیشتر")) return { action: "content-search" };
   if (any("تحقیق", "اپدیت", "آپدیت", "قابلیت تازه", "research")) return { action: "research" };
+  if (any("امل برلین", "امال برلین", "amal berlin")) return { action: "amal-berlin" };
+  if (any("امل هامبورگ", "امال هامبورگ", "amal hamburg")) return { action: "amal-hamburg" };
+  if (any("امل فرانکفورت", "امال فرانکفورت", "amal frankfurt")) return { action: "amal-frankfurt" };
+  if (any("امل فارسی", "امال فارسی", "amal farsi")) return { action: "amal-farsi" };
   if (/^(خبر|اخبار|جستجو(?:ی)?\s+(?:خبر|اخبار)|scan news)$/.test(c)) return { action: "news-scan" };
   if (/^(خبر|news)\s*[:：]/.test(c)) return { action: "news-text-preview", payload: cleanNews(text) };
   if (/^(خبر|news)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-pick-preview", pick: digits(c) };
