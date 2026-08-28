@@ -80,12 +80,21 @@ function textFromWorkersAI(data) {
   // Workers AI models have used both native `response` and OpenAI-compatible
   // response shapes. Accept either so an upstream format change never turns
   // a successful model call into an empty Telegram reply.
+  if (typeof data === "string") return data.trim();
   const value = data?.response
     ?? data?.result?.response
+    ?? data?.message?.content
+    ?? data?.result?.message?.content
     ?? data?.choices?.[0]?.message?.content
     ?? data?.result?.choices?.[0]?.message?.content
     ?? data?.output_text
     ?? data?.result?.output_text
+    ?? data?.text
+    ?? data?.result?.text
+    ?? data?.output?.text
+    ?? data?.result?.output?.text
+    ?? data?.output?.[0]?.text
+    ?? data?.result?.output?.[0]?.text
     ?? data?.output?.[0]?.content?.[0]?.text;
   return typeof value === "string" ? value.trim() : "";
 }
@@ -102,11 +111,6 @@ async function chat(env, chatId, userText) {
     max_tokens: 420,
     temperature: 0.65,
   });
-  // Log only response field names and value types while diagnosing an upstream
-  // response-format mismatch; generated text and user messages stay private.
-  console.log("WORKERS_AI_RESPONSE_SHAPE", Object.fromEntries(
-    Object.entries(data || {}).map(([key, value]) => [key, Array.isArray(value) ? "array" : typeof value]),
-  ));
   const answer = textFromWorkersAI(data) || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
   await saveHistory(env, chatId, [...prior, { role: "user", content: userText.slice(0, 2000) }, { role: "assistant", content: answer }]);
   return answer;
