@@ -27,7 +27,12 @@ const is4k = args.includes("--4k");
 const noTelegram = args.includes("--no-telegram");
 const onlyIdx = args.indexOf("--only");
 const only = onlyIdx >= 0 ? args[onlyIdx + 1] : null; // e.g. --only tiktok
-const tg = noTelegram ? { enabled: false } : telegramConfig(loadEnv());
+// The Telegram helper already reads .env, but the subprocesses that generate
+// MiniMax narration inherit only process.env.  Promote local .env values once
+// here so local renders behave exactly like the GitHub Actions runner.
+const localEnv = loadEnv();
+Object.assign(process.env, localEnv);
+const tg = noTelegram ? { enabled: false } : telegramConfig(localEnv);
 const dateArg = args.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
 const date = dateArg ? new Date(dateArg + "T12:00:00") : new Date();
 const iso = date.toISOString().slice(0, 10);
