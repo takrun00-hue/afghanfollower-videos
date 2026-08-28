@@ -83,6 +83,8 @@ Fix all errors before presenting the result. Warnings should be reviewed before 
 
 ## Key Rules
 
+Before proposing, scripting, rendering, or revising any social video, read and enforce `CONTENT_RULES.md`. It is the project's persistent editorial policy for research-first numbered approvals, benefit-first hooks, slide-specific design, music, narration, and the separation of AfghanFollowers from German Insider.
+
 1. Every timed element needs `data-start`, `data-duration`, and `data-track-index`
 2. Elements with timing **MUST** have `class="clip"` — the framework uses this for visibility control
 3. Timelines must be paused and registered on `window.__timelines`:

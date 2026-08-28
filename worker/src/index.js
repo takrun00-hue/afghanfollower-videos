@@ -19,6 +19,12 @@ const HELP = `🤖 <b>دستورهای بات</b>
 • <b>موضوع تیک تاک</b> / <b>موضوع انستا</b> / <b>موضوع ابزار</b>
 • <b>تأیید نام-موضوع</b> — ساخت موضوع تأییدشده
 • <b>تحقیق</b> — آپدیت‌ها و موضوع‌های تازه
+• <b>انتخاب ۱</b> — ساخت موضوع شمارهٔ ۱ از فهرست پیشنهادی
+
+🔊 <b>صدا</b>
+• <b>صداها</b> — فهرست صداهای قابل استفاده
+• <b>تیک تاک بساز با صدای زن</b> — ساخت با صدای زن فارسی
+• <b>انستا بساز با صدا: نام‌صدا</b> — ساخت با یک Voice ID از فهرست
 
 📰 <b>German Insider</b>
 • <b>خبر آلمان</b> / <b>خبر اروپا</b> / <b>خبر روز</b>
@@ -35,13 +41,25 @@ function normalize(value = "") {
   return String(value).trim().replace(/^\//, "").replace(/‌/g, " ").replace(/\s+/g, " ").toLowerCase();
 }
 
+function voiceFor(text) {
+  const raw = String(text || "");
+  const named = raw.match(/(?:با\s*صدا|صدا)\s*[:：]\s*([A-Za-z0-9_.-]+)/i);
+  if (named) return named[1];
+  // The verified Persian voice currently configured for this project.
+  if (/صدای?\s*زن|زنانه|female/i.test(raw)) return "Persian_female_1_v1";
+  return "";
+}
+
 function videoAction(text) {
   const c = normalize(text);
   const any = (...words) => words.some((word) => c.includes(word));
+  const voiceId = voiceFor(text);
+  const withVoice = (action) => ({ action, voiceId });
   if (any("راهنما", "دستورها", "دستورات", "کمک", "help", "start")) return { action: "help" };
   if (/^(وضعیت|status)$/.test(c)) return { action: "status" };
   if (any("پاک کن", "حذف کن", "پاکش کن", "delete", "undo")) return { action: any("خبر", "اخبار", "news") ? "undo-news" : "undo" };
   if (any("صداها", "صدا minimax", "minimax voice", "voice list")) return { action: "voice-list" };
+  if (/^(?:انتخاب|موضوع|تأیید موضوع|تاييد موضوع)\s*[۰-۹0-9]+(?:\s|$)/i.test(c)) return { action: "topic-pick", pick: digits(c), voiceId };
   if (/^(تایید|تأیید|approve)\s+[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
   if (/^(بساز|تایید|تأیید|ok|build)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-approve", pick: digits(c) };
   if (any("برنامه هفته", "موضوعات هفته")) return { action: "plan-week" };
@@ -59,12 +77,12 @@ function videoAction(text) {
   if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tiktok" };
   if (any("انستا", "اینستا", "instagram", "insta") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-instagram" };
   if (any("ابزار", "هوش مصنوعی", " ai", "tool") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
-  if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "build-tiktok" };
-  if (any("انستا", "اینستا", "instagram", "insta") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "build-instagram" };
-  if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "build-tools" };
+  if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withVoice("build-tiktok");
+  if (any("انستا", "اینستا", "instagram", "insta") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withVoice("build-instagram");
+  if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withVoice("build-tools");
   if (/^(فردا|برای فردا|فردا بساز)$/.test(c)) return { action: "build-tomorrow" };
   if (/^(بفرست|ارسال کن|send)$/.test(c)) return { action: "resend" };
-  if (/^(بساز|ساخت همه|هر سه|make|build)$/.test(c)) return { action: "build-all" };
+  if (/^(بساز|ساخت همه|هر سه|make|build)$/.test(c)) return withVoice("build-all");
   return null;
 }
 
@@ -102,7 +120,7 @@ async function dispatchWorkflow(env, command) {
       "user-agent": "AfghanFollowers-Telegram-Worker",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ ref: "main", inputs: { action: command.action, pick: command.pick || "1", payload: command.payload || "" } }),
+    body: JSON.stringify({ ref: "main", inputs: { action: command.action, pick: command.pick || "1", payload: command.payload || "", voice_id: command.voiceId || "" } }),
   });
   if (!response.ok) throw new Error(`GitHub dispatch failed: ${response.status}`);
 }
