@@ -1,0 +1,12 @@
+{
+  "name": "afghanfollowers-telegram",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-28",
+  "vars": {
+    "GITHUB_OWNER": "takrun00-hue",
+    "GITHUB_REPO": "afghanfollower-videos",
+    "GITHUB_WORKFLOW": "telegram.yml"
+  }
+  // Optional: after creating a free Workers KV namespace, add:
+  // ,"kv_namespaces": [{"binding":"CHAT_HISTORY","id":"..."}]
+}

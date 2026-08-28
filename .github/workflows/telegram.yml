@@ -1,15 +1,13 @@
-name: Telegram commands
+name: Telegram video runner
 
-# Checks Telegram for a command every few minutes and acts on it in the cloud —
-# so videos can be ordered from the phone with the PC switched off.
+# Receives explicit render jobs from the real-time Telegram Worker and acts in
+# the cloud — so videos can be ordered from the phone with the PC switched off.
 #
 # Every action the command parser can return must be handled here. It was not:
-# after the news commands were added, the listener started returning actions like
+# after the news commands were added, an earlier listener returned actions like
 # "news-germany" and this workflow passed them to `--only`, which is a category
 # flag. Twelve runs in a row failed on "unknown category" before anyone looked.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       run_news_now:
@@ -17,6 +15,21 @@ on:
         required: false
         default: false
         type: boolean
+      action:
+        description: "Command sent by the real-time Telegram Worker"
+        required: false
+        default: ""
+        type: string
+      pick:
+        description: "Approved news item number"
+        required: false
+        default: "1"
+        type: string
+      payload:
+        description: "Sanitized feature id or user-supplied news text"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: telegram-listen
@@ -51,6 +64,7 @@ jobs:
         run: node news-build.mjs --fetch --today
 
   listen:
+    if: inputs.run_news_now != true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -72,7 +86,26 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_PICK: ${{ inputs.pick }}
+          INPUT_PAYLOAD: ${{ inputs.payload }}
+        run: |
+          # The real-time Worker dispatches known actions. Keep this allow-list
+          # here too: untrusted Telegram text must never become a shell value.
+          if [ -n "$INPUT_ACTION" ]; then
+            case "$INPUT_ACTION" in
+              approved-feature|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|voice-list|news-scan|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|undo|undo-news|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools) ;;
+              *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+            safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
+            safe_payload=$(printf '%s' "$INPUT_PAYLOAD" | tr '\r\n' ' ' | cut -c1-900)
+            printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" >> "$GITHUB_OUTPUT"
+          else
+            # There is no polling in the production Worker architecture. This
+            # fallback is only for manually running the old listener while
+            # migrating an existing bot.
+            node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
+          fi
 
       # Only the actions that actually render a video need ffmpeg and a headless
       # browser. Listing news or deleting a message does not.
