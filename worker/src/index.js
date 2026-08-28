@@ -76,6 +76,20 @@ async function saveHistory(env, chatId, messages) {
 
 const SYSTEM = `تو دستیار فارسی/دری برند AfghanFollowers هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده.`;
 
+function textFromWorkersAI(data) {
+  // Workers AI models have used both native `response` and OpenAI-compatible
+  // response shapes. Accept either so an upstream format change never turns
+  // a successful model call into an empty Telegram reply.
+  const value = data?.response
+    ?? data?.result?.response
+    ?? data?.choices?.[0]?.message?.content
+    ?? data?.result?.choices?.[0]?.message?.content
+    ?? data?.output_text
+    ?? data?.result?.output_text
+    ?? data?.output?.[0]?.content?.[0]?.text;
+  return typeof value === "string" ? value.trim() : "";
+}
+
 async function chat(env, chatId, userText) {
   if (!env.AI) throw new Error("Workers AI binding is unavailable");
   const prior = await history(env, chatId);
@@ -88,7 +102,7 @@ async function chat(env, chatId, userText) {
     max_tokens: 420,
     temperature: 0.65,
   });
-  const answer = String(data?.response || "").trim() || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
+  const answer = textFromWorkersAI(data) || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
   await saveHistory(env, chatId, [...prior, { role: "user", content: userText.slice(0, 2000) }, { role: "assistant", content: answer }]);
   return answer;
 }
