@@ -35,9 +35,13 @@ const response = await fetch(process.env.MINIMAX_TTS_ENDPOINT || "https://api.mi
     output_format: "hex",
     voice_setting: {
       voice_id: voiceId,
-      speed: Number(process.env.VOICE_SPEED || 0.96),
+      // 0.96 made Persian sentence endings unnaturally long. A small lift keeps
+      // the delivery lively without turning it into a rushed announcer voice.
+      speed: Number(process.env.VOICE_SPEED || 1.04),
       vol: 1,
-      pitch: Number(process.env.MINIMAX_VOICE_PITCH || 0),
+      // A very slight lift adds clarity on phone speakers; it is intentionally
+      // subtle so the voice remains natural rather than cartoonish.
+      pitch: Number(process.env.MINIMAX_VOICE_PITCH || 0.25),
     },
     audio_setting: { sample_rate: 44100, bitrate: 128000, format: "mp3", channel: 1 },
   }),

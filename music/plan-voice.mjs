@@ -21,7 +21,9 @@ const TTS = "music/minimax-tts.mjs";
 // Cached MiniMax lines must belong to the selected voice. Reusing a file named
 // only after the feature silently kept the previous speaker after the user
 // chose another Voice ID in Telegram.
-const voiceKey = String(process.env.MINIMAX_VOICE_ID || "default")
+// The profile is part of the cache key. Otherwise a new speed/pitch setting
+// silently reuses last week's slow MP3 files.
+const voiceKey = `${process.env.MINIMAX_VOICE_ID || "default"}-${process.env.TTS_PROFILE || "fa-natural-v3"}`
   .replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 96);
 
 mkdirSync("music/voice", { recursive: true });

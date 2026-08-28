@@ -29,7 +29,9 @@ const vo = narrationFor(featureId);
 if (!vo) { console.log(`  no narration for ${featureId} — silent`); process.exit(0); }
 
 const TTS = "music/minimax-tts.mjs";
-const voiceKey = String(process.env.MINIMAX_VOICE_ID || "default")
+// Match plan-voice.mjs exactly: a new speaking profile must synthesise fresh
+// lines rather than reuse a slower cached voice.
+const voiceKey = `${process.env.MINIMAX_VOICE_ID || "default"}-${process.env.TTS_PROFILE || "fa-natural-v3"}`
   .replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 96);
 
 mkdirSync("music/voice", { recursive: true });
