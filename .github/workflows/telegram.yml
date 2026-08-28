@@ -8,6 +8,9 @@ name: Telegram video runner
 # "news-germany" and this workflow passed them to `--only`, which is a category
 # flag. Twelve runs in a row failed on "unknown category" before anyone looked.
 on:
+  push:
+    paths:
+      - ".video-request.json"
   workflow_dispatch:
     inputs:
       run_news_now:
@@ -102,6 +105,7 @@ jobs:
           INPUT_PAYLOAD: ${{ inputs.payload }}
           INPUT_VOICE_ID: ${{ inputs.voice_id }}
           INPUT_VOICE_MODE: ${{ inputs.voice_mode }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           # The real-time Worker dispatches known actions. Keep this allow-list
           # here too: untrusted Telegram text must never become a shell value.
@@ -115,10 +119,14 @@ jobs:
             safe_voice=$(printf '%s' "$INPUT_VOICE_ID" | tr -cd 'A-Za-z0-9_.-' | cut -c1-120)
             case "$INPUT_VOICE_MODE" in on|off) safe_voice_mode="$INPUT_VOICE_MODE" ;; *) safe_voice_mode="on" ;; esac
             printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\nVOICE_MODE=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" "$safe_voice_mode" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "push" ] && [ -f .video-request.json ]; then
+            request_action=$(jq -r ''.action // "none"'' .video-request.json)
+            request_payload=$(jq -r ''.payload // ""'' .video-request.json | tr ''\r\n'' '' '' | cut -c1-900)
+            request_voice=$(jq -r ''.voice_mode // "on"'' .video-request.json)
+            case "$request_action" in custom-content) ;; *) request_action="none" ;; esac
+            case "$request_voice" in on|off) ;; *) request_voice="on" ;; esac
+            printf ''ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n'' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           else
-            # There is no polling in the production Worker architecture. This
-            # fallback is only for manually running the old listener while
-            # migrating an existing bot.
             node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
           fi
 
@@ -313,3 +321,4 @@ jobs:
           else
             node undo-send.mjs 3 --daily
           fi
+
