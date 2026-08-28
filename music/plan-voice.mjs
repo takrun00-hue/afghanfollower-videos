@@ -18,6 +18,11 @@ const vo = narrationFor(featureId);
 if (!vo) { console.log(JSON.stringify({ ok: false })); process.exit(0); }
 
 const TTS = "music/minimax-tts.mjs";
+// Cached MiniMax lines must belong to the selected voice. Reusing a file named
+// only after the feature silently kept the previous speaker after the user
+// chose another Voice ID in Telegram.
+const voiceKey = String(process.env.MINIMAX_VOICE_ID || "default")
+  .replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 96);
 
 mkdirSync("music/voice", { recursive: true });
 
@@ -33,7 +38,7 @@ function dur(file) {
 const texts = [vo.hook, ...vo.steps.slice(0, requestedTips), vo.outro];
 const files = [], durs = [];
 for (let i = 0; i < texts.length; i++) {
-  const f = `music/voice/${featureId}-minimax-line${i}.mp3`;
+  const f = `music/voice/${featureId}-${voiceKey}-minimax-line${i}.mp3`;
   if (!existsSync(f)) {
     execFileSync("node", [TTS, minimaxSpeakable(texts[i]), "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],

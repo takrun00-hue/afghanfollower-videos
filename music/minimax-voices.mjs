@@ -19,7 +19,11 @@ if (!response.ok || data?.base_resp?.status_code !== 0) {
 }
 const all = ["system_voice", "voice_cloning", "voice_generation"]
   .flatMap((kind) => (data[kind] || []).map((voice) => ({ kind, ...voice })));
-const persian = all.filter((voice) => /persian|farsi|dari|iran|afghan/i.test(
+// Match complete language labels only. A substring search for `dari` wrongly
+// matched every `Mandarin` voice (Man<dari>n), which is why Chinese voices
+// appeared under the Persian heading.
+const isPersianLabel = (value) => /(^|[^a-z])(?:persian|farsi|dari|iranian|afghan)(?=$|[^a-z])/i.test(String(value));
+const persian = all.filter((voice) => isPersianLabel(
   `${voice.voice_id || ""} ${voice.voice_name || ""} ${(voice.description || []).join(" ")}`
 ));
 // MiniMax may list a multilingual Persian voice by ID only in a project's

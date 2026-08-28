@@ -29,6 +29,8 @@ const vo = narrationFor(featureId);
 if (!vo) { console.log(`  no narration for ${featureId} — silent`); process.exit(0); }
 
 const TTS = "music/minimax-tts.mjs";
+const voiceKey = String(process.env.MINIMAX_VOICE_ID || "default")
+  .replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 96);
 
 mkdirSync("music/voice", { recursive: true });
 
@@ -47,7 +49,7 @@ for (let i = 0; i < lines.length; i++) {
   // Reuse the exact audio that plan-voice measured for the scene duration.
   // Re-synthesising here can vary the length slightly and makes a sentence run
   // into the next slide.
-  const f = `music/voice/${featureId}-minimax-line${i}.mp3`;
+  const f = `music/voice/${featureId}-${voiceKey}-minimax-line${i}.mp3`;
   if (!existsSync(f)) {
     execFileSync("node", [TTS, minimaxSpeakable(lines[i].text), "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],

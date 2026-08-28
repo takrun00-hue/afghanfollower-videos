@@ -96,10 +96,13 @@ for (const platform of cats) {
         // A clear end-breath is better than the last word colliding with the
         // next card. This padding is preserved because make-voice reuses the
         // very files measured above.
-        const PAD = 0.8, MIN = 2.1;
+        // Leave a full spoken landing before the next card. The voice files
+        // themselves are reused by the mixer, so this is a real gap after the
+        // sentence — not a guessed visual duration.
+        const PAD = 1.15, MIN = 2.5;
         pack.hookDuration = +Math.max(MIN + 0.3, plan.durs[0] + PAD).toFixed(3);
         pack.tipDurations = plan.durs.slice(1, -1).map((d) => +Math.max(MIN, d + PAD).toFixed(3));
-        pack.outroDuration = +Math.max(3.2, plan.durs[plan.durs.length - 1] + 1.1).toFixed(3);
+        pack.outroDuration = +Math.max(3.6, plan.durs[plan.durs.length - 1] + 1.3).toFixed(3);
         pack.duration = +(
           pack.hookDuration + pack.tipDurations.reduce((a, d) => a + d, 0) + pack.outroDuration
         ).toFixed(3);
