@@ -214,16 +214,16 @@ for (const platform of cats) {
       }
     } catch (e) {
       console.error(`   ✗ Telegram send failed: ${e.message}`);
+      throw e;
     }
+  } else if (!noTelegram) {
+    throw new Error("Telegram is not configured; refusing to mark a local-only render as delivered.");
   }
   results.push({ platform, packId: pack.id, file: resolve(final), telegram: sent });
 }
 
-if (!tg.enabled && !noTelegram) {
-  console.log("\nℹ Telegram not configured — videos saved locally only. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env to auto-send.");
-}
-
 writeFileSync(`${outDir}/${isNewsRun ? "news-manifest" : "manifest"}.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
 console.log(`\n✅ ${iso}: ${results.length} videos ready in ${outDir}\n` + results.map((r) => "   " + r.file).join("\n"));
+
 
 
