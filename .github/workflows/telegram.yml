@@ -47,6 +47,7 @@ jobs:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
           VOICE: "on"
+          REQUIRE_VOICE: "on"
         run: node news-build.mjs --fetch --today
 
   listen:
@@ -109,6 +110,7 @@ jobs:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
           VOICE: "on"
+          REQUIRE_VOICE: "on"
         run: |
           node approve-feature.mjs "$PAYLOAD"
 
@@ -168,6 +170,7 @@ jobs:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
           VOICE: "on"
+          REQUIRE_VOICE: "on"
           PICK: ${{ steps.cmd.outputs.PICK }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
         run: |

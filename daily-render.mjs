@@ -31,7 +31,7 @@ const dateArg = args.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
 const date = dateArg ? new Date(dateArg + "T12:00:00") : new Date();
 const iso = date.toISOString().slice(0, 10);
 
-const HF = "npx --yes hyperframes@0.7.109";
+const HF = "npx --yes hyperframes@0.8.16";
 const resFlag = is4k ? "--resolution portrait-4k" : "";
 
 // --feature <id> publishes one named feature immediately, whatever the rotation
@@ -159,6 +159,10 @@ for (const platform of cats) {
       if (existsSync(vFile)) voice = vFile;
     } catch (e) {
       console.error("   ✗ voice failed, continuing music-only:", String(e.message).split(String.fromCharCode(10))[0]);
+      // A requested narrated video must not silently arrive as music-only.
+      // Production workflows set REQUIRE_VOICE=on; local design previews can
+      // still deliberately fall back to music when that flag is absent.
+      if (process.env.REQUIRE_VOICE === "on") throw e;
     }
   }
 
