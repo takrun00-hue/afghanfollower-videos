@@ -147,6 +147,35 @@ if (text && text.includes("|")) {
   headline = sentences[0] || text.slice(0, 90);
   body = sentences.slice(1, 9);
 }
+
+// A Telegram-confirmed story may not be rendered again under a slightly
+// different wording.  This deliberately runs after every input method
+// (manual text, queue, and live search), but before any composition is written.
+// It only uses confirmed entries written by daily-render.mjs after sendVideo
+// returns a Telegram message id.
+function newsKey(s) {
+  return String(s || "")
+    .replace(/[يى]/g, "ی").replace(/ك/g, "ک")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/).filter((w) => w.length > 2)
+    .filter((w) => !new Set(["آلمان", "آلمانی", "خبر", "تازه", "جدید", "برای", "است", "شد", "شده", "درباره"]).has(w));
+}
+function overlaps(a, b) {
+  const A = new Set(newsKey(a)), B = new Set(newsKey(b));
+  if (!A.size || !B.size) return 0;
+  let shared = 0; for (const word of A) if (B.has(word)) shared++;
+  return shared / Math.min(A.size, B.size);
+}
+let publishedNews = [];
+try { publishedNews = JSON.parse(readFileSync(".content-history.json", "utf8")); } catch {}
+const duplicate = publishedNews
+  .filter((x) => x.platform === "news")
+  .find((x) => overlaps(headline, x.topic || x.hook) >= 0.7);
+if (duplicate) {
+  const msg = `⛔ این خبر قبلاً در تلگرام ارسال شده است؛ ویدیوی تکراری ساخته نشد.\nموضوع قبلی: ${duplicate.topic || duplicate.hook}`;
+  if (has("--preview")) await say(msg); else console.error(msg);
+  process.exit(2);
+}
 // A news sentence runs 120-160 characters. On a card that becomes a wall of bold
 // type — the thing that makes the news channel look heavier and duller than the
 // tutorials, where every band holds one short line. So a long sentence is split

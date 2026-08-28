@@ -232,7 +232,10 @@ for (const platform of cats) {
       if (res && res.message_id) {
         const delivery = { kind: isNewsRun ? "news" : "daily", platform, packId: pack.id, messageId: res.message_id, at: Date.now() };
         recordSent(delivery);
-        if (!isNewsRun) recordPublishedTopic(pack, delivery);
+        // This is the editorial memory for both channels.  A story counts as
+        // published only after Telegram confirms a message id; drafts and
+        // aborted renders must never suppress a future story.
+        recordPublishedTopic(pack, delivery);
       }
     } catch (e) {
       console.error(`   ✗ Telegram send failed: ${e.message}`);
