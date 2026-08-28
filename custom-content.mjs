@@ -20,9 +20,9 @@ const category = /(اینستا|انستا|instagram|reels|ریلز|edits)/i.tes
   : /(تیک\s*تاک|tiktok|tik\s*tok)/i.test(topic) ? "tiktok" : "tools";
 const id = `custom-${createHash("sha256").update(raw).digest("hex").slice(0, 10)}`;
 const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*صدا/i.test(topic)
-  ? { photo: "public/sources/edits-sound-separation-ui.webp", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
+  ? { name: "Instagram Edits", photo: "public/sources/edits-sound-separation-ui.webp", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
   : /google\s*vids|گوگل\s*ویدز/i.test(topic)
-    ? { photo: "public/sources/google-vids-ui.webp", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
+    ? { name: "Google Vids", photo: "public/sources/google-vids-ui.webp", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
     : null;
 const provided = parts.slice(1).map((text, i) => ({
   text: text.slice(0, 180),
@@ -37,15 +37,19 @@ const steps = provided.length >= 4 ? provided.slice(0, 4) : [
   })),
 ];
 
+const appName = visualPreset?.name || (category === "instagram" ? "Instagram" : category === "tiktok" ? "TikTok" : "آموزش کاربردی");
+
 const pack = {
   id,
   category,
-  name: category === "instagram" ? "Instagram" : category === "tiktok" ? "TikTok" : "اپ رایگان",
+  name: appName,
+  kicker: appName,
+  hookPhoto: visualPreset?.photo || null,
   title: topic,
   benefit: { key: "custom", fa: topic },
   hook: {
     // The hook is deliberately an open loop: it does not answer itself below.
-    ask: topic.endsWith("؟") ? topic : `${topic}؛ نتیجه‌اش را تا آخر ببینید`,
+    ask: topic.endsWith("؟") ? topic : `${topic}؛ تا آخر ببینید، مسیر واقعی‌اش را نشان می‌دهم`,
     l1: topic,
     l2: "تا پایان ببینید",
   },
@@ -59,5 +63,4 @@ mkdirSync("lib/generated", { recursive: true });
 writeFileSync("lib/generated/custom-current.mjs", `export const CURRENT_CUSTOM = ${JSON.stringify(pack, null, 2)};\n`);
 const result = spawnSync("node", ["daily-render.mjs", "--feature", id, "--custom-generated"], { stdio: "inherit", env: process.env });
 process.exit(result.status ?? 1);
-
 
