@@ -40,13 +40,16 @@ const featIdx = args.indexOf("--feature");
 const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
 
 const sel = packsForDate(date);
+let generated = null;
 if (featureId) {
-  // a news item just written by news-build.mjs lives in a generated file rather
-  // than in the feature banks
-  let generated = null;
+  // One-off news and user-supplied tutorials live in generated files rather
+  // than in the permanent feature banks.
   if (args.includes("--news-generated")) {
     const mod = await import("./lib/generated/news-current.mjs?t=" + Date.now());
     generated = mod.CURRENT_NEWS;
+  } else if (args.includes("--custom-generated")) {
+    const mod = await import("./lib/generated/custom-current.mjs?t=" + Date.now());
+    generated = mod.CURRENT_CUSTOM;
   }
   const p = packForFeature(featureId, date, generated);
   if (!p) {
@@ -57,7 +60,7 @@ if (featureId) {
 }
 // A news run is a separate channel: separate folder, separate filename, and a
 // separate manifest, so it can never overwrite the tutorials' record for the day.
-const isNewsRun = !!featureId && (args.includes("--news-generated") ||
+const isNewsRun = !!featureId && (args.includes("--news-generated") || generated?.category === "news" ||
   ["bverfg-ruling", "legal-route-works"].includes(featureId) || /^news-/.test(featureId));
 const compDir = isNewsRun ? `compositions/news/${iso}` : `compositions/daily/${iso}`;
 const outDir = isNewsRun ? `renders/news/${iso}` : `renders/daily/${iso}`;

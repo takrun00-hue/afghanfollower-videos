@@ -19,7 +19,9 @@ const HELP = `🤖 <b>دستورهای بات</b>
 • <b>موضوع تیک تاک</b> / <b>موضوع انستا</b> / <b>موضوع ابزار</b>
 • <b>تأیید نام-موضوع</b> — ساخت موضوع تأییدشده
 • <b>تحقیق</b> — آپدیت‌ها و موضوع‌های تازه
+• <b>جستجوی محتوا</b> — موضوع‌های ترند، ویو و درآمد برای تأیید
 • <b>انتخاب ۱</b> — ساخت موضوع شمارهٔ ۱ از فهرست پیشنهادی
+• <b>محتوا: موضوع | نکته ۱ | نکته ۲ | نکته ۳ | نکته ۴</b> — ساخت از متن شما
 
 🔊 <b>صدا</b>
 • <b>صداها</b> — فهرست صداهای قابل استفاده
@@ -61,11 +63,18 @@ function videoAction(text) {
   if (/^(وضعیت|status)$/.test(c)) return { action: "status" };
   if (any("پاک کن", "حذف کن", "پاکش کن", "delete", "undo")) return { action: any("خبر", "اخبار", "news") ? "undo-news" : "undo" };
   if (any("صداها", "صدا minimax", "minimax voice", "voice list")) return { action: "voice-list" };
+  if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]/i.test(c)) {
+    const payload = cleanContent(text);
+    return payload.split("|").filter(Boolean).length >= 2
+      ? { action: "custom-content", payload, ...audio }
+      : { action: "custom-help" };
+  }
   if (/^(?:انتخاب|موضوع|تأیید موضوع|تاييد موضوع)\s*[۰-۹0-9]+(?:\s|$)/i.test(c)) return { action: "topic-pick", pick: digits(c), ...audio };
   if (/^(تایید|تأیید|approve)\s+[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
   if (/^(بساز|تایید|تأیید|ok|build)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-approve", pick: digits(c) };
   if (any("برنامه هفته", "موضوعات هفته")) return { action: "plan-week" };
   if (any("موضوع فردا", "برنامه فردا")) return { action: "plan-tomorrow" };
+  if (any("جستجوی محتوا", "جستجو محتوا", "ایده محتوا", "ترند محتوا", "موضوع بیشتر")) return { action: "content-search" };
   if (any("تحقیق", "اپدیت", "آپدیت", "قابلیت تازه", "research")) return { action: "research" };
   if (/^(جستجو خبر|جستجو اخبار|scan news)$/.test(c)) return { action: "news-scan" };
   if (/^(خبر|news)\s*[:：]/.test(c)) return { action: "news-text", payload: cleanNews(text) };
@@ -95,6 +104,12 @@ function digits(text) {
 
 function cleanNews(text) {
   return String(text).replace(/^\s*(?:خبر|news)\s*[:：]\s*/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+}
+
+function cleanContent(text) {
+  return String(text)
+    .replace(/^\s*(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]\s*/i, "")
+    .replace(/[\r\n]+/g, " ").trim().slice(0, 900);
 }
 
 async function telegram(env, method, body) {
@@ -195,6 +210,8 @@ export default {
           await reply(env, chatId, HELP);
         } else if (command.action === "status") {
           await reply(env, chatId, "✅ بات آنلاین است. چت فوری و فرمان ساخت ویدیو فعال‌اند.");
+        } else if (command.action === "custom-help") {
+          await reply(env, chatId, "برای ساخت از متن خودت این‌طور بنویس:\n\n<code>محتوا: موضوع | نکتهٔ ۱ | نکتهٔ ۲ | نکتهٔ ۳ | نکتهٔ ۴</code>\n\nمثال: <code>محتوا: راه پیدا کردن موضوع ترند در TikTok | Search را باز کن | Creator Search Insights را بنویس | Content gap را بزن | از موضوعِ پرجستجو ویدیو بساز</code>");
         } else {
           await dispatchWorkflow(env, command);
           await reply(env, chatId, "✅ دستور دریافت شد. ساخت یا بررسی در فضای ابری شروع شد؛ نتیجه را همین‌جا می‌فرستم.");
