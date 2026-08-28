@@ -172,7 +172,7 @@ for (const platform of cats) {
         `${pack.tips.length} ${(pack.duration - pack.outroDuration).toFixed(3)} ${pack.duration} "${vFile}"`,
         { stdio: "inherit" }
       );
-      if (existsSync(vFile)) voice = vFile;
+      if (existsSync(vFile)) voice = vFile;`n      if (!voice && process.env.REQUIRE_VOICE === "on") throw new Error(`نریشن برای ${pack.id} ساخته نشد`);
     } catch (e) {
       console.error("   ✗ voice failed, continuing music-only:", String(e.message).split(String.fromCharCode(10))[0]);
       // A requested narrated video must not silently arrive as music-only.
@@ -224,3 +224,4 @@ if (!tg.enabled && !noTelegram) {
 
 writeFileSync(`${outDir}/${isNewsRun ? "news-manifest" : "manifest"}.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
 console.log(`\n✅ ${iso}: ${results.length} videos ready in ${outDir}\n` + results.map((r) => "   " + r.file).join("\n"));
+
