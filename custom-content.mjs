@@ -38,6 +38,20 @@ const steps = provided.length >= 4 ? provided.slice(0, 4) : [
 ];
 
 const appName = visualPreset?.name || (category === "instagram" ? "Instagram" : category === "tiktok" ? "TikTok" : "آموزش کاربردی");
+const hookOptions = visualPreset?.name === "Google Vids"
+  ? [
+      "فقط یک عکس از محصول داری؟ فکر می‌کنی برای یک ویدیوی تبلیغاتی کافی نیست؟",
+      "هنوز برای معرفی محصولت فقط عکس می‌گذاری؟ شاید همین‌جا مخاطب رد می‌شود.",
+      "برای ویدیوی محصول، هنوز دنبال فیلم‌برداری هستی؟ تا آخر ببین؛ یک راه ساده‌تر هست.",
+    ]
+  : visualPreset?.name === "Instagram Edits"
+    ? [
+        "صدای ویدیویت شلوغ شده و مخاطب زود رد می‌کند؟",
+        "فکر می‌کنی مشکل ویدیویت تصویر است؟ شاید صدا دلیل اصلی باشد.",
+        "یک اشتباه کوچک در صدا می‌تواند ویدیوی خوبت را غیرقابل‌تماشا کند.",
+      ]
+    : [topic.endsWith("؟") ? topic : `${topic}؛ تا آخر ببینید، مسیر واقعی‌اش را نشان می‌دهم`];
+const selectedHook = hookOptions[0];
 
 const pack = {
   id,
@@ -48,10 +62,13 @@ const pack = {
   title: topic,
   benefit: { key: "custom", fa: topic },
   hook: {
-    // The hook is deliberately an open loop: it does not answer itself below.
-    ask: topic.endsWith("؟") ? topic : `${topic}؛ تا آخر ببینید، مسیر واقعی‌اش را نشان می‌دهم`,
-    l1: topic,
-    l2: "تا پایان ببینید",
+    // The spoken hook does not reveal the product name or the solution.
+    badge: "",
+    ask: selectedHook,
+    l1: selectedHook,
+    l2: "تا آخر ببینید؛ مرحلهٔ آخر مهم است",
+    options: hookOptions,
+    selected: 1,
   },
   payoff: "اگر این نکته برایت مفید بود، موضوع بعدی را در کامنت بنویس.",
   outroAsk: "دوست داری ویدیوی بعدی دربارهٔ چه موضوعی باشد؟",
