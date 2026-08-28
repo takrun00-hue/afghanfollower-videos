@@ -35,7 +35,7 @@ const response = await fetch(process.env.MINIMAX_TTS_ENDPOINT || "https://api.mi
     output_format: "hex",
     voice_setting: {
       voice_id: voiceId,
-      speed: Number(process.env.VOICE_SPEED || 1.03),
+      speed: Number(process.env.VOICE_SPEED || 0.96),
       vol: 1,
       pitch: Number(process.env.MINIMAX_VOICE_PITCH || 0),
     },

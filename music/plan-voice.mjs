@@ -8,11 +8,12 @@ import { mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
-import { sayable } from "../lib/pronounce.mjs";
+import { minimaxSpeakable } from "../lib/pronounce.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
 const featureId = process.argv[2];
+const requestedTips = Math.max(1, Number(process.argv[3]) || 4);
 const vo = narrationFor(featureId);
 if (!vo) { console.log(JSON.stringify({ ok: false })); process.exit(0); }
 
@@ -27,12 +28,14 @@ function dur(file) {
   return Number(out) || 0;
 }
 
-const texts = [vo.hook, ...vo.steps, vo.outro];
+// Only synthesise lines that will actually be on screen. Generating unseen
+// cards wastes MiniMax balance and makes a short bulletin needlessly slow.
+const texts = [vo.hook, ...vo.steps.slice(0, requestedTips), vo.outro];
 const files = [], durs = [];
 for (let i = 0; i < texts.length; i++) {
   const f = `music/voice/${featureId}-minimax-line${i}.mp3`;
   if (!existsSync(f)) {
-    execFileSync("node", [TTS, sayable(texts[i]), "-o", f], {
+    execFileSync("node", [TTS, minimaxSpeakable(texts[i]), "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],
     });
   }

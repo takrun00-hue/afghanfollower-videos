@@ -90,10 +90,13 @@ for (const platform of cats) {
   if (process.env.VOICE === "on") {
     try {
       const plan = JSON.parse(
-        execSync(`node music/plan-voice.mjs ${pack.id}`, { encoding: "utf8" }).trim().split(String.fromCharCode(10)).pop()
+        execSync(`node music/plan-voice.mjs ${pack.id} ${pack.tips.length}`, { encoding: "utf8" }).trim().split(String.fromCharCode(10)).pop()
       );
       if (plan.ok && plan.durs.length === pack.tips.length + 2) {
-        const PAD = 0.45, MIN = 1.9;
+        // A clear end-breath is better than the last word colliding with the
+        // next card. This padding is preserved because make-voice reuses the
+        // very files measured above.
+        const PAD = 0.8, MIN = 2.1;
         pack.hookDuration = +Math.max(MIN + 0.3, plan.durs[0] + PAD).toFixed(3);
         pack.tipDurations = plan.durs.slice(1, -1).map((d) => +Math.max(MIN, d + PAD).toFixed(3));
         pack.outroDuration = +Math.max(3.2, plan.durs[plan.durs.length - 1] + 1.1).toFixed(3);

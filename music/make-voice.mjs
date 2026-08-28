@@ -8,7 +8,7 @@ import { mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
-import { sayable } from "../lib/pronounce.mjs";
+import { minimaxSpeakable } from "../lib/pronounce.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -44,10 +44,15 @@ const lines = [
 
 const parts = [];
 for (let i = 0; i < lines.length; i++) {
-  const f = `music/voice/${featureId}-minimax-${i}.mp3`;
-  execFileSync("node", [TTS, sayable(lines[i].text), "-o", f], {
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  // Reuse the exact audio that plan-voice measured for the scene duration.
+  // Re-synthesising here can vary the length slightly and makes a sentence run
+  // into the next slide.
+  const f = `music/voice/${featureId}-minimax-line${i}.mp3`;
+  if (!existsSync(f)) {
+    execFileSync("node", [TTS, minimaxSpeakable(lines[i].text), "-o", f], {
+      stdio: ["ignore", "ignore", "inherit"],
+    });
+  }
   parts.push({ file: f, at: lines[i].at });
 }
 
