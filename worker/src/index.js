@@ -192,7 +192,7 @@ async function saveHistory(env, chatId, messages) {
 
 function menuCode(text) {
   const code = String(text || "").trim().replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
-  return /^(?:0|[1-9]\d?)$/.test(code) ? code : null;
+  return code === "0" || Object.hasOwn(NUMBERED_ACTIONS, code) ? code : null;
 }
 
 async function pendingFor(env, chatId) {
@@ -324,4 +324,7 @@ export default {
     return new Response("ok");
   },
 };
+
+// Kept outside the HTTP handler solely for deterministic local command tests.
+export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction };
 
