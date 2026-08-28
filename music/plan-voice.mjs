@@ -23,7 +23,7 @@ const TTS = "music/minimax-tts.mjs";
 // chose another Voice ID in Telegram.
 // The profile is part of the cache key. Otherwise a new speed/pitch setting
 // silently reuses last week's slow MP3 files.
-const voiceKey = `${process.env.MINIMAX_VOICE_ID || "default"}-${process.env.TTS_PROFILE || "fa-natural-v5"}`
+const voiceKey = `${process.env.MINIMAX_VOICE_ID || "default"}-${process.env.TTS_PROFILE || "fa-natural-v6"}`
   .replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 96);
 
 mkdirSync("music/voice", { recursive: true });

@@ -37,7 +37,7 @@ const response = await fetch(process.env.MINIMAX_TTS_ENDPOINT || "https://api.mi
       voice_id: voiceId,
       // 0.96 made Persian sentence endings unnaturally long. A small lift keeps
       // the delivery lively without turning it into a rushed announcer voice.
-      speed: Number(process.env.VOICE_SPEED || 1.08),
+      speed: Number(process.env.VOICE_SPEED || 1.1),
       vol: 1,
       // MiniMax requires a whole-number pitch. Keep the default neutral: the
       // small speed lift above supplies clarity without an artificial tone.
