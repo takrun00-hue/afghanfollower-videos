@@ -39,9 +39,9 @@ const response = await fetch(process.env.MINIMAX_TTS_ENDPOINT || "https://api.mi
       // the delivery lively without turning it into a rushed announcer voice.
       speed: Number(process.env.VOICE_SPEED || 1.04),
       vol: 1,
-      // A very slight lift adds clarity on phone speakers; it is intentionally
-      // subtle so the voice remains natural rather than cartoonish.
-      pitch: Number(process.env.MINIMAX_VOICE_PITCH || 0.25),
+      // MiniMax requires a whole-number pitch. Keep the default neutral: the
+      // small speed lift above supplies clarity without an artificial tone.
+      pitch: Math.round(Number(process.env.MINIMAX_VOICE_PITCH || 0)),
     },
     audio_setting: { sample_rate: 44100, bitrate: 128000, format: "mp3", channel: 1 },
   }),
