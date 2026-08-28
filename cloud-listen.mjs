@@ -70,7 +70,11 @@ if (action === "help") {
   console.log(`PICK=${pick}`);
   // strip the "خبر:" prefix and flatten newlines — GITHUB_OUTPUT is line-based,
   // so a multi-line value would break the parsing of everything after it
-  console.log(`PAYLOAD=${cleanPayload(payloadText)}`);
+  const payload = action === "news-search-live"
+    ? String(payloadText).replace(/^\s*جستجو(?:ی)?\s+(?:خبر|اخبار)\s*[:：]?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 300)
+    : cleanPayload(payloadText);
+  console.log(`PAYLOAD=${payload}`);
 } else {
   console.log("ACTION=none");
 }
+

@@ -8,7 +8,7 @@
 //   وضعیت           → what exists for today
 //   فردا            → build tomorrow's set early
 //   راهنما          → this list
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
@@ -85,6 +85,15 @@ async function handle(text) {
     return say(r.ok ? `✅ ویدیوی ${LABEL[cmd.action]} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
   }
 
+  if (cmd && (cmd.action === "news-scan" || cmd.action === "news-search-live")) {
+    const query = cmd.action === "news-search-live"
+      ? text.replace(/^\s*جستجو(?:ی)?\s+(?:خبر|اخبار)\s*[:：]?\s*/i, "").trim().slice(0, 300)
+      : "";
+    await say(query ? `🔎 در حال جستجوی زندهٔ خبر دربارهٔ «${query}»…` : "🔎 در حال جستجوی تازه‌ترین خبرهای آلمان و اروپا…");
+    try { execFileSync("node", ["news-scan.mjs", ...(query ? ["--query", query] : [])], { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطای جستجوی خبر: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
   if (cmd && (cmd.action === "news-breaking" || cmd.action === "news-today")) {
     await say("📰 در حال جستجوی خبر…");
     const flag = cmd.action === "news-today" ? " --today --list" : "";
@@ -176,3 +185,4 @@ for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
   }
 }
+
