@@ -20,7 +20,10 @@ const HELP = `🤖 <b>دستورهای بات</b>
 • <b>تأیید نام-موضوع</b> — ساخت موضوع تأییدشده
 • <b>تحقیق</b> — آپدیت‌ها و موضوع‌های تازه
 • <b>جستجوی محتوا</b> — موضوع‌های ترند، ویو و درآمد برای تأیید
-• <b>انتخاب ۱</b> — ساخت موضوع شمارهٔ ۱ از فهرست پیشنهادی
+• <b>انتخاب ۱</b> — دیدن قلاب و متن موضوع شمارهٔ ۱
+• <b>تأیید محتوا</b> — ساخت پیش‌نویس تأییدشده با صدا
+• <b>ادیت قلاب: متن تازه</b> — تغییر قلاب پیش‌نویس
+• <b>ادیت متن: گام۱ | گام۲ | گام۳ | گام۴</b> — تغییر اسلایدها
 • <b>محتوا: موضوع | نکته ۱ | نکته ۲ | نکته ۳ | نکته ۴</b> — ساخت از متن شما
 
 🔊 <b>صدا</b>
@@ -31,8 +34,10 @@ const HELP = `🤖 <b>دستورهای بات</b>
 
 📰 <b>German Insider</b>
 • <b>خبر آلمان</b> / <b>خبر اروپا</b> / <b>خبر روز</b>
-• <b>خبر فوری</b> — ساخت خبر کوتاه
-• <b>بساز ۱</b> — ساخت خبر شمارهٔ ۱
+• <b>خبر فوری</b> — دیدن پیش‌نویس خبر کوتاه
+• <b>خبر ۱</b> — دیدن قلاب خبر شمارهٔ ۱
+• <b>تأیید خبر</b> — ساخت خبر تأییدشده
+• <b>ادیت قلاب خبر: متن تازه</b> — تغییر تیترِ قلاب
 • <b>خبر: تیتر | جزئیات</b> — خبر از متن شما
 
 ⚙️ <b>مدیریت</b>
@@ -63,6 +68,13 @@ function videoAction(text) {
   if (/^(وضعیت|status)$/.test(c)) return { action: "status" };
   if (any("پاک کن", "حذف کن", "پاکش کن", "delete", "undo")) return { action: any("خبر", "اخبار", "news") ? "undo-news" : "undo" };
   if (any("صداها", "صدا minimax", "minimax voice", "voice list")) return { action: "voice-list" };
+  if (/^(?:ادیت|ویرایش)\s*قلاب\s*خبر\s*[:：]/i.test(c)) return { action: "news-edit-hook", payload: cleanEdit(text, "قلاب\\s*خبر") };
+  if (/^(?:ادیت|ویرایش)\s*(?:متن|محتوا)\s*خبر\s*[:：]/i.test(c)) return { action: "news-edit-text", payload: cleanEdit(text, "(?:متن|محتوا)\\s*خبر") };
+  if (/^(?:تأیید|تایید)\s*خبر$/i.test(c)) return { action: "news-approve-draft" };
+  if (/^(?:ادیت|ویرایش)\s*قلاب\s*[:：]/i.test(c)) return { action: "content-edit-hook", payload: cleanEdit(text, "قلاب") };
+  if (/^(?:ادیت|ویرایش)\s*(?:متن|محتوا|اسلاید)\s*[:：]/i.test(c)) return { action: "content-edit-steps", payload: cleanEdit(text, "(?:متن|محتوا|اسلاید)") };
+  if (/^(?:تأیید|تایید)\s*(?:محتوا|ویدیو|پیش\s*نویس)$/i.test(c)) return withAudio("content-approve");
+  if (/^(?:پیش\s*نویس|نمایش محتوا|دیدن محتوا)$/i.test(c)) return { action: "content-preview" };
   if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]/i.test(c)) {
     const payload = cleanContent(text);
     return payload.split("|").filter(Boolean).length >= 2
@@ -77,23 +89,25 @@ function videoAction(text) {
   if (any("جستجوی محتوا", "جستجو محتوا", "ایده محتوا", "ترند محتوا", "موضوع بیشتر")) return { action: "content-search" };
   if (any("تحقیق", "اپدیت", "آپدیت", "قابلیت تازه", "research")) return { action: "research" };
   if (/^(جستجو خبر|جستجو اخبار|scan news)$/.test(c)) return { action: "news-scan" };
-  if (/^(خبر|news)\s*[:：]/.test(c)) return { action: "news-text", payload: cleanNews(text) };
-  if (/^(خبر|news)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-pick", pick: digits(c) };
-  if (/^(اروپا|europe)\s*[۰-۹0-9]+$/.test(c)) return { action: "europe-pick", pick: digits(c) };
+  if (/^(خبر|news)\s*[:：]/.test(c)) return { action: "news-text-preview", payload: cleanNews(text) };
+  if (/^(خبر|news)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-pick-preview", pick: digits(c) };
+  if (/^(اروپا|europe)\s*[۰-۹0-9]+$/.test(c)) return { action: "europe-pick-preview", pick: digits(c) };
   if (any("خبر اروپا", "اروپا", "europe")) return { action: "news-europe" };
   if (any("خبر روز", "خبر امروز", "اخبار روز", "news today")) return { action: "news-today" };
   if (any("خبر آلمان", "آلمان", "germany")) return { action: "news-germany" };
-  if (any("خبر فوری", "فوری", "breaking")) return { action: "news-breaking" };
+  if (any("خبر فوری", "فوری", "breaking")) return { action: "news-breaking-preview" };
   if (/^(خبر|اخبار|news)$/.test(c)) return { action: "research" };
   if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tiktok" };
   if (any("انستا", "اینستا", "instagram", "insta") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-instagram" };
   if (any("ابزار", "هوش مصنوعی", " ai", "tool") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
-  if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withAudio("build-tiktok");
-  if (any("انستا", "اینستا", "instagram", "insta") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withAudio("build-instagram");
-  if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withAudio("build-tools");
+  // «بساز» is now an editorial request, not an immediate publish. The bot
+  // first sends hook and slide copy so the creator can edit or approve it.
+  if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tiktok" };
+  if (any("انستا", "اینستا", "instagram", "insta") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-instagram" };
+  if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
   if (/^(فردا|برای فردا|فردا بساز)$/.test(c)) return { action: "build-tomorrow" };
   if (/^(بفرست|ارسال کن|send)$/.test(c)) return { action: "resend" };
-  if (/^(بساز|ساخت همه|هر سه|make|build)(?:\s|$)/.test(c)) return withAudio("build-all");
+  if (/^(بساز|ساخت همه|هر سه|make|build)(?:\s|$)/.test(c)) return { action: "plan-tomorrow" };
   return null;
 }
 
@@ -110,6 +124,11 @@ function cleanContent(text) {
   return String(text)
     .replace(/^\s*(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]\s*/i, "")
     .replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+}
+
+function cleanEdit(text, label) {
+  const re = new RegExp(`^\\s*(?:ادیت|ویرایش)\\s*${label}\\s*[:：]\\s*`, "i");
+  return String(text).replace(re, "").replace(/[\r\n]+/g, " ").trim().slice(0, 760);
 }
 
 async function telegram(env, method, body) {

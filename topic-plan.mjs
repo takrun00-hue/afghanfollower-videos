@@ -14,6 +14,7 @@ const weekly = process.argv.includes("--week");
 const tomorrow = !weekly || process.argv.includes("--tomorrow");
 const dryRun = process.argv.includes("--dry-run");
 const pickArg = Number(process.argv[process.argv.indexOf("--build") + 1] || 0);
+const previewArg = Number(process.argv[process.argv.indexOf("--preview") + 1] || 0);
 const TRUSTED_SIGNAL_DOMAINS = new Set([
   "about.fb.com", "about.instagram.com", "newsroom.tiktok.com", "support.tiktok.com",
   "business.tiktok.com", "ads.tiktok.com", "socialmediatoday.com", "theverge.com",
@@ -103,9 +104,14 @@ const list = relevant
   .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
   .slice(0, weekly ? 6 : 3);
 
-if (pickArg) {
-  const selected = list[pickArg - 1];
-  if (!selected) throw new Error(`موضوع شمارهٔ ${pickArg} پیدا نشد`);
+if (pickArg || previewArg) {
+  const selected = list[(pickArg || previewArg) - 1];
+  if (!selected) throw new Error(`موضوع شمارهٔ ${pickArg || previewArg} پیدا نشد`);
+  if (previewArg) {
+    const { execFileSync } = await import("node:child_process");
+    execFileSync(process.execPath, ["content-draft.mjs", "--create", selected.id], { stdio: "inherit", env: process.env });
+    process.exit(0);
+  }
   // The ids point at the feature bank, so this path renders a real, known
   // tutorial instead of inventing a topic after approval.
   const { execFileSync } = await import("node:child_process");

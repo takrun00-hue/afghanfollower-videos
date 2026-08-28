@@ -106,7 +106,7 @@ jobs:
           # here too: untrusted Telegram text must never become a shell value.
           if [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
-              approved-feature|topic-pick|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-search|custom-content|voice-list|news-scan|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|undo|undo-news|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools) ;;
+              approved-feature|topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-search|custom-content|voice-list|news-scan|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools) ;;
               *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
             esac
             safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
@@ -124,7 +124,7 @@ jobs:
       # Only the actions that actually render a video need ffmpeg and a headless
       # browser. Listing news or deleting a message does not.
       - name: System packages (ffmpeg + headless Chrome libs)
-        if: contains(fromJSON('["approved-feature","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","resend","custom-content","news-breaking","news-pick","europe-pick","news-text","news-approve"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["approved-feature","content-approve","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","resend","custom-content","news-breaking","news-pick","europe-pick","news-text","news-approve","news-approve-draft"]'), steps.cmd.outputs.ACTION)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
@@ -150,11 +150,12 @@ jobs:
           esac
 
       - name: Build a requested tutorial
-        if: contains(fromJSON('["approved-feature","topic-pick","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","resend","custom-content"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["approved-feature","content-approve","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","resend","custom-content"]'), steps.cmd.outputs.ACTION)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+          PICK: ${{ steps.cmd.outputs.PICK }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_VOICE_ID: ${{ steps.cmd.outputs.VOICE_ID || secrets.MINIMAX_VOICE_ID }}
           VOICE_MODE: ${{ steps.cmd.outputs.VOICE_MODE }}
@@ -162,7 +163,7 @@ jobs:
           if [ "$VOICE_MODE" = "off" ]; then export VOICE="off" REQUIRE_VOICE="off"; else export VOICE="on" REQUIRE_VOICE="on"; fi
           case "${{ steps.cmd.outputs.ACTION }}" in
             approved-feature) node approve-feature.mjs "$PAYLOAD" ;;
-            topic-pick)       node topic-plan.mjs --build "${PICK:-1}" ;;
+            content-approve)  node content-draft.mjs --build ;;
             custom-content)   node custom-content.mjs "$PAYLOAD" ;;
             build-instagram)  node daily-render.mjs --only instagram ;;
             build-tools)      node daily-render.mjs --only tools ;;
@@ -170,6 +171,29 @@ jobs:
             build-tomorrow)   TZ=Europe/Berlin node daily-render.mjs "$(TZ=Europe/Berlin date -d tomorrow +%F)" ;;
             *)                node daily-render.mjs --only tiktok ;;
           esac
+
+      - name: Preview or edit tutorial draft
+        if: contains(fromJSON('["topic-pick","content-preview","content-edit-hook","content-edit-steps"]'), steps.cmd.outputs.ACTION)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+        run: |
+          case "${{ steps.cmd.outputs.ACTION }}" in
+            topic-pick)          node topic-plan.mjs --preview "${PICK:-1}" ;;
+            content-edit-hook)   node content-draft.mjs --edit-hook "$PAYLOAD" ;;
+            content-edit-steps)  node content-draft.mjs --edit-steps "$PAYLOAD" ;;
+            *)                   node content-draft.mjs --preview ;;
+          esac
+
+      - name: Save tutorial draft
+        if: contains(fromJSON('["topic-pick","content-edit-hook","content-edit-steps"]'), steps.cmd.outputs.ACTION)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f .content-draft.json
+          git diff --staged --quiet || git commit -m "content: update tutorial draft"
+          git push
 
       - name: Research digest
         if: steps.cmd.outputs.ACTION == 'research'
@@ -219,7 +243,7 @@ jobs:
           esac
 
       - name: Build a news video
-        if: contains(fromJSON('["news-breaking","news-pick","europe-pick","news-text","news-approve"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["news-breaking","news-pick","europe-pick","news-text","news-approve","news-approve-draft"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -235,9 +259,37 @@ jobs:
             news-pick)   node news-build.mjs --fetch --pick "${PICK:-1}" ;;
             europe-pick) node news-build.mjs --fetch --europe --pick "${PICK:-1}" ;;
             news-approve) node news-build.mjs --from-queue "${PICK:-1}" ;;
+            news-approve-draft) node news-draft.mjs --build ;;
             news-text)   node news-build.mjs --text "$PAYLOAD" ;;
             *)           node news-build.mjs --fetch ;;
           esac
+
+      - name: Preview or edit news draft
+        if: contains(fromJSON('["news-breaking-preview","news-pick-preview","europe-pick-preview","news-text-preview","news-edit-hook","news-edit-text"]'), steps.cmd.outputs.ACTION)
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+          PICK: ${{ steps.cmd.outputs.PICK }}
+        run: |
+          case "${{ steps.cmd.outputs.ACTION }}" in
+            news-pick-preview)   node news-build.mjs --fetch --pick "${PICK:-1}" --preview ;;
+            europe-pick-preview) node news-build.mjs --fetch --europe --pick "${PICK:-1}" --preview ;;
+            news-text-preview)   node news-build.mjs --text "$PAYLOAD" --preview ;;
+            news-edit-hook)      node news-draft.mjs --edit-hook "$PAYLOAD" ;;
+            news-edit-text)      node news-draft.mjs --edit-text "$PAYLOAD" ;;
+            *)                   node news-build.mjs --fetch --preview ;;
+          esac
+
+      - name: Save news draft
+        if: contains(fromJSON('["news-breaking-preview","news-pick-preview","europe-pick-preview","news-text-preview","news-edit-hook","news-edit-text"]'), steps.cmd.outputs.ACTION)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f .news-draft.json
+          git diff --staged --quiet || git commit -m "news: update editorial draft"
+          git push
 
       # ---- deleting --------------------------------------------------------
       - name: Undo the last send

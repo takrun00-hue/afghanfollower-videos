@@ -31,6 +31,7 @@ const say = async (t) => { if (tg.enabled) await sendMessage({ token: tg.token, 
 
 // ---- get the story ---------------------------------------------------------
 let headline = "", body = [], source = arg("--source") || "";
+const hookOverride = String(arg("--hook") || "").replace(/[\r\n]+/g, " ").trim().slice(0, 180);
 
 // --from-queue N builds the story the operator actually read and approved.
 // Re-running the search at approval time was a correctness bug: an hour later
@@ -249,7 +250,7 @@ const feature = {
     // News does not ask. A viewer scrolling past a migration story wants the
     // fact, and "آیا از این خبر باخبرید؟" delays it by a whole line. The
     // headline itself is the hook; the detail follows on the slides after it.
-    ask: punchHeadline(headline),
+    ask: hookOverride || punchHeadline(headline),
     l1: body[0] ? body[0].slice(0, 44) : "",
     l2: "",
   },
@@ -276,6 +277,23 @@ writeFileSync(
     "export const CURRENT_NEWS = " + JSON.stringify(feature, null, 2) + ";\n" +
     "export const CURRENT_TOPIC = " + JSON.stringify(topic) + ";\n"
 );
+
+// Editorial gate: a news story is shown in Telegram before a render. The
+// operator can edit its impact line or its cards; the source is never placed
+// on the finished video.
+if (has("--preview")) {
+  writeFileSync(".news-draft.json", JSON.stringify({
+    headline, body, source, hook: feature.hook.ask, updatedAt: new Date().toISOString(),
+  }, null, 2) + "\n");
+  await say(
+    `📰 <b>پیش‌نویس خبر</b>\n\n<b>قلاب:</b> ${feature.hook.ask}\n\n` +
+    body.slice(0, 4).map((x, i) => `${i + 1}. ${x}`).join("\n") +
+    `\n\n✅ ساخت با صدا: <code>تأیید خبر</code>` +
+    `\n✏️ تغییر قلاب: <code>ادیت قلاب خبر: متن تازه</code>` +
+    `\n📝 تغییر متن: <code>ادیت متن خبر: جمله۱ | جمله۲ | جمله۳</code>`
+  );
+  process.exit(0);
+}
 
 console.log(`topic=${topic} · headline=${headline.slice(0, 60)}`);
 execSync(`node daily-render.mjs --feature ${feature.id} --news-generated`, { stdio: "inherit" });
