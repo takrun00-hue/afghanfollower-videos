@@ -9,10 +9,13 @@ process.chdir(dirname(fileURLToPath(import.meta.url)));
 const env = loadEnv();
 const tg = telegramConfig(env);
 const key = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
+const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const categoryArg = (process.argv.find((x) => x.startsWith("--category=")) || "").slice(11);
 const weekly = process.argv.includes("--week");
 const today = process.argv.includes("--today");
 const dryRun = process.argv.includes("--dry-run");
+const queryAt = process.argv.indexOf("--query");
+const liveQuery = queryAt >= 0 ? String(process.argv[queryAt + 1] || "").trim().slice(0, 300) : "";
 const pickArg = Number(process.argv[process.argv.indexOf("--build") + 1] || 0);
 const previewArg = Number(process.argv[process.argv.indexOf("--preview") + 1] || 0);
 const TRUSTED_SIGNAL_DOMAINS = new Set([
@@ -100,6 +103,46 @@ async function liveSignals() {
     } catch { /* Signals are optional; curated topics still go out. */ }
   }
   return [...new Map(results.map((x) => [x.url, x])).values()].slice(0, 4);
+}
+
+async function liveSearchForCreatorNeed(query) {
+  if (!key) throw new Error("EXA_API_KEY تنظیم نشده است");
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const response = await fetch("https://api.exa.ai/search", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key },
+    body: JSON.stringify({
+      query: `${query} social media creator income viral views update`,
+      numResults: 6,
+      startPublishedDate: since,
+      type: "auto",
+      contents: { text: { maxCharacters: 550 } },
+    }),
+  });
+  if (!response.ok) throw new Error(`Exa ${response.status}`);
+  const data = await response.json();
+  return (data.results || []).filter((item) => item?.title && item?.url).slice(0, 5);
+}
+
+if (liveQuery) {
+  let results = [];
+  try { results = await liveSearchForCreatorNeed(liveQuery); }
+  catch (error) {
+    const message = `⚠️ <b>جستجوی زنده انجام نشد</b>\n${esc(String(error.message).slice(0, 140))}`;
+    if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text: message }); else console.log(message);
+    process.exit(0);
+  }
+  const items = results.map((item, index) => {
+    const title = esc(String(item.title).slice(0, 140));
+    const excerpt = esc(String(item.text || "").replace(/\s+/g, " ").slice(0, 180));
+    const date = item.publishedDate ? ` · <i>${esc(String(item.publishedDate).slice(0, 10))}</i>` : "";
+    return `<b>${index + 1}. ${title}</b>${date}\n${excerpt || "منبع تازه برای بررسی محتوا."}\n<a href="${esc(item.url)}">باز کردن منبع</a>`;
+  });
+  const text = `🔎 <b>نتیجهٔ جستجوی زندهٔ محتوا</b>\n<i>درخواست شما: ${esc(liveQuery)}</i>\n\n` +
+    (items.length ? items.join("\n\n") : "نتیجهٔ تازه‌ای پیدا نشد.\nبرای ادامه بنویس: <code>جستجوی جدید: عبارت تازه</code>") +
+    "\n\nبرای ساخت از یک نتیجه، موضوع و گام‌ها را با <code>محتوا: موضوع | گام۱ | گام۲ | گام۳ | گام۴</code> بفرست.";
+  if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
+  process.exit(0);
 }
 
 // Every proposed item must serve a known creator demand: a current trend,

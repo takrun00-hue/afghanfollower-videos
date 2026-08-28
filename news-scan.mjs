@@ -21,6 +21,8 @@ process.chdir(dirname(fileURLToPath(import.meta.url)));
 
 const argv = process.argv.slice(2);
 const quiet = argv.includes("--quiet");
+const queryAt = argv.indexOf("--query");
+const liveQuery = queryAt >= 0 ? String(argv[queryAt + 1] || "").trim().slice(0, 300) : "";
 
 const env = loadEnv();
 const tg = telegramConfig(env);
@@ -52,7 +54,7 @@ async function search(domains, days, n = 10) {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": KEY },
     body: JSON.stringify({
-      query: SCOPES.germany.query,
+      query: liveQuery ? `${SCOPES.germany.query} ${liveQuery}` : SCOPES.germany.query,
       numResults: n,
       startPublishedDate: new Date(Date.now() - days * 86400000).toISOString(),
       includeDomains: domains,
@@ -152,6 +154,10 @@ for (const r of found) {
 found = batch;
 
 if (!found.length) {
+  if (liveQuery && tg.enabled && !quiet) {
+    const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    await sendMessage({ token: tg.token, chatId: tg.chatId, text: `🔎 برای «${esc(liveQuery)}» خبر معتبرِ تازه پیدا نشد.\n\nبرای ادامه بنویس: <code>جستجوی جدید خبر: عبارت تازه</code>` });
+  }
   console.log("no new stories");
   process.exit(0);
 }
