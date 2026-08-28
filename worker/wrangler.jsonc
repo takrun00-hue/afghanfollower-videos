@@ -9,7 +9,8 @@
   },
   "ai": {
     "binding": "AI"
-  }
-  // Optional: after creating a free Workers KV namespace, add:
-  // ,"kv_namespaces": [{"binding":"CHAT_HISTORY","id":"..."}]
+  },
+  "kv_namespaces": [
+    { "binding": "BOT_STATE", "id": "b9d8cdbf80af49b7987f59b7a9b09c01" }
+  ]
 }

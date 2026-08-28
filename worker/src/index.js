@@ -4,50 +4,53 @@
 const TG = "https://api.telegram.org";
 const MAX_HISTORY = 8;
 
-const HELP = `🤖 <b>دستورهای بات</b>
+const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b>
 
 🎬 <b>آموزشی</b>
-• <b>تیک تاک بساز</b> — یک ویدیوی آموزشی تیک‌تاک
-• <b>انستا بساز</b> — یک ویدیوی آموزشی اینستاگرام
-• <b>ابزار بساز</b> — یک ویدیوی اپ/هوش مصنوعی
-• <b>بساز</b> — هر سه ویدیوی امروز
-• <b>فردا</b> — ساخت ویدیوهای فردا
-• <b>بفرست</b> — ارسال دوبارهٔ ویدیوهای امروز
-
-💡 <b>انتخاب موضوع</b>
-• <b>موضوع فردا</b> / <b>برنامه هفته</b>
-• <b>تغییر موضوع امروز</b> / <b>تغییر موضوع فردا</b> — ایده‌های تازه با اولویت درآمد
-• <b>موضوع تیک تاک</b> / <b>موضوع انستا</b> / <b>موضوع ابزار</b>
-• <b>تأیید نام-موضوع</b> — ساخت موضوع تأییدشده
-• <b>تحقیق</b> — آپدیت‌ها و موضوع‌های تازه
-• <b>جستجوی محتوا</b> — موضوع‌های ترند، ویو و درآمد برای تأیید
-• <b>جستجو محتوا: عبارت</b> — جستجوی زندهٔ موضوع با درخواست شما
-• <b>جستجوی جدید: عبارت</b> — ادامهٔ جستجوی زنده با عبارت تازه
-• <b>انتخاب ۱</b> — دیدن قلاب و متن موضوع شمارهٔ ۱
-• <b>تأیید محتوا</b> — ساخت پیش‌نویس تأییدشده با صدا
-• <b>ادیت قلاب: متن تازه</b> — تغییر قلاب پیش‌نویس
-• <b>ادیت متن: گام۱ | گام۲ | گام۳ | گام۴</b> — تغییر اسلایدها
-• <b>محتوا: موضوع | نکته ۱ | نکته ۲ | نکته ۳ | نکته ۴</b> — ساخت از متن شما
-
-🔊 <b>صدا</b>
-• <b>صداها</b> — فهرست صداهای قابل استفاده
-• <b>تیک تاک بساز با صدای زن</b> — ساخت با صدای زن فارسی
-• <b>انستا بساز با صدا: نام‌صدا</b> — ساخت با یک Voice ID از فهرست
-• <b>ابزار بساز بدون صدا</b> — ساخت همان ویدیو، بدون Voice
+<b>۱</b> موضوع تیک‌تاک
+<b>۲</b> موضوع اینستاگرام
+<b>۳</b> موضوع اپ‌ها و هوش مصنوعی
+<b>۴</b> موضوع‌های امروز
+<b>۵</b> جستجوی زندهٔ محتوا
+<b>۶</b> ساخت از متن شما
+<b>۷</b> ادیت قلاب آموزشی
+<b>۸</b> ادیت اسلایدهای آموزشی
+<b>۹</b> فهرست صداها
+<b>۱۰</b> ساخت محتوای تأییدشده با صدا
 
 📰 <b>German Insider</b>
-• <b>خبر آلمان</b> / <b>خبر اروپا</b> / <b>خبر روز</b>
-• <b>جستجو خبر: عبارت</b> — جستجوی زندهٔ خبر آلمان/اروپا
-• <b>خبر فوری</b> — دیدن پیش‌نویس خبر کوتاه
-• <b>خبر ۱</b> — دیدن قلاب خبر شمارهٔ ۱
-• <b>تأیید خبر</b> — ساخت خبر تأییدشده
-• <b>ادیت قلاب خبر: متن تازه</b> — تغییر تیترِ قلاب
-• <b>خبر: تیتر | جزئیات</b> — خبر از متن شما
+<b>۱۱</b> جستجوی خبر تازه
+<b>۱۲</b> خبرهای آلمان
+<b>۱۳</b> خبرهای اروپا
+<b>۱۴</b> جستجوی زندهٔ خبر
+<b>۱۵</b> خبر از متن شما
+<b>۱۶</b> ادیت قلاب خبر
+<b>۱۷</b> ادیت متن خبر
+<b>۱۸</b> ساخت خبر تأییدشده با صدا
 
 ⚙️ <b>مدیریت</b>
-• <b>وضعیت</b> — وضعیت بات
-• <b>پاک کن</b> / <b>پاک کن خبر</b>
-• <b>راهنما</b> — همین فهرست`;
+<b>۱۹</b> وضعیت
+<b>۲۰</b> حذف ۳ ویدیوی آموزشی آخر
+<b>۲۱</b> حذف آخرین ویدیوی خبری
+<b>۰</b> نمایش دوبارهٔ این منو
+
+فقط شماره را بفرستید. در گزینه‌های متن و ادیت، بات در پیام بعد متن موردنیاز را از شما می‌خواهد.`;
+
+const NUMBERED_ACTIONS = {
+  "1": { action: "plan-tiktok" }, "2": { action: "plan-instagram" }, "3": { action: "plan-tools" },
+  "4": { action: "plan-today" }, "5": { pending: "content-search-live", ask: "🔎 عبارت جستجوی محتوا را بفرستید؛ مثلاً: درآمد از تیک‌تاک" },
+  "6": { pending: "custom-content", ask: "📝 متن را بفرستید: موضوع | گام ۱ | گام ۲ | گام ۳" },
+  "7": { pending: "content-edit-hook", ask: "✏️ متن تازهٔ قلاب آموزشی را بفرستید." },
+  "8": { pending: "content-edit-steps", ask: "✏️ اسلایدهای تازه را با | جدا کنید: گام ۱ | گام ۲ | گام ۳" },
+  "9": { action: "voice-list" }, "10": { action: "content-approve", voiceMode: "on" },
+  "11": { action: "news-scan" }, "12": { action: "news-germany" }, "13": { action: "news-europe" },
+  "14": { pending: "news-search-live", ask: "🔎 عبارت جستجوی خبر را بفرستید؛ مثلاً: قوانین اقامت آلمان" },
+  "15": { pending: "news-text-preview", ask: "📝 متن خبر را بفرستید: تیتر | جمله ۱ | جمله ۲ | جمله ۳" },
+  "16": { pending: "news-edit-hook", ask: "✏️ تیتر تازهٔ خبر را بفرستید." },
+  "17": { pending: "news-edit-text", ask: "✏️ متن تازهٔ خبر را با | جدا کنید." },
+  "18": { action: "news-approve-draft", voiceMode: "on" }, "19": { action: "status" },
+  "20": { action: "undo" }, "21": { action: "undo-news" },
+};
 
 function normalize(value = "") {
   return String(value).trim().replace(/^\//, "").replace(/‌/g, " ").replace(/\s+/g, " ").toLowerCase();
@@ -187,6 +190,33 @@ async function saveHistory(env, chatId, messages) {
   if (env.CHAT_HISTORY) await env.CHAT_HISTORY.put(`chat:${chatId}`, JSON.stringify(messages.slice(-MAX_HISTORY)), { expirationTtl: 7 * 24 * 60 * 60 });
 }
 
+function menuCode(text) {
+  const code = String(text || "").trim().replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+  return /^(?:0|[1-9]\d?)$/.test(code) ? code : null;
+}
+
+async function pendingFor(env, chatId) {
+  if (!env.BOT_STATE) return null;
+  return env.BOT_STATE.get(`pending:${chatId}`, "json");
+}
+
+async function setPending(env, chatId, action) {
+  if (env.BOT_STATE) await env.BOT_STATE.put(`pending:${chatId}`, JSON.stringify({ action }), { expirationTtl: 15 * 60 });
+}
+
+async function clearPending(env, chatId) {
+  if (env.BOT_STATE) await env.BOT_STATE.delete(`pending:${chatId}`);
+}
+
+function commandFromPending(pending, text) {
+  const payload = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+  if (!payload) return null;
+  if ((pending.action === "custom-content" || pending.action === "news-text-preview") && payload.split("|").filter(Boolean).length < 2) {
+    return { error: "متن را با این قالب بفرستید: تیتر یا موضوع | جمله یا گام ۱ | جمله یا گام ۲ | جمله یا گام ۳" };
+  }
+  return { action: pending.action, payload, voiceMode: "on" };
+}
+
 const SYSTEM = `تو دستیار فارسی/دری برند GapMedia هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و از توضیحِ فرایند فکرکردن خودداری کن.`;
 
 function textFromWorkersAI(data) {
@@ -239,7 +269,37 @@ export default {
     const chatId = String(message.chat.id);
     if (env.ALLOWED_CHAT_ID && chatId !== String(env.ALLOWED_CHAT_ID)) return new Response("ok");
     try {
-      const command = videoAction(message.text);
+      // A standalone number always belongs to the numbered menu.  For options
+      // that need copy, KV keeps the selected operation for 15 minutes and the
+      // next message becomes its payload instead of a vague AI chat reply.
+      const code = menuCode(message.text);
+      if (code === "0") {
+        await clearPending(env, chatId);
+        await reply(env, chatId, HELP);
+        return new Response("ok");
+      }
+      const chosen = code ? NUMBERED_ACTIONS[code] : null;
+      if (chosen?.pending) {
+        await setPending(env, chatId, chosen.pending);
+        await reply(env, chatId, chosen.ask);
+        return new Response("ok");
+      }
+      let command = chosen ? { action: chosen.action, voiceMode: chosen.voiceMode || "on" } : null;
+      if (!command) {
+        const pending = await pendingFor(env, chatId);
+        if (pending) {
+          const next = commandFromPending(pending, message.text);
+          if (next?.error) {
+            await reply(env, chatId, `⚠️ ${next.error}`);
+            return new Response("ok");
+          }
+          if (next) {
+            await clearPending(env, chatId);
+            command = next;
+          }
+        }
+      }
+      if (!command) command = videoAction(message.text);
       if (command) {
         if (command.action === "help") {
           await reply(env, chatId, HELP);
