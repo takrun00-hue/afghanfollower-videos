@@ -4,6 +4,33 @@
 const TG = "https://api.telegram.org";
 const MAX_HISTORY = 8;
 
+const HELP = `🤖 <b>دستورهای بات</b>
+
+🎬 <b>آموزشی</b>
+• <b>تیک تاک بساز</b> — یک ویدیوی آموزشی تیک‌تاک
+• <b>انستا بساز</b> — یک ویدیوی آموزشی اینستاگرام
+• <b>ابزار بساز</b> — یک ویدیوی اپ/هوش مصنوعی
+• <b>بساز</b> — هر سه ویدیوی امروز
+• <b>فردا</b> — ساخت ویدیوهای فردا
+• <b>بفرست</b> — ارسال دوبارهٔ ویدیوهای امروز
+
+💡 <b>انتخاب موضوع</b>
+• <b>موضوع فردا</b> / <b>برنامه هفته</b>
+• <b>موضوع تیک تاک</b> / <b>موضوع انستا</b> / <b>موضوع ابزار</b>
+• <b>تأیید نام-موضوع</b> — ساخت موضوع تأییدشده
+• <b>تحقیق</b> — آپدیت‌ها و موضوع‌های تازه
+
+📰 <b>German Insider</b>
+• <b>خبر آلمان</b> / <b>خبر اروپا</b> / <b>خبر روز</b>
+• <b>خبر فوری</b> — ساخت خبر کوتاه
+• <b>بساز ۱</b> — ساخت خبر شمارهٔ ۱
+• <b>خبر: تیتر | جزئیات</b> — خبر از متن شما
+
+⚙️ <b>مدیریت</b>
+• <b>وضعیت</b> — وضعیت بات
+• <b>پاک کن</b> / <b>پاک کن خبر</b>
+• <b>راهنما</b> — همین فهرست`;
+
 function normalize(value = "") {
   return String(value).trim().replace(/^\//, "").replace(/‌/g, " ").replace(/\s+/g, " ").toLowerCase();
 }
@@ -11,16 +38,32 @@ function normalize(value = "") {
 function videoAction(text) {
   const c = normalize(text);
   const any = (...words) => words.some((word) => c.includes(word));
+  if (any("راهنما", "دستورها", "دستورات", "کمک", "help", "start")) return { action: "help" };
+  if (/^(وضعیت|status)$/.test(c)) return { action: "status" };
+  if (any("پاک کن", "حذف کن", "پاکش کن", "delete", "undo")) return { action: any("خبر", "اخبار", "news") ? "undo-news" : "undo" };
+  if (any("صداها", "صدا minimax", "minimax voice", "voice list")) return { action: "voice-list" };
   if (/^(تایید|تأیید|approve)\s+[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
   if (/^(بساز|تایید|تأیید|ok|build)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-approve", pick: digits(c) };
+  if (any("برنامه هفته", "موضوعات هفته")) return { action: "plan-week" };
+  if (any("موضوع فردا", "برنامه فردا")) return { action: "plan-tomorrow" };
+  if (any("تحقیق", "اپدیت", "آپدیت", "قابلیت تازه", "research")) return { action: "research" };
+  if (/^(جستجو خبر|جستجو اخبار|scan news)$/.test(c)) return { action: "news-scan" };
   if (/^(خبر|news)\s*[:：]/.test(c)) return { action: "news-text", payload: cleanNews(text) };
   if (/^(خبر|news)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-pick", pick: digits(c) };
   if (/^(اروپا|europe)\s*[۰-۹0-9]+$/.test(c)) return { action: "europe-pick", pick: digits(c) };
+  if (any("خبر اروپا", "اروپا", "europe")) return { action: "news-europe" };
+  if (any("خبر روز", "خبر امروز", "اخبار روز", "news today")) return { action: "news-today" };
+  if (any("خبر آلمان", "آلمان", "germany")) return { action: "news-germany" };
   if (any("خبر فوری", "فوری", "breaking")) return { action: "news-breaking" };
+  if (/^(خبر|اخبار|news)$/.test(c)) return { action: "research" };
+  if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tiktok" };
+  if (any("انستا", "اینستا", "instagram", "insta") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-instagram" };
+  if (any("ابزار", "هوش مصنوعی", " ai", "tool") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
   if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "build-tiktok" };
   if (any("انستا", "اینستا", "instagram", "insta") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "build-instagram" };
   if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "build-tools" };
   if (/^(فردا|برای فردا|فردا بساز)$/.test(c)) return { action: "build-tomorrow" };
+  if (/^(بفرست|ارسال کن|send)$/.test(c)) return { action: "resend" };
   if (/^(بساز|ساخت همه|هر سه|make|build)$/.test(c)) return { action: "build-all" };
   return null;
 }
@@ -128,8 +171,14 @@ export default {
     try {
       const command = videoAction(message.text);
       if (command) {
-        await dispatchWorkflow(env, command);
-        await reply(env, chatId, "✅ دستور دریافت شد. ساخت در فضای ابری شروع شد؛ نتیجه را همین‌جا می‌فرستم.");
+        if (command.action === "help") {
+          await reply(env, chatId, HELP);
+        } else if (command.action === "status") {
+          await reply(env, chatId, "✅ بات آنلاین است. چت فوری و فرمان ساخت ویدیو فعال‌اند.");
+        } else {
+          await dispatchWorkflow(env, command);
+          await reply(env, chatId, "✅ دستور دریافت شد. ساخت یا بررسی در فضای ابری شروع شد؛ نتیجه را همین‌جا می‌فرستم.");
+        }
       } else {
         await reply(env, chatId, await chat(env, chatId, message.text));
       }
