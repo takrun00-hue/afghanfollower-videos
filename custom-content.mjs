@@ -16,7 +16,7 @@ if (parts.length < 2) {
 }
 
 const topic = parts[0].slice(0, 150);
-const category = /(اینستا|انستا|instagram|reels)/i.test(topic) ? "instagram"
+const category = /(اینستا|انستا|instagram|reels|ریلز|edits)/i.test(topic) ? "instagram"
   : /(تیک\s*تاک|tiktok|tik\s*tok)/i.test(topic) ? "tiktok" : "tools";
 const id = `custom-${createHash("sha256").update(raw).digest("hex").slice(0, 10)}`;
 const provided = parts.slice(1).map((text, i) => ({
@@ -55,3 +55,4 @@ mkdirSync("lib/generated", { recursive: true });
 writeFileSync("lib/generated/custom-current.mjs", `export const CURRENT_CUSTOM = ${JSON.stringify(pack, null, 2)};\n`);
 const result = spawnSync("node", ["daily-render.mjs", "--feature", id, "--custom-generated"], { stdio: "inherit", env: process.env });
 process.exit(result.status ?? 1);
+
