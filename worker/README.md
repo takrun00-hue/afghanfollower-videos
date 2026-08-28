@@ -1,6 +1,6 @@
 # بات پاسخ‌گوی فوری تلگرام — میزبانی رایگان
 
-این Worker پیام‌های تلگرام را فوراً پاسخ می‌دهد و فرمان‌های ساخت ویدیو را به GitHub Actions می‌سپارد. خود Worker رندر نمی‌کند؛ بنابراین در پلن رایگان Cloudflare می‌ماند.
+این Worker پیام‌های تلگرام را فوراً پاسخ می‌دهد و فرمان‌های ساخت ویدیو را به GitHub Actions می‌سپارد. چت با Workers AI رایگان Cloudflare انجام می‌شود و خود Worker رندر نمی‌کند.
 
 ## یک‌بار راه‌اندازی
 
@@ -12,11 +12,10 @@
 npx wrangler secret put TELEGRAM_BOT_TOKEN
 npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
 npx wrangler secret put ALLOWED_CHAT_ID
-npx wrangler secret put MINIMAX_API_KEY
 npx wrangler secret put GITHUB_TOKEN
 ```
 
-`GITHUB_TOKEN` باید یک Fine-grained Personal Access Token با دسترسی **Actions: Read and write** برای همین repository باشد. MiniMax برای پاسخ‌های چت از اعتبار API استفاده می‌کند؛ Cloudflare هزینهٔ میزبانی ندارد.
+`GITHUB_TOKEN` باید یک Fine-grained Personal Access Token با دسترسی **Actions: Read and write** برای همین repository باشد. چت از سهمیهٔ رایگان روزانهٔ Workers AI استفاده می‌کند؛ MiniMax برای پاسخ‌گویی این بات لازم نیست.
 
 4. اجرا کنید: `npm run deploy`
 5. URL نمایش‌داده‌شده را برای webhook ثبت کنید (SECRET همان مقدار `TELEGRAM_WEBHOOK_SECRET`):

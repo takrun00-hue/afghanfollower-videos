@@ -2,7 +2,6 @@
 // are entered with `wrangler secret put`, never placed in this repository.
 
 const TG = "https://api.telegram.org";
-const MM = "https://api.minimax.io/v1/chat/completions";
 const MAX_HISTORY = 8;
 
 function normalize(value = "") {
@@ -78,17 +77,18 @@ async function saveHistory(env, chatId, messages) {
 const SYSTEM = `تو دستیار فارسی/دری برند AfghanFollowers هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده.`;
 
 async function chat(env, chatId, userText) {
-  if (!env.MINIMAX_API_KEY) throw new Error("Missing MINIMAX_API_KEY");
+  if (!env.AI) throw new Error("Workers AI binding is unavailable");
   const prior = await history(env, chatId);
   const messages = [{ role: "system", content: SYSTEM }, ...prior, { role: "user", content: userText.slice(0, 2000) }];
-  const response = await fetch(MM, {
-    method: "POST",
-    headers: { authorization: `Bearer ${env.MINIMAX_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: "MiniMax-M2.7", messages, temperature: 0.65, max_tokens: 420 }),
+  // Cloudflare's multilingual GLM model is available on the Free plan. It
+  // keeps Telegram chat independent from MiniMax API billing; MiniMax remains
+  // reserved for the video narration pipeline in GitHub Actions.
+  const data = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+    messages,
+    max_tokens: 420,
+    temperature: 0.65,
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.base_resp?.status_msg || `MiniMax failed: ${response.status}`);
-  const answer = String(data?.choices?.[0]?.message?.content || "").trim() || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
+  const answer = String(data?.response || "").trim() || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
   await saveHistory(env, chatId, [...prior, { role: "user", content: userText.slice(0, 2000) }, { role: "assistant", content: answer }]);
   return answer;
 }
