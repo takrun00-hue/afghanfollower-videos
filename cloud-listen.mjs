@@ -50,20 +50,20 @@ if (action === "help") {
 } else if (action === "status") {
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
-    text: "✅ سیستم ابری فعال است. ساعت ۸ فقط موضوع‌های تحقیق‌شده را برای تأیید می‌فرستد؛ ویدیوی آموزشی تنها پس از «تأیید شناسهٔ موضوع» ساخته می‌شود.",
+    text: "✅ سیستم ابری فعال است و فرمان‌های تلگرام را هر چند دقیقه اجرا می‌کند. «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «بساز»، «فردا»، «خبر فوری» و «بفرست» آماده‌اند.",
   });
   console.log("ACTION=none");
 } else if (action === "undo") {
   console.log("ACTION=undo");
 } else if (action !== "none") {
   const planning = action.startsWith("plan-") || action === "research";
-  const approved = action === "approved-feature";
+  const building = action.startsWith("build-") || action === "approved-feature" || action === "resend" || action.startsWith("news-") && !["news-scan", "news-germany", "news-europe", "news-today"].includes(action);
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
     text: planning
       ? `🔎 دستور دریافت شد: ${label}. موضوع‌ها و لینک‌های تحقیق‌شده را می‌فرستم؛ هنوز ویدیویی ساخته نمی‌شود.`
-      : approved
-        ? `✅ موضوع تأیید شد: ${label}. ساخت همان ویدیو در فضای ابری شروع شد.`
+      : building
+        ? `✅ دستور دریافت شد: ${label}. ساخت در فضای ابری شروع شد.`
         : `📩 دستور دریافت شد: ${label}.`,
   });
   console.log(`ACTION=${action}`);
