@@ -22,7 +22,7 @@ const id = `custom-${createHash("sha256").update(raw).digest("hex").slice(0, 10)
 const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*صدا/i.test(topic)
   ? { name: "Instagram Edits", photo: "public/sources/edits-sound-separation-ui.webp", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
   : /google\s*vids|گوگل\s*ویدز/i.test(topic)
-    ? { name: "Google Vids", photo: "public/sources/google-vids-ui.webp", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
+    ? { name: "Google Vids", hookPhoto: "public/sources/product-sneakers-stock.webp", photo: "public/sources/google-vids-ui.webp", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
     : null;
 const provided = parts.slice(1).map((text, i) => ({
   text: text.slice(0, 180),
@@ -58,7 +58,7 @@ const pack = {
   category,
   name: appName,
   kicker: appName,
-  hookPhoto: visualPreset?.photo || null,
+  hookPhoto: visualPreset?.hookPhoto || null,
   title: topic,
   benefit: { key: "custom", fa: topic },
   hook: {

@@ -2,9 +2,9 @@
   "action": "custom-content",
   "voice_mode": "on",
   "payload": "Google Vids — فقط یک عکس از محصولتان دارید؟ بدون فیلم‌بردار، ویدیوی تبلیغاتی بسازید.|Google Vids را با حساب Google باز کنید.|عکس محصول یا یک Prompt ساده را وارد کنید.|چند نمونه بسازید و بهترین نسخه را انتخاب کنید.|برای شروع، Google Vids ماهانه ۱۰ ساخت رایگان می‌دهد.",
-  "requested_at": "2026-08-28T18:27:36.0639513Z",
+  "requested_at": "2026-08-28T18:52:51.8875808Z",
   "retry_at": "2026-08-28T20:01:14.3003849+02:00",
   "dispatch_retry_at": "2026-08-28T20:03:50.7515888+02:00",
   "dispatch_attempt": 3,
-  "revision": "curiosity-hook-google-vids-v2"
+  "revision": "product-photo-hook-google-vids-v3"
 }
