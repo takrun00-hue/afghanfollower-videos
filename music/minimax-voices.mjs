@@ -7,6 +7,25 @@ if (!apiKey) {
   console.error("MINIMAX_API_KEY is not set.");
   process.exit(1);
 }
+
+// Token Plan credits and the standard Open Platform balance are separate.
+// This diagnostic never shows the key; it only proves whether this saved key
+// can reach the Token Plan quota endpoint.
+async function tokenPlanReport() {
+  const reportResponse = await fetch("https://www.minimax.io/v1/token_plan/remains", {
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+  });
+  const reportData = await reportResponse.json().catch(() => ({}));
+  const code = reportData?.base_resp?.status_code;
+  const message = reportData?.base_resp?.status_msg;
+  if (!reportResponse.ok || (code !== undefined && code !== 0)) {
+    return `Token Plan قابل استفاده نیست — HTTP ${reportResponse.status}${code !== undefined ? ` · code ${code}` : ""}${message ? ` · ${message}` : ""}`;
+  }
+  const safe = JSON.stringify(reportData)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .slice(0, 700);
+  return `Token Plan پاسخ داد: ${safe}`;
+}
 const response = await fetch("https://api.minimax.io/v1/get_voice", {
   method: "POST",
   headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
@@ -48,9 +67,10 @@ if (process.argv.includes("--telegram")) {
     ? "صداهای Persian قابل استفاده:"
     : "فقط صدای Persian تنظیم‌شدهٔ پروژه نمایش داده می‌شود؛ صدای غیر Persian حذف شد.";
   const body = lines.length ? lines.join("\n\n") : "فعلاً Voice ID فارسی در تنظیمات پروژه نیست.";
+  const plan = await tokenPlanReport();
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
-    text: `🎙️ <b>${note}</b>\n\n${body}\n\nبرای تغییر صدای یک ویدیو بنویس: <code>انستا بساز با صدا: Voice_ID</code>`,
+    text: `🎙️ <b>${note}</b>\n\n${body}\n\n🔎 <b>بررسی اعتبار:</b>\n<code>${plan}</code>\n\nبرای تغییر صدای یک ویدیو بنویس: <code>انستا بساز با صدا: Voice_ID</code>`,
   });
 }
 console.log(JSON.stringify({ voices }, null, 2));
