@@ -74,7 +74,7 @@ async function saveHistory(env, chatId, messages) {
   if (env.CHAT_HISTORY) await env.CHAT_HISTORY.put(`chat:${chatId}`, JSON.stringify(messages.slice(-MAX_HISTORY)), { expirationTtl: 7 * 24 * 60 * 60 });
 }
 
-const SYSTEM = `تو دستیار فارسی/دری برند AfghanFollowers هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده.`;
+const SYSTEM = `تو دستیار فارسی/دری برند AfghanFollowers هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و از توضیحِ فرایند فکرکردن خودداری کن.`;
 
 function textFromWorkersAI(data) {
   // Workers AI models have used both native `response` and OpenAI-compatible
@@ -99,12 +99,6 @@ function textFromWorkersAI(data) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function responseShape(value, depth = 0) {
-  if (value === null) return "null";
-  if (typeof value !== "object" || depth >= 4) return Array.isArray(value) ? "array" : typeof value;
-  return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, responseShape(child, depth + 1)]));
-}
-
 async function chat(env, chatId, userText) {
   if (!env.AI) throw new Error("Workers AI binding is unavailable");
   const prior = await history(env, chatId);
@@ -114,11 +108,10 @@ async function chat(env, chatId, userText) {
   // reserved for the video narration pipeline in GitHub Actions.
   const data = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
     messages,
-    max_tokens: 420,
+    max_completion_tokens: 768,
+    reasoning_effort: "low",
     temperature: 0.65,
   });
-  // Diagnostic contains field names and types only; it never logs chat text.
-  console.error("WORKERS_AI_RESPONSE_SHAPE", JSON.stringify(responseShape(data)));
   const answer = textFromWorkersAI(data) || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
   await saveHistory(env, chatId, [...prior, { role: "user", content: userText.slice(0, 2000) }, { role: "assistant", content: answer }]);
   return answer;
