@@ -99,6 +99,12 @@ function textFromWorkersAI(data) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function responseShape(value, depth = 0) {
+  if (value === null) return "null";
+  if (typeof value !== "object" || depth >= 2) return Array.isArray(value) ? "array" : typeof value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, responseShape(child, depth + 1)]));
+}
+
 async function chat(env, chatId, userText) {
   if (!env.AI) throw new Error("Workers AI binding is unavailable");
   const prior = await history(env, chatId);
@@ -111,6 +117,8 @@ async function chat(env, chatId, userText) {
     max_tokens: 420,
     temperature: 0.65,
   });
+  // Diagnostic contains field names and types only; it never logs chat text.
+  console.error("WORKERS_AI_RESPONSE_SHAPE", JSON.stringify(responseShape(data)));
   const answer = textFromWorkersAI(data) || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
   await saveHistory(env, chatId, [...prior, { role: "user", content: userText.slice(0, 2000) }, { role: "assistant", content: answer }]);
   return answer;
