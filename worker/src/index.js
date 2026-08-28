@@ -103,13 +103,12 @@ async function chat(env, chatId, userText) {
   if (!env.AI) throw new Error("Workers AI binding is unavailable");
   const prior = await history(env, chatId);
   const messages = [{ role: "system", content: SYSTEM }, ...prior, { role: "user", content: userText.slice(0, 2000) }];
-  // Cloudflare's multilingual GLM model is available on the Free plan. It
-  // keeps Telegram chat independent from MiniMax API billing; MiniMax remains
-  // reserved for the video narration pipeline in GitHub Actions.
-  const data = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+  // Llama 4 Scout returns direct `response` text (unlike reasoning-first
+  // models), which keeps short Telegram replies reliable on the Free plan.
+  // MiniMax remains reserved for the video narration pipeline in GitHub Actions.
+  const data = await env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
     messages,
-    max_completion_tokens: 768,
-    reasoning_effort: "low",
+    max_tokens: 420,
     temperature: 0.65,
   });
   const answer = textFromWorkersAI(data) || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
