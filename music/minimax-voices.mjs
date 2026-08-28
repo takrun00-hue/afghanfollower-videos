@@ -45,8 +45,8 @@ if (process.argv.includes("--telegram")) {
     `${index + 1}. <code>${String(voice.voice_id || "")}</code>\n${String(voice.voice_name || voice.kind || "MiniMax voice")}`
   );
   const note = persian.length
-    ? "صداهای فارسی/دری قابل استفاده:"
-    : "فقط صدای فارسیِ تنظیم‌شدهٔ پروژه نمایش داده می‌شود؛ صدای غیر فارسی حذف شد.";
+    ? "صداهای Persian قابل استفاده:"
+    : "فقط صدای Persian تنظیم‌شدهٔ پروژه نمایش داده می‌شود؛ صدای غیر Persian حذف شد.";
   const body = lines.length ? lines.join("\n\n") : "فعلاً Voice ID فارسی در تنظیمات پروژه نیست.";
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
