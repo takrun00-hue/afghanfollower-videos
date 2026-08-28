@@ -10,13 +10,45 @@ name: Telegram commands
 on:
   schedule:
     - cron: "*/5 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      run_news_now:
+        description: "Build one current short news video now"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: telegram-listen
   cancel-in-progress: false
 
 jobs:
+  manual-news:
+    if: inputs.run_news_now == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: System packages (ffmpeg + headless Chrome libs)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
+      - name: Build one current short news video
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
+          VOICE: "on"
+        run: node news-build.mjs --fetch --today
+
   listen:
     runs-on: ubuntu-latest
     timeout-minutes: 45
