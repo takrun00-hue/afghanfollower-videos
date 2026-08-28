@@ -109,7 +109,7 @@ jobs:
         run: |
           # The real-time Worker dispatches known actions. Keep this allow-list
           # here too: untrusted Telegram text must never become a shell value.
-          if [ -n "$INPUT_ACTION" ]; then
+          if [ "$EVENT_NAME" = "push" ] && [ -f .video-request.json ]; then
             case "$INPUT_ACTION" in
               approved-feature|topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools) ;;
               *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
@@ -119,7 +119,7 @@ jobs:
             safe_voice=$(printf '%s' "$INPUT_VOICE_ID" | tr -cd 'A-Za-z0-9_.-' | cut -c1-120)
             case "$INPUT_VOICE_MODE" in on|off) safe_voice_mode="$INPUT_VOICE_MODE" ;; *) safe_voice_mode="on" ;; esac
             printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\nVOICE_MODE=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" "$safe_voice_mode" >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = "push" ] && [ -f .video-request.json ]; then
+          elif [ -n "$INPUT_ACTION" ]; then
             request_action=$(jq -r '.action // "none"' .video-request.json)
             request_payload=$(jq -r '.payload // ""' .video-request.json | tr '\r\n' ' ' | cut -c1-900)
             request_voice=$(jq -r '.voice_mode // "on"' .video-request.json)
