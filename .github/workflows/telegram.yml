@@ -35,6 +35,11 @@ on:
         required: false
         default: ""
         type: string
+      voice_mode:
+        description: "on by default; off only when a Telegram order asks for it"
+        required: false
+        default: "on"
+        type: string
 
 concurrency:
   group: telegram-listen
@@ -95,6 +100,7 @@ jobs:
           INPUT_PICK: ${{ inputs.pick }}
           INPUT_PAYLOAD: ${{ inputs.payload }}
           INPUT_VOICE_ID: ${{ inputs.voice_id }}
+          INPUT_VOICE_MODE: ${{ inputs.voice_mode }}
         run: |
           # The real-time Worker dispatches known actions. Keep this allow-list
           # here too: untrusted Telegram text must never become a shell value.
@@ -106,7 +112,8 @@ jobs:
             safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
             safe_payload=$(printf '%s' "$INPUT_PAYLOAD" | tr '\r\n' ' ' | cut -c1-900)
             safe_voice=$(printf '%s' "$INPUT_VOICE_ID" | tr -cd 'A-Za-z0-9_.-' | cut -c1-120)
-            printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" >> "$GITHUB_OUTPUT"
+            case "$INPUT_VOICE_MODE" in on|off) safe_voice_mode="$INPUT_VOICE_MODE" ;; *) safe_voice_mode="on" ;; esac
+            printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\nVOICE_MODE=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" "$safe_voice_mode" >> "$GITHUB_OUTPUT"
           else
             # There is no polling in the production Worker architecture. This
             # fallback is only for manually running the old listener while
@@ -149,9 +156,9 @@ jobs:
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_VOICE_ID: ${{ steps.cmd.outputs.VOICE_ID || secrets.MINIMAX_VOICE_ID }}
-          VOICE: "on"
-          REQUIRE_VOICE: "on"
+          VOICE_MODE: ${{ steps.cmd.outputs.VOICE_MODE }}
         run: |
+          if [ "$VOICE_MODE" = "off" ]; then export VOICE="off" REQUIRE_VOICE="off"; else export VOICE="on" REQUIRE_VOICE="on"; fi
           case "${{ steps.cmd.outputs.ACTION }}" in
             approved-feature) node approve-feature.mjs "$PAYLOAD" ;;
             topic-pick)       node topic-plan.mjs --build "${PICK:-1}" ;;
