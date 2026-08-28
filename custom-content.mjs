@@ -19,11 +19,15 @@ const topic = parts[0].slice(0, 150);
 const category = /(اینستا|انستا|instagram|reels|ریلز|edits)/i.test(topic) ? "instagram"
   : /(تیک\s*تاک|tiktok|tik\s*tok)/i.test(topic) ? "tiktok" : "tools";
 const id = `custom-${createHash("sha256").update(raw).digest("hex").slice(0, 10)}`;
+const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*صدا/i.test(topic)
+  ? { photo: "public/sources/edits-sound-separation-ui.webp", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
+  : /google\s*vids|گوگل\s*ویدز/i.test(topic)
+    ? { photo: "public/sources/google-vids-ui.webp", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
+    : null;
 const provided = parts.slice(1).map((text, i) => ({
   text: text.slice(0, 180),
-  // Keyword-based scene art is selected by the existing renderer from this
-  // exact text. No generic icon is forced onto an unrelated instruction.
   icon: ["target", "play", "chart", "pen"][i] || "target",
+  ...(visualPreset ? { photo: visualPreset.photo, photoAlt: visualPreset.alt, photoFocus: visualPreset.focus[i] } : {}),
 }));
 const steps = provided.length >= 4 ? provided.slice(0, 4) : [
   ...provided,
@@ -55,4 +59,5 @@ mkdirSync("lib/generated", { recursive: true });
 writeFileSync("lib/generated/custom-current.mjs", `export const CURRENT_CUSTOM = ${JSON.stringify(pack, null, 2)};\n`);
 const result = spawnSync("node", ["daily-render.mjs", "--feature", id, "--custom-generated"], { stdio: "inherit", env: process.env });
 process.exit(result.status ?? 1);
+
 
