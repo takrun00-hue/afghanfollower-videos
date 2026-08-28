@@ -102,6 +102,11 @@ async function chat(env, chatId, userText) {
     max_tokens: 420,
     temperature: 0.65,
   });
+  // Log only response field names and value types while diagnosing an upstream
+  // response-format mismatch; generated text and user messages stay private.
+  console.log("WORKERS_AI_RESPONSE_SHAPE", Object.fromEntries(
+    Object.entries(data || {}).map(([key, value]) => [key, Array.isArray(value) ? "array" : typeof value]),
+  ));
   const answer = textFromWorkersAI(data) || "فعلاً پاسخ آماده نشد؛ دوباره بنویسید.";
   await saveHistory(env, chatId, [...prior, { role: "user", content: userText.slice(0, 2000) }, { role: "assistant", content: answer }]);
   return answer;
