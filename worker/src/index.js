@@ -101,7 +101,7 @@ function textFromWorkersAI(data) {
 
 function responseShape(value, depth = 0) {
   if (value === null) return "null";
-  if (typeof value !== "object" || depth >= 2) return Array.isArray(value) ? "array" : typeof value;
+  if (typeof value !== "object" || depth >= 4) return Array.isArray(value) ? "array" : typeof value;
   return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, responseShape(child, depth + 1)]));
 }
 
