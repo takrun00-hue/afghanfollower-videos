@@ -1,4 +1,4 @@
-// One command for the AfghanFollower daily pipeline: builds + renders + adds
+// One command for the GapMedia daily pipeline: builds + renders + adds
 // music for the day's 3 videos (TikTok / Instagram / social).
 // Usage:
 //   node daily-render.mjs              # today, 1080x1920
@@ -179,7 +179,7 @@ for (const platform of cats) {
   const stamp = isNewsRun ? new Date().toISOString().slice(11, 16).replace(":", "") : "";
   const final = isNewsRun
     ? `${outDir}/khabar-${iso}-${stamp}.mp4`
-    : `${outDir}/afghanfollower-${platform}-${iso}.mp4`;
+    : `${outDir}/gapmedia-${platform}-${iso}.mp4`;
   console.log(`\n=== ${platform} (${pack.id}) — ${is4k ? "4K" : "1080p"} — ${music} ===`);
   execSync(`${HF} render -c "${comp}" --quality high --fps 30 ${resFlag} --skill=faceless-explainer -o "${silent}"`, { stdio: "inherit" });
   if (voice) {

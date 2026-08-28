@@ -18,7 +18,7 @@ if (!tg.enabled) {
 const sel = packsForDate(new Date(iso + "T12:00:00"));
 let n = 0;
 for (const p of CATEGORIES) {
-  const file = `renders/daily/${iso}/afghanfollower-${p}-${iso}.mp4`;
+  const file = `renders/daily/${iso}/gapmedia-${p}-${iso}.mp4`;
   if (!existsSync(file)) { console.error(`  skip ${p}: not found (${file})`); continue; }
   process.stdout.write(`  sending ${p}... `);
   try { await sendVideo({ token: tg.token, chatId: tg.chatId, file, caption: sel[p].tgTitle }); console.log("✈ ok"); n++; }

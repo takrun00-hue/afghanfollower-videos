@@ -23,7 +23,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const say = (text) => sendMessage({ token: tg.token, chatId: tg.chatId, text });
 
 const HELP =
-  "🤖 <b>ربات افغان فالورز</b>\n\n" +
+  "🤖 <b>ربات GapMedia</b>\n\n" +
   "🎬 <b>ساخت ویدیو</b>\n" +
   "• <b>تیک‌تاک بساز</b> — فقط ویدیوی تیک‌تاک\n" +
   "• <b>انستا بساز</b> — فقط ویدیوی اینستاگرام\n" +
