@@ -22,7 +22,15 @@ const all = ["system_voice", "voice_cloning", "voice_generation"]
 const persian = all.filter((voice) => /persian|farsi|dari|iran|afghan/i.test(
   `${voice.voice_id || ""} ${voice.voice_name || ""} ${(voice.description || []).join(" ")}`
 ));
-const voices = persian.length ? persian : all;
+// MiniMax may list a multilingual Persian voice by ID only in a project's
+// saved configuration, not in get_voice. Never fall back to unrelated Chinese
+// voices and call them Persian — that makes selection misleading and produces
+// the wrong pronunciation.
+const configuredPersian = process.env.MINIMAX_VOICE_ID
+  ? [{ voice_id: process.env.MINIMAX_VOICE_ID, voice_name: "صدای فارسی پیش‌فرض پروژه", kind: "configured" }]
+  : [];
+const unique = (items) => [...new Map(items.filter((v) => v.voice_id).map((v) => [v.voice_id, v])).values()];
+const voices = unique([...configuredPersian, ...persian]);
 if (process.argv.includes("--telegram")) {
   const tg = telegramConfig(loadEnv());
   if (!tg.enabled) {
@@ -33,11 +41,12 @@ if (process.argv.includes("--telegram")) {
     `${index + 1}. <code>${String(voice.voice_id || "")}</code>\n${String(voice.voice_name || voice.kind || "MiniMax voice")}`
   );
   const note = persian.length
-    ? "صداهای مرتبط با فارسی از حساب شما:"
-    : "MiniMax صدای فارسی را با مدل چندزبانه می‌خواند؛ از این فهرست یک صدا را برای تست انتخاب کنید:";
+    ? "صداهای فارسی/دری قابل استفاده:"
+    : "فقط صدای فارسیِ تنظیم‌شدهٔ پروژه نمایش داده می‌شود؛ صدای غیر فارسی حذف شد.";
+  const body = lines.length ? lines.join("\n\n") : "فعلاً Voice ID فارسی در تنظیمات پروژه نیست.";
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
-    text: `🎙️ <b>${note}</b>\n\n${lines.join("\n\n")}\n\nVoice ID انتخابی را به من بفرست تا نمونه بسازم.`,
+    text: `🎙️ <b>${note}</b>\n\n${body}\n\nبرای تغییر صدای یک ویدیو بنویس: <code>انستا بساز با صدا: Voice_ID</code>`,
   });
 }
 console.log(JSON.stringify({ voices }, null, 2));
