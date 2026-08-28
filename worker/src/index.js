@@ -16,6 +16,7 @@ const HELP = `🤖 <b>دستورهای بات</b>
 
 💡 <b>انتخاب موضوع</b>
 • <b>موضوع فردا</b> / <b>برنامه هفته</b>
+• <b>تغییر موضوع امروز</b> / <b>تغییر موضوع فردا</b> — ایده‌های تازه با اولویت درآمد
 • <b>موضوع تیک تاک</b> / <b>موضوع انستا</b> / <b>موضوع ابزار</b>
 • <b>تأیید نام-موضوع</b> — ساخت موضوع تأییدشده
 • <b>تحقیق</b> — آپدیت‌ها و موضوع‌های تازه
@@ -84,6 +85,8 @@ function videoAction(text) {
   if (/^(?:انتخاب|موضوع|تأیید موضوع|تاييد موضوع)\s*[۰-۹0-9]+(?:\s|$)/i.test(c)) return { action: "topic-pick", pick: digits(c), ...audio };
   if (/^(تایید|تأیید|approve)\s+[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
   if (/^(بساز|تایید|تأیید|ok|build)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-approve", pick: digits(c) };
+  if (any("تغییر موضوع امروز", "موضوع امروز تغییر", "ایده تازه امروز")) return { action: "plan-today" };
+  if (any("تغییر موضوع فردا", "موضوع فردا تغییر", "ایده تازه فردا")) return { action: "plan-tomorrow" };
   if (any("برنامه هفته", "موضوعات هفته")) return { action: "plan-week" };
   if (any("موضوع فردا", "برنامه فردا")) return { action: "plan-tomorrow" };
   if (any("جستجوی محتوا", "جستجو محتوا", "ایده محتوا", "ترند محتوا", "موضوع بیشتر")) return { action: "content-search" };

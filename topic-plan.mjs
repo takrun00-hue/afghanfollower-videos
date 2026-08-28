@@ -11,7 +11,7 @@ const tg = telegramConfig(env);
 const key = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
 const categoryArg = (process.argv.find((x) => x.startsWith("--category=")) || "").slice(11);
 const weekly = process.argv.includes("--week");
-const tomorrow = !weekly || process.argv.includes("--tomorrow");
+const today = process.argv.includes("--today");
 const dryRun = process.argv.includes("--dry-run");
 const pickArg = Number(process.argv[process.argv.indexOf("--build") + 1] || 0);
 const previewArg = Number(process.argv[process.argv.indexOf("--preview") + 1] || 0);
@@ -23,14 +23,20 @@ const TRUSTED_SIGNAL_DOMAINS = new Set([
 
 const TOPICS = [
   {
+    id: "saved-replies", platform: "Instagram", lane: "income",
+    hook: "دایرکت فروش را دیر جواب می‌دهی؟ جواب آماده، مشتریِ آماده را منتظر نمی‌گذارد.",
+    why: "Saved Replies پاسخ تکراری را با یک میان‌بر می‌فرستد؛ برای سریع‌تر جواب‌دادن به مشتری، نه تضمین فروش.",
+    source: "https://help.instagram.com/502981923235522/",
+  },
+  {
     id: "trial-reels", platform: "Instagram", lane: "reach",
-    hook: "ریلزت View نمی‌گیرد؟ می‌خواهی قبل از نشر عمومی، آن را برای مخاطب تازه تست کنی؟",
+    hook: "ویدیویت View نمی‌گیرد؟ می‌خواهی قبل از نشر عمومی، آن را برای مخاطب تازه تست کنی؟",
     why: "آزمایش ریلز برای Non-followers پیش از Share عمومی؛ نتیجه تضمین‌شده نیست.",
     source: "https://about.fb.com/news/2024/12/trial-reels-try-content-non-followers-first-see-what-perfoms-best/",
   },
   {
     id: "ig-insights-retention", platform: "Instagram", lane: "viral",
-    hook: "ریلزت در چند ثانیه اول رها می‌شود؟ می‌خواهی دقیقاً نقطهٔ افت را پیدا کنی؟",
+    hook: "ویدیویت در چند ثانیه اول رها می‌شود؟ می‌خواهی دقیقاً نقطهٔ افت را پیدا کنی؟",
     why: "برای انتخاب Edit بعدی بر اساس Retention، نه حدس.",
     source: "https://about.fb.com/news/2023/11/helping-creators-test-content-and-earn-rewards/",
   },
@@ -102,6 +108,7 @@ async function liveSignals() {
 // arbitrary app features.
 const list = relevant
   .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
+  .sort((a, b) => (b.lane === "income") - (a.lane === "income"))
   .slice(0, weekly ? 6 : 3);
 
 if (pickArg || previewArg) {
@@ -118,7 +125,7 @@ if (pickArg || previewArg) {
   execFileSync(process.execPath, ["approve-feature.mjs", selected.id], { stdio: "inherit", env: process.env });
   process.exit(0);
 }
-const title = weekly ? "📅 برنامهٔ پیشنهادی هفته" : "🗓️ موضوع‌های پیشنهادی فردا";
+const title = weekly ? "📅 برنامهٔ پیشنهادی هفته" : today ? "🗓️ موضوع‌های پیشنهادی امروز" : "🗓️ موضوع‌های پیشنهادی فردا";
 let text = `${title}\n\n` + list.map((x, i) =>
   `<b>${i + 1}. ${x.platform} · ${laneFa(x.lane)}</b>\n${x.hook}\n<i>${x.why}</i>\n<a href="${x.source}">منبع رسمی</a>`
 ).join("\n\n");
