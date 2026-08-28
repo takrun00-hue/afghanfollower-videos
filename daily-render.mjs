@@ -15,6 +15,7 @@ import { buildInkHTML } from "./lib/build-ink.mjs";
 import { buildNeonHTML } from "./lib/build-neon.mjs";
 import { packsForDate, packForFeature, CATEGORIES } from "./lib/content.mjs";
 import { sceneArtPlan } from "./lib/scene-art.mjs";
+import { creativeBriefFor } from "./lib/creative-brief.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo } from "./lib/telegram.mjs";
 
@@ -87,6 +88,12 @@ function recordSent(entry) {
 const results = [];
 for (const platform of cats) {
   const pack = sel[platform];
+  // Generate the topic-specific creative contract before any sound, HTML or
+  // render work. It is saved beside the composition for review and prevents a
+  // generic visual decision from being made after the script is already built.
+  const creativeBrief = creativeBriefFor(pack, { date });
+  pack.creative = creativeBrief;
+  writeFileSync(`${compDir}/${platform}-creative-brief.json`, JSON.stringify(creativeBrief, null, 2));
   // Measure the narration FIRST, then let each scene last as long as its own
   // spoken line (padded, and never shorter than a readable beat). Without this
   // the voice drifts past the caption it belongs to.
