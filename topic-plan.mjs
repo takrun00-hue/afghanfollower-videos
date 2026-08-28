@@ -2,6 +2,7 @@
 // It sends researched candidates and waits for an explicit Telegram approval.
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
@@ -23,6 +24,22 @@ const TRUSTED_SIGNAL_DOMAINS = new Set([
   "business.tiktok.com", "ads.tiktok.com", "socialmediatoday.com", "theverge.com",
   "techcrunch.com", "buffer.com", "later.com",
 ]);
+
+// This is written only after Telegram confirms a successful delivery, then
+// committed by Actions. Research must check it before it offers a topic.
+function publishedHistory() {
+  try { return JSON.parse(readFileSync(".content-history.json", "utf8")); }
+  catch { return []; }
+}
+const PUBLISHED = publishedHistory();
+function hasAlreadyReachedTelegram(item) {
+  const id = String(item.id || "").toLowerCase();
+  const text = `${item.id || ""} ${item.hook || ""} ${item.why || ""}`.toLowerCase();
+  return PUBLISHED.some((sent) => {
+    const old = `${sent.id || ""} ${sent.topic || ""} ${sent.hook || ""}`.toLowerCase();
+    return (id && old.includes(id)) || (text.length > 24 && old.includes(text.slice(0, 36)));
+  });
+}
 
 const TOPICS = [
   {
@@ -70,18 +87,18 @@ const TOPICS = [
 ];
 
 const cat = String(categoryArg).toLowerCase();
-const relevant = TOPICS.filter((x) => !cat ||
+const relevant = TOPICS.filter((x) => !hasAlreadyReachedTelegram(x) && (!cat ||
   (cat === "instagram" && x.platform === "Instagram") ||
   (cat === "tiktok" && x.platform === "TikTok") ||
-  (cat === "tools" && x.platform === "AI / App"));
+  (cat === "tools" && x.platform === "AI / App")));
 
 async function liveSignals() {
   if (!key) return [];
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
   const queries = [
-    "Instagram Reels creator reach trend update",
-    "TikTok creator search monetization trend update",
-    "free AI app social media creators trend update",
+    "TikTok Creative Center current week trend popular hashtag creator viral content",
+    "Instagram Reels current week trend creator viral content",
+    "creator app current week social media revenue or viral content update",
   ];
   const results = [];
   for (const query of queries) {
@@ -97,7 +114,9 @@ async function liveSignals() {
         let host = "";
         try { host = new URL(item.url).hostname.replace(/^www\./, ""); } catch {}
         if (item?.title && item?.url && TRUSTED_SIGNAL_DOMAINS.has(host)) {
-          results.push({ title: String(item.title).slice(0, 100), url: item.url });
+          const evidence = String(item.text || "").replace(/\s+/g, " ");
+          const metric = evidence.match(/(?:\d[\d,.]*\s*(?:K|M|million|billion|posts|views|videos)|\d+(?:\.\d+)?%)/i)?.[0] || "آمار عمومیِ قابل‌استخراج ندارد";
+          results.push({ title: String(item.title).slice(0, 100), url: item.url, date: String(item.publishedDate || "").slice(0, 10), metric });
         }
       }
     } catch { /* Signals are optional; curated topics still go out. */ }
@@ -165,10 +184,9 @@ if (liveQuery) {
   process.exit(0);
 }
 
-// Every proposed item must serve a known creator demand: a current trend,
-// a concrete reach/viral outcome, or a qualified income use case. This makes
-// the numbered Telegram list a real editorial gate rather than a menu of
-// arbitrary app features.
+// The permanent bank is only an archive of researched items, never proof that
+// a subject is worth posting today. A current proposal therefore needs a live
+// signal. If search cannot substantiate it, Telegram receives no filler topic.
 const list = relevant
   .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
   .sort((a, b) => (b.lane === "income") - (a.lane === "income"))
@@ -189,15 +207,12 @@ if (pickArg || previewArg) {
   process.exit(0);
 }
 const title = weekly ? "📅 برنامهٔ پیشنهادی هفته" : today ? "🗓️ موضوع‌های پیشنهادی امروز" : "🗓️ موضوع‌های پیشنهادی فردا";
-let text = `${title}\n\n` + list.map((x, i) =>
-  `<b>${i + 1}. ${x.platform} · ${laneFa(x.lane)}</b>\n${x.hook}\n<i>${x.why}</i>\n<a href="${x.source}">منبع رسمی</a>`
-).join("\n\n");
-
 const signals = await liveSignals();
-if (signals.length) {
-  text += "\n\n<b>🔎 سیگنال‌های تازهٔ هفته</b>\n" + signals.map((x) => `• <a href="${x.url}">${x.title}</a>`).join("\n");
-}
-text += "\n\nهیچ ویدیویی هنوز ساخته نشده است. برای انتخاب بنویس: <code>انتخاب ۱</code>";
+const evidenceText = signals.length
+  ? signals.map((x, i) => `<b>${i + 1}. ${esc(x.title)}</b>${x.date ? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
+  : "در این جستجو سیگنال قابل‌سنجش پیدا نشد؛ هیچ موضوعی برای ساخت پیشنهاد نمی‌شود.";
+let text = `${title}\n\n<b>🔎 سیگنال‌های زندهٔ بررسی‌شده</b>\n${evidenceText}`;
+text += "\n\nتا زمانی که موضوع و منبع را تأیید نکنی، هیچ ویدیویی ساخته نمی‌شود. برای جستجوی دقیق‌تر بنویس: <code>جستجوی جدید: موضوع</code>";
 
 if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
 else console.log(text);

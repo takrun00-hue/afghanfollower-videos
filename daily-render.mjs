@@ -75,6 +75,11 @@ const cats = pick ? ALL_CATS.filter((c) => c === pick) : CATEGORIES;
 if (pick && cats.length === 0) { console.error(`✗ unknown category "${pick}". Use one of: ${ALL_CATS.join(", ")}`); process.exit(1); }
 
 const SENT_LOG = ".telegram-sent.json";
+// Unlike the short Telegram delete log, this file is committed by the cloud
+// workflow after a successful delivery.  It is the editorial memory used by
+// topic research: a subject that has already reached Telegram is not a fresh
+// candidate, even if it is still present in a feature bank.
+const CONTENT_HISTORY = ".content-history.json";
 
 // A small rolling log of what the bot posted, so "پاک کن" has something to act
 // on. Kept to the last 30 entries — anything older is past the delete window.
@@ -83,6 +88,21 @@ function recordSent(entry) {
   try { log = JSON.parse(readFileSync(SENT_LOG, "utf8")); } catch {}
   log.push(entry);
   writeFileSync(SENT_LOG, JSON.stringify(log.slice(-30), null, 2));
+}
+
+function recordPublishedTopic(pack, entry) {
+  let history = [];
+  try { history = JSON.parse(readFileSync(CONTENT_HISTORY, "utf8")); } catch {}
+  const topic = String(pack.feature || pack.title || pack.id || "").replace(/<[^>]*>/g, " ").trim();
+  history.push({
+    id: pack.id,
+    platform: pack.platform,
+    topic,
+    hook: String(pack.hook?.ask || "").replace(/<[^>]*>/g, " ").trim(),
+    messageId: entry.messageId || null,
+    sentAt: new Date().toISOString(),
+  });
+  writeFileSync(CONTENT_HISTORY, JSON.stringify(history.slice(-180), null, 2) + "\n");
 }
 
 const results = [];
@@ -210,7 +230,9 @@ for (const platform of cats) {
       // remember the message so it can be taken back; Telegram allows a bot to
       // delete its own messages for 48 hours and nothing else
       if (res && res.message_id) {
-        recordSent({ kind: isNewsRun ? "news" : "daily", platform, packId: pack.id, messageId: res.message_id, at: Date.now() });
+        const delivery = { kind: isNewsRun ? "news" : "daily", platform, packId: pack.id, messageId: res.message_id, at: Date.now() };
+        recordSent(delivery);
+        if (!isNewsRun) recordPublishedTopic(pack, delivery);
       }
     } catch (e) {
       console.error(`   ✗ Telegram send failed: ${e.message}`);

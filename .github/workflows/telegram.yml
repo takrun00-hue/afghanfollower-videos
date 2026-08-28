@@ -91,7 +91,12 @@ jobs:
       - name: Restore command cursor
         uses: actions/cache@v4
         with:
-          path: .telegram-offset
+          # Cache the confirmed Telegram delivery history beside the update
+          # cursor. Each run has its own key and restores the most recent
+          # prior state, so no repository-wide write permission is needed.
+          path: |
+            .telegram-offset
+            .content-history.json
           key: tg-offset-${{ github.run_id }}
           restore-keys: tg-offset-
 
