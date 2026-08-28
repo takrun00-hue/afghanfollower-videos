@@ -74,7 +74,9 @@ function videoAction(text) {
   if (any("صداها", "صدا minimax", "minimax voice", "voice list")) return { action: "voice-list" };
   if (/^(?:ادیت|ویرایش)\s*قلاب\s*خبر\s*[:：]/i.test(c)) return { action: "news-edit-hook", payload: cleanEdit(text, "قلاب\\s*خبر") };
   if (/^(?:ادیت|ویرایش)\s*(?:متن|محتوا)\s*خبر\s*[:：]/i.test(c)) return { action: "news-edit-text", payload: cleanEdit(text, "(?:متن|محتوا)\\s*خبر") };
-  if (/^(?:تأیید|تایید)\s*خبر$/i.test(c)) return { action: "news-approve-draft" };
+  // Accept the exact approval command both on its own and with an explicit
+  // audio phrase.  It must never fall through to the conversational AI.
+  if (/^(?:تأیید|تایید)\s*خبر(?:\s*(?:با\s*صدا|بدون\s*صدا|بی\s*صدا))?$/i.test(c)) return withAudio("news-approve-draft");
   if (/^(?:ادیت|ویرایش)\s*قلاب\s*[:：]/i.test(c)) return { action: "content-edit-hook", payload: cleanEdit(text, "قلاب") };
   if (/^(?:ادیت|ویرایش)\s*(?:متن|محتوا|اسلاید)\s*[:：]/i.test(c)) return { action: "content-edit-steps", payload: cleanEdit(text, "(?:متن|محتوا|اسلاید)") };
   if (/^(?:تأیید|تایید)\s*(?:محتوا|ویدیو|پیش\s*نویس)$/i.test(c)) return withAudio("content-approve");
@@ -92,8 +94,8 @@ function videoAction(text) {
   if (any("تغییر موضوع فردا", "موضوع فردا تغییر", "ایده تازه فردا")) return { action: "plan-tomorrow" };
   if (any("برنامه هفته", "موضوعات هفته")) return { action: "plan-week" };
   if (any("موضوع فردا", "برنامه فردا")) return { action: "plan-tomorrow" };
-  if (/^(?:جستجوی جدید خبر|جستجو جدید خبر|جستجوی خبر|جستجو خبر)\s*[:：]\s*.+/i.test(c)) {
-    const payload = String(text).replace(/^\s*(?:جستجوی جدید خبر|جستجو جدید خبر|جستجوی خبر|جستجو خبر)\s*[:：]\s*/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 300);
+  if (/^(?:جستجوی جدید خبر|جستجو جدید خبر|جستجوی خبر|جستجو خبر)(?:\s*[:：]\s*|\s+).+/i.test(c)) {
+    const payload = String(text).replace(/^\s*(?:جستجوی جدید خبر|جستجو جدید خبر|جستجوی خبر|جستجو خبر)(?:\s*[:：]\s*|\s+)/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 300);
     return payload ? { action: "news-search-live", payload } : { action: "news-scan" };
   }
   if (/^(?:جستجوی جدید|جستجو جدید|جستجوی محتوا|جستجو محتوا|جستجو)\s*[:：]\s*.+/i.test(c)) {
@@ -102,7 +104,7 @@ function videoAction(text) {
   }
   if (any("جستجوی محتوا", "جستجو محتوا", "ایده محتوا", "ترند محتوا", "موضوع بیشتر")) return { action: "content-search" };
   if (any("تحقیق", "اپدیت", "آپدیت", "قابلیت تازه", "research")) return { action: "research" };
-  if (/^(جستجو خبر|جستجو اخبار|scan news)$/.test(c)) return { action: "news-scan" };
+  if (/^(خبر|اخبار|جستجو(?:ی)?\s+(?:خبر|اخبار)|scan news)$/.test(c)) return { action: "news-scan" };
   if (/^(خبر|news)\s*[:：]/.test(c)) return { action: "news-text-preview", payload: cleanNews(text) };
   if (/^(خبر|news)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-pick-preview", pick: digits(c) };
   if (/^(اروپا|europe)\s*[۰-۹0-9]+$/.test(c)) return { action: "europe-pick-preview", pick: digits(c) };
@@ -110,7 +112,7 @@ function videoAction(text) {
   if (any("خبر روز", "خبر امروز", "اخبار روز", "news today")) return { action: "news-today" };
   if (any("خبر آلمان", "آلمان", "germany")) return { action: "news-germany" };
   if (any("خبر فوری", "فوری", "breaking")) return { action: "news-breaking-preview" };
-  if (/^(خبر|اخبار|news)$/.test(c)) return { action: "research" };
+
   if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tiktok" };
   if (any("انستا", "اینستا", "instagram", "insta") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-instagram" };
   if (any("ابزار", "هوش مصنوعی", " ai", "tool") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
@@ -247,7 +249,10 @@ export default {
           await reply(env, chatId, "برای ساخت از متن خودت این‌طور بنویس:\n\n<code>محتوا: موضوع | نکتهٔ ۱ | نکتهٔ ۲ | نکتهٔ ۳ | نکتهٔ ۴</code>\n\nمثال: <code>محتوا: راه پیدا کردن موضوع ترند در TikTok | Search را باز کن | Creator Search Insights را بنویس | Content gap را بزن | از موضوعِ پرجستجو ویدیو بساز</code>");
         } else {
           await dispatchWorkflow(env, command);
-          await reply(env, chatId, "✅ دستور دریافت شد. ساخت یا بررسی در فضای ابری شروع شد؛ نتیجه را همین‌جا می‌فرستم.");
+          const confirmedNews = command.action === "news-approve-draft";
+          await reply(env, chatId, confirmedNews
+            ? "✅ خبر تأیید شد. ویدیوی کوتاه با صدا در فضای ابری ساخته می‌شود و همین‌جا فرستاده خواهد شد."
+            : "✅ دستور دریافت شد. ساخت یا بررسی در فضای ابری شروع شد؛ نتیجه را همین‌جا می‌فرستم.");
         }
       } else {
         await reply(env, chatId, await chat(env, chatId, message.text));
@@ -259,3 +264,4 @@ export default {
     return new Response("ok");
   },
 };
+
