@@ -215,7 +215,7 @@ async function chat(env, chatId, userText) {
 
 export default {
   async fetch(request, env) {
-    if (request.method !== "POST") return new Response("German Insider Telegram worker", { status: 200 });
+    if (request.method !== "POST") return new Response("GapMedia + German Insider Telegram worker", { status: 200 });
     if (env.TELEGRAM_WEBHOOK_SECRET && request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.TELEGRAM_WEBHOOK_SECRET) return new Response("Unauthorized", { status: 401 });
     const update = await request.json().catch(() => null);
     const message = update?.message;
