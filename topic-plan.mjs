@@ -105,19 +105,39 @@ async function liveSignals() {
   return [...new Map(results.map((x) => [x.url, x])).values()].slice(0, 4);
 }
 
+function trustedDomainsFor(query) {
+  const q = String(query).toLowerCase();
+  if (/(instagram|انستا|ریلز|reels|edits)/.test(q)) {
+    return ["about.instagram.com", "about.fb.com", "help.instagram.com", "creators.instagram.com", "business.instagram.com"];
+  }
+  if (/(tiktok|tik tok|تیک\s*تاک)/.test(q)) {
+    return ["newsroom.tiktok.com", "support.tiktok.com", "business.tiktok.com", "seller.tiktok.com"];
+  }
+  if (/(google|گوگل|android|اندروید|flow|vids|gemini)/.test(q)) {
+    return ["blog.google", "support.google.com", "workspace.google.com", "blog.google.com"];
+  }
+  if (/(canva|کَنوا|adobe|فوتوشاپ|photopea|capcut|کپ\s*کات)/.test(q)) {
+    return ["canva.com", "adobe.com", "photopea.com", "capcut.com"];
+  }
+  return [];
+}
+
 async function liveSearchForCreatorNeed(query) {
   if (!key) throw new Error("EXA_API_KEY تنظیم نشده است");
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const domains = trustedDomainsFor(query);
+  const request = {
+    query: `${query} social media creator income viral views update`,
+    numResults: 6,
+    startPublishedDate: since,
+    type: "auto",
+    contents: { text: { maxCharacters: 550 } },
+  };
+  if (domains.length) request.includeDomains = domains;
   const response = await fetch("https://api.exa.ai/search", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": key },
-    body: JSON.stringify({
-      query: `${query} social media creator income viral views update`,
-      numResults: 6,
-      startPublishedDate: since,
-      type: "auto",
-      contents: { text: { maxCharacters: 550 } },
-    }),
+    body: JSON.stringify(request),
   });
   if (!response.ok) throw new Error(`Exa ${response.status}`);
   const data = await response.json();
@@ -185,3 +205,4 @@ else console.log(text);
 function laneFa(lane) {
   return ({ trend: "ترند روز", viral: "ویو و وایرال", reach: "دیده‌شدن", income: "درآمد" })[lane] || lane;
 }
+
