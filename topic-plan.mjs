@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
+import { rejectReason } from "./lib/source-quality.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -181,14 +182,16 @@ async function liveSearchForCreatorNeed(query) {
   if (!key) throw new Error("EXA_API_KEY تنظیم نشده است");
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
   const domains = trustedDomainsFor(query);
-  const ask = async (includeDomains) => {
+  const ask = async (includeDomains, phrasing) => {
     const request = {
       // Describe the page we want to find, not a bag of keywords. The old tail
       // ("social media creator income viral views update") pulled every query
       // toward corporate announcements, which is how "درآمد از تیک‌تاک" came
       // back as a concert livestream and an IP agreement.
-      query: `${query} — guide explaining how creators actually do this, with the steps`,
-      numResults: 10,
+      query: phrasing || `${query} — guide explaining how creators actually do this, with the steps`,
+      // Filtering removes most of what a money question returns, so the pool has
+      // to start large or press releases float back up for want of anything else.
+      numResults: 25,
       startPublishedDate: since,
       type: "auto",
       contents: { text: { maxCharacters: 700 } },
@@ -218,12 +221,29 @@ async function liveSearchForCreatorNeed(query) {
 
   const official = await ask(domains);
   let pool = official;
+  const dropped = [];
   // Official domains alone often cannot answer a demand question. Widen once,
   // rather than shipping three irrelevant press releases as "research".
   if (official.filter((x) => score(x) > 0).length < 3) {
     const seen = new Set(official.map((x) => x.url));
-    for (const item of await ask(null)) if (!seen.has(item.url)) pool.push(item);
+    // Two phrasings, because "how do I earn from this" and "what are the
+    // requirements" surface different pages, and the first alone lands almost
+    // entirely on content farms.
+    for (const phrasing of [null, `${query} — official requirements and how it works, explained for creators`]) {
+      for (const item of await ask(null, phrasing)) {
+        if (!seen.has(item.url)) { pool.push(item); seen.add(item.url); }
+      }
+    }
   }
+  // Drop the pages that are selling rather than explaining, and say how many
+  // went — a silently shorter list looks like a weak search rather than a
+  // filtered one.
+  pool = pool.filter((item) => {
+    const why = rejectReason(item);
+    if (why) dropped.push(why);
+    return !why;
+  });
+  if (dropped.length) console.log(`فیلتر منابع: ${dropped.length} نتیجه کنار گذاشته شد`);
   return pool.sort((a, b) => score(b) - score(a)).slice(0, 5);
 }
 
