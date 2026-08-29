@@ -199,6 +199,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PICK: ${{ steps.cmd.outputs.PICK }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
         run: |
           case "${{ steps.cmd.outputs.ACTION }}" in
@@ -213,6 +214,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PICK: ${{ steps.cmd.outputs.PICK }}
         run: node source-draft.mjs "${PICK:-1}"
 
       - name: Analyse creator-supplied tutorial topic
@@ -333,6 +335,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PICK: ${{ steps.cmd.outputs.PICK }}
         run: node news-build.mjs --from-queue "${PICK:-1}" --preview
 
       - name: Verify news draft for cache
