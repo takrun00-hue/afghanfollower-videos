@@ -74,6 +74,30 @@ const TOPICS = [
     source: "https://support.tiktok.com/en/using-tiktok/growing-your-audience/creator-search-insights",
   },
   {
+    id: "tiktok-pay", platform: "TikTok", lane: "income",
+    hook: "آیا ویوهای تیک‌تاکت واقعاً می‌توانند به درآمد تبدیل شوند، یا فقط عددند؟",
+    why: "شرایط Creator Rewards و Qualified views را قدم‌به‌قدم بررسی می‌کند؛ مقدار درآمد به کشور و شرایط حساب وابسته است.",
+    source: "https://support.tiktok.com/en/business-and-creator/creator-rewards-program/creator-rewards-program",
+  },
+  {
+    id: "view-jail", platform: "TikTok", lane: "viral",
+    hook: "چرا بعضی ویدیوها از همان چندصد ویوی اول جلوتر نمی‌روند؟",
+    why: "به‌جای شایعه، Watch time و افت سه ثانیهٔ اول را از Analytics بررسی می‌کند.",
+    source: "https://support.tiktok.com/en/using-tiktok/growing-your-audience/analytics",
+  },
+  {
+    id: "retention-graph", platform: "TikTok", lane: "viral",
+    hook: "بیننده دقیقاً در کدام ثانیه از ویدیویت رد می‌شود؟",
+    why: "نمودار Retention نشان می‌دهد کدام بخشِ Edit باید کوتاه، عوض یا حذف شود.",
+    source: "https://support.tiktok.com/en/using-tiktok/growing-your-audience/analytics",
+  },
+  {
+    id: "auto-translate", platform: "TikTok", lane: "reach",
+    hook: "می‌خواهی ویدیویت برای مخاطبی بیرون از زبان خودت هم قابل‌فهم باشد؟",
+    why: "زیرنویس و ترجمهٔ روشن، مسیر دیده‌شدن بین‌المللی را بازتر می‌کند؛ نتیجه تضمین‌شده نیست.",
+    source: "https://support.tiktok.com/en/using-tiktok/creating-videos/accessibility",
+  },
+  {
     id: "google-trends", platform: "AI / App", lane: "trend",
     hook: "نمی‌دانی امروز چه موضوعی شانس دیده‌شدن دارد؟ قبل از ساخت، موج را ببین.",
     why: "Google Trends برای بررسی ترند؛ رایگان و بدون تضمین وایرال‌شدن.",
@@ -93,15 +117,19 @@ const relevant = TOPICS.filter((x) => !hasAlreadyReachedTelegram(x) && (!cat ||
   (cat === "tiktok" && x.platform === "TikTok") ||
   (cat === "tools" && x.platform === "AI / App")));
 
-async function liveSignals() {
+async function liveSignals(category = "") {
   if (!key) return [];
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
-  const queries = [
+  const allQueries = [
     "TikTok Creative Center current week trend popular hashtag creator viral content",
     "Instagram Reels current week trend creator viral content",
     "creator app current week social media revenue or viral content update",
     "official technology app AI update this week useful for creators video editing",
   ];
+  const queries = category === "tiktok" ? allQueries.slice(0, 1)
+    : category === "instagram" ? allQueries.slice(1, 2)
+    : category === "tools" ? allQueries.slice(2)
+    : allQueries;
   const results = [];
   for (const query of queries) {
     try {
@@ -212,7 +240,7 @@ if (pickArg || previewArg) {
   process.exit(0);
 }
 const title = weekly ? "📅 برنامهٔ پیشنهادی هفته" : today ? "🗓️ موضوع‌های پیشنهادی امروز" : "🗓️ موضوع‌های پیشنهادی فردا";
-const signals = await liveSignals();
+const signals = await liveSignals(cat);
 const evidenceText = signals.length
   ? signals.map((x, i) => `<b>${i + 1}. ${esc(x.title)}</b>${x.date ? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
   : "سیگنال عددیِ تازه پیدا نشد؛ موضوع‌های زیر از منابع رسمیِ بررسی‌شده انتخاب شده‌اند و پیش از ساخت، متن کاملشان را می‌بینی.";
@@ -222,7 +250,7 @@ const proposals = list.map((item, i) =>
   `<b>موضوع ${FA(i + 1)} — ${esc(item.platform)}</b>\n${esc(item.hook)}\n${esc(item.why)}\n<a href="${item.source}">منبع رسمی</a>`
 ).join("\n\n");
 text += proposals
-  ? `\n\n<b>✅ موضوع‌های قابل انتخاب</b>\n${proposals}\n\nبرای دیدن پیش‌نویس و ویرایش آن فقط بنویس: <code>موضوع ۱</code> یا <code>موضوع ۲</code>.`
+  ? `\n\n<b>✅ موضوع‌های قابل انتخاب</b>\n${proposals}\n\nبرای دیدن پیش‌نویس و ویرایش آن فقط یکی را بفرست: ${list.map((_, i) => `<code>موضوع ${FA(i + 1)}</code>`).join("، ")}.`
   : "\n\nمورد تازهٔ تکرارنشده‌ای برای پیشنهاد ندارم. فقط <code>۵</code> را بفرست و موضوع دلخواهت را جستجو کن.";
 text += " هیچ ویدیویی پیش از تأیید پیش‌نویس ساخته نمی‌شود.";
 
