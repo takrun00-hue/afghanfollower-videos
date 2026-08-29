@@ -1,0 +1,177 @@
+{
+  "trial-reels": [
+    {
+      "file": "public/screens/trial-reels-1.gif",
+      "page": "https://creators.instagram.com/blog/instagram-trial-reels",
+      "pageTitle": "Trial reels: Try content with non-followers first to see what ...",
+      "verified": false
+    },
+    {
+      "file": "public/screens/trial-reels-3.jpg",
+      "page": "https://about.fb.com/news/2024/12/trial-reels-try-content-non-followers-first-see-what-perfoms-best/",
+      "pageTitle": "Test Content With Non-Followers Using Trial Reels - About Meta",
+      "verified": false
+    },
+    {
+      "file": "public/screens/trial-reels-5.jpg",
+      "page": "https://creators.instagram.com/create-engaging-content",
+      "pageTitle": "Create Engaging Content",
+      "verified": false
+    }
+  ],
+  "tt-media-kit": [],
+  "replace-audio": [
+    {
+      "file": "public/screens/replace-audio-1.png",
+      "page": "https://help.instagram.com/2720958398006062/",
+      "pageTitle": "Record a reel on Instagram",
+      "verified": false
+    },
+    {
+      "file": "public/screens/replace-audio-3.webp",
+      "page": "https://about.instagram.com/features/reels",
+      "pageTitle": "Instagram Reels: Create & Share Short Videos",
+      "verified": false
+    }
+  ],
+  "reels-teleprompter": [
+    {
+      "file": "public/screens/reels-teleprompter-1.jpg",
+      "page": "https://creators.instagram.com/edits/tutorials/teleprompter",
+      "pageTitle": "Edits Teleprompter: Record Confident Takes",
+      "verified": false
+    },
+    {
+      "file": "public/screens/reels-teleprompter-3.webp",
+      "page": "https://creators.instagram.com/blog/best-camera-settings-instagram-reels",
+      "pageTitle": "Best Camera & Export Settings for High-Quality Instagram ...",
+      "verified": false
+    },
+    {
+      "file": "public/screens/reels-teleprompter-5.webp",
+      "page": "https://creators.instagram.com/blog/edits-one-year-anniversary",
+      "pageTitle": "Instagram Edits App: Celebrating One Year & 130+ Features",
+      "verified": false
+    }
+  ],
+  "broadcast-channel": [
+    {
+      "file": "public/screens/broadcast-channel-1.jpg",
+      "page": "https://creators.instagram.com/create/broadcast-channels",
+      "pageTitle": "Learn how to use Instagram's Broadcast Channel ...",
+      "verified": false
+    },
+    {
+      "file": "public/screens/broadcast-channel-3.jpg",
+      "page": "https://about.fb.com/news/2023/02/instagram-broadcast-channels-creators-deepen-connections-with-followers/",
+      "pageTitle": "Introducing Instagram Broadcast Channels: A New Way For ...",
+      "verified": false
+    },
+    {
+      "file": "public/screens/broadcast-channel-5.png",
+      "page": "https://creators.instagram.com/blog/instagram-broadcast-channels-replies-prompts-insights",
+      "pageTitle": "Get closer to your fans with replies, prompts, and insights",
+      "verified": false
+    }
+  ],
+  "tt-keywords": [
+    {
+      "file": "public/screens/tt-keywords-1.jpg",
+      "page": "https://newsroom.tiktok.com/en-us/creator-search-insights",
+      "pageTitle": "Get inspired with Creator Search Insights",
+      "verified": false
+    },
+    {
+      "file": "public/screens/tt-keywords-3.jpg",
+      "page": "https://newsroom.tiktok.com/en-us/how-tiktok-recommends-videos-for-you",
+      "pageTitle": "How TikTok recommends videos #ForYou",
+      "verified": false
+    },
+    {
+      "file": "public/screens/tt-keywords-5.jpg",
+      "page": "https://newsroom.tiktok.com/en-us/more-ways-to-discover-new-content-and-creators-you-love",
+      "pageTitle": "More ways to discover new content and creators you love",
+      "verified": false
+    }
+  ],
+  "tt-ai-dubbing": [
+    {
+      "file": "public/screens/tt-ai-dubbing-1.png",
+      "page": "https://newsroom.tiktok.com/en-us/announcing-symphony-avatars",
+      "pageTitle": "Meet Symphony Avatars: TikTok's New Creative AI Tool",
+      "verified": false
+    },
+    {
+      "file": "public/screens/tt-ai-dubbing-3.jpg",
+      "page": "https://newsroom.tiktok.com/tiktok-symphony-updates-ca?lang=en-CA",
+      "pageTitle": "Creativity at Scale: Meet our latest Symphony Generative AI Tools - Newsroom | TikTok",
+      "verified": false
+    },
+    {
+      "file": "public/screens/tt-ai-dubbing-5.png",
+      "page": "https://newsroom.tiktok.com/en-us/introducing-tiktok-ai-alive",
+      "pageTitle": "Introducing AI Alive: Bringing Your Photos to Life on TikTok Stories - Newsroom | TikTok",
+      "verified": false
+    }
+  ],
+  "auto-translate": [
+    {
+      "file": "public/screens/auto-translate-1.png",
+      "page": "https://newsroom.tiktok.com/en-us/auto-translations-and-captions",
+      "pageTitle": "Discover a world of entertaining content with new ...",
+      "verified": false
+    },
+    {
+      "file": "public/screens/auto-translate-3.png",
+      "page": "https://newsroom.tiktok.com/en-us/introducing-auto-captions",
+      "pageTitle": "Introducing auto captions",
+      "verified": false
+    },
+    {
+      "file": "public/screens/auto-translate-5.png",
+      "page": "https://newsroom.tiktok.com/en-gb/auto-captions-on-tiktok",
+      "pageTitle": "How we're making TikTok more accessible for everyone",
+      "verified": false
+    }
+  ],
+  "add-yours": [
+    {
+      "file": "public/screens/add-yours-1.jpg",
+      "page": "https://about.instagram.com/blog/tips-and-tricks/instagram-story-tips-tricks",
+      "pageTitle": "Instagram Stories Tips & Tricks: Add Yours, Mentions ...",
+      "verified": false
+    },
+    {
+      "file": "public/screens/add-yours-3.webp",
+      "page": "https://about.instagram.com/blog/announcements/new-stickers-for-stories",
+      "pageTitle": "Instagram Launches Four New Stickers in Stories",
+      "verified": false
+    },
+    {
+      "file": "public/screens/add-yours-5.jpg",
+      "page": "https://about.fb.com/news/2024/05/new-stickers-in-instagram-stories/",
+      "pageTitle": "New Stickers in Instagram Stories",
+      "verified": false
+    }
+  ],
+  "collab": [
+    {
+      "file": "public/screens/collab-1.png",
+      "page": "https://help.instagram.com/291200585956732/",
+      "pageTitle": "About collab posts on Instagram",
+      "verified": false
+    },
+    {
+      "file": "public/screens/collab-3.jpg",
+      "page": "https://creators.instagram.com/blog/new-ways-to-create-with-music-and-collaborate-on-instagram",
+      "pageTitle": "New Ways to Create with Music and Collaborate on ...",
+      "verified": false
+    },
+    {
+      "file": "public/screens/collab-5.jpg",
+      "page": "https://about.fb.com/news/2023/08/music-and-collabs-on-instagram/",
+      "pageTitle": "New Ways to Create With Music and Collaborate With Friends ...",
+      "verified": false
+    }
+  ]
+}
