@@ -97,6 +97,13 @@ jobs:
           path: |
             .telegram-offset
             .content-history.json
+            # These are short-lived editorial state files.  Persisting them in
+            # the Actions cache avoids requiring `contents: write` just to
+            # move from a Telegram preview to an approval.
+            .content-draft.json
+            .news-draft.json
+            .news-queue.json
+            .news-seen.json
           key: tg-offset-${{ github.run_id }}
           restore-keys: tg-offset-
 
@@ -200,14 +207,11 @@ jobs:
             *)                   node content-draft.mjs --preview ;;
           esac
 
-      - name: Save tutorial draft
+      - name: Verify tutorial draft for cache
         if: contains(fromJSON('["topic-pick","content-edit-hook","content-edit-steps"]'), steps.cmd.outputs.ACTION)
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f .content-draft.json
-          git diff --staged --quiet || git commit -m "content: update tutorial draft"
-          git push
+          test -f .content-draft.json
+          echo "Tutorial draft will be retained by the Actions cache."
 
       - name: Research digest
         if: steps.cmd.outputs.ACTION == 'research'
@@ -248,14 +252,12 @@ jobs:
             node news-scan.mjs
           fi
 
-      - name: Commit the news queue
+      - name: Verify news queue for cache
         if: contains(fromJSON('["news-scan","news-search-live","amal-berlin","amal-hamburg","amal-frankfurt","amal-farsi"]'), steps.cmd.outputs.ACTION)
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f .news-queue.json .news-seen.json 2>/dev/null || true
-          git diff --staged --quiet || git commit -m "news: queue from manual scan"
-          git push || true
+          test -f .news-queue.json
+          test -f .news-seen.json
+          echo "News queue and duplicate guard will be retained by the Actions cache."
 
       - name: List news
         if: contains(fromJSON('["news-germany","news-europe","news-today"]'), steps.cmd.outputs.ACTION)
@@ -310,14 +312,11 @@ jobs:
             *)                   node news-build.mjs --fetch --preview ;;
           esac
 
-      - name: Save news draft
+      - name: Verify news draft for cache
         if: contains(fromJSON('["news-breaking-preview","news-pick-preview","europe-pick-preview","news-text-preview","news-edit-hook","news-edit-text"]'), steps.cmd.outputs.ACTION)
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f .news-draft.json
-          git diff --staged --quiet || git commit -m "news: update editorial draft"
-          git push
+          test -f .news-draft.json
+          echo "News draft will be retained by the Actions cache."
 
       # ---- deleting --------------------------------------------------------
       - name: Undo the last send
