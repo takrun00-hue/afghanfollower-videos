@@ -78,6 +78,31 @@ async function search(domains, days, n = 10) {
   return (await res.json()).results || [];
 }
 
+// Amal often puts the short, timely version of a local item on Facebook or
+// Instagram before a full website article is available. Social posts are only
+// used when their text identifies Amal and can be read in Persian/Dari.
+async function searchAmalSocial(targetName, days = 365) {
+  if (!targetName) return [];
+  const place = {
+    berlin: "Amal Berlin Farsi Dari",
+    hamburg: "Amal Hamburg Farsi Dari",
+    frankfurt: "Amal Frankfurt Farsi Dari",
+    farsi: "Amal Farsi Dari Berlin Hamburg Frankfurt",
+  }[targetName] || "Amal Farsi Dari";
+  const res = await fetch("https://api.exa.ai/search", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": KEY },
+    body: JSON.stringify({
+      query: `${place} Germany news post`, numResults: 12,
+      startPublishedDate: new Date(Date.now() - days * 86400000).toISOString(),
+      includeDomains: ["facebook.com", "instagram.com"], type: "auto",
+      contents: { text: { maxCharacters: 2000 } },
+    }),
+  });
+  if (!res.ok) return [];
+  return (await res.json()).results || [];
+}
+
 // The cards are Persian, so an English article is unusable whatever it says —
 // its sentences cannot go on screen and it arrives as a "new" story even when it
 // is the same deportation flight an Amal piece already covered.
@@ -97,6 +122,18 @@ const isPersianHeadline = (t) => {
   return fa >= 5 && fa > en;
 };
 
+function isOfficialAmalSocial(result, which) {
+  let host = "";
+  try { host = new URL(String(result.url || "")).hostname.replace(/^www\./, ""); } catch {}
+  if (!(host === "facebook.com" || host.endsWith(".facebook.com") || host === "instagram.com" || host.endsWith(".instagram.com"))) return false;
+  const hay = `${result.title || ""} ${result.text || ""} ${result.url || ""}`.toLowerCase();
+  if (!hay.includes("amal")) return false;
+  if (which === "berlin") return hay.includes("berlin");
+  if (which === "hamburg") return hay.includes("hamburg");
+  if (which === "frankfurt") return hay.includes("frankfurt");
+  return /farsi|dari|فارسی|دری/.test(`${result.title || ""} ${result.text || ""}`);
+}
+
 const inGermanyScope = (r) =>
   isPersian(r.title) && isPersian(r.text) &&
   inScope("germany", r.title, String(r.text || "").slice(0, 600));
@@ -112,6 +149,16 @@ const keep = target ? (r) => isPersianHeadline(r.title) && isPersian(r.text) : i
 // enough to return the latest useful Dari/Persian reporting, then show its
 // real date in Telegram.
 let found = (await search(target ? target.domains : AMAL, target ? 365 : 4)).filter(keep);
+if (target) {
+  const social = (await searchAmalSocial(amalTarget)).filter((item) =>
+    isOfficialAmalSocial(item, amalTarget) && isPersian(item.text) &&
+    (isPersianHeadline(item.title) || isPersianHeadline(item.text))
+  );
+  const urls = new Set(found.map((item) => item.url));
+  for (const item of social) {
+    if (!urls.has(item.url)) { found.push(item); urls.add(item.url); }
+  }
+}
 const seenNow = new Set(found.map((r) => r.url));
 if (!target) {
   for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
