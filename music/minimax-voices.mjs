@@ -2,7 +2,13 @@
 // prints IDs and descriptions only; it never prints or persists the API key.
 import { loadEnv, telegramConfig, sendMessage } from "../lib/telegram.mjs";
 
-const apiKey = process.env.MINIMAX_API_KEY || "";
+// Read .env as well as the environment. In the cloud the key arrives as a
+// GitHub secret, but locally it lives in .env like every other credential here,
+// and reading only process.env made a correctly configured key look missing.
+// The script is normally run from the project root ("node music/…"), but can
+// also be run from inside music/, so look in both places rather than assuming.
+const localEnv = { ...loadEnv("../.env"), ...loadEnv(".env") };
+const apiKey = process.env.MINIMAX_API_KEY || localEnv.MINIMAX_API_KEY || "";
 if (!apiKey) {
   console.error("MINIMAX_API_KEY is not set.");
   process.exit(1);
