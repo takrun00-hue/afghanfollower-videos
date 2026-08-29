@@ -49,10 +49,10 @@ if (!KEY) {
 // sentences can go on a card as they stand. Everything else is a second pass.
 const AMAL = ["amalnews.de", "amalberlin.de", "amalhamburg.de", "amalfrankfurt.de"];
 const AMAL_TARGETS = {
-  berlin: { label: "امل برلین", domains: ["amalberlin.de"] },
-  hamburg: { label: "امل هامبورگ", domains: ["amalhamburg.de"] },
-  frankfurt: { label: "امل فرانکفورت", domains: ["amalfrankfurt.de"] },
-  farsi: { label: "امل فارسی", domains: AMAL },
+  berlin: { label: "امل برلین", domains: ["amalberlin.de", "wdr.de"] },
+  hamburg: { label: "امل هامبورگ", domains: ["amalhamburg.de", "wdr.de"] },
+  frankfurt: { label: "امل فرانکفورت", domains: ["amalfrankfurt.de", "wdr.de"] },
+  farsi: { label: "امل فارسی", domains: [...AMAL, "wdr.de"] },
 };
 const target = AMAL_TARGETS[amalTarget] || null;
 const REST_DE = DE_DOMAINS.filter((d) => !AMAL.includes(d));
@@ -81,7 +81,7 @@ async function search(domains, days, n = 10) {
 // Amal often puts the short, timely version of a local item on Facebook or
 // Instagram before a full website article is available. Social posts are only
 // used when their text identifies Amal and can be read in Persian/Dari.
-async function searchAmalSocial(targetName, days = 365) {
+async function searchAmalSocial(targetName, days = 7) {
   if (!targetName) return [];
   const place = {
     berlin: "Amal Berlin Farsi Dari",
@@ -148,7 +148,7 @@ const keep = target ? (r) => isPersianHeadline(r.title) && isPersian(r.text) : i
 // does not necessarily publish in every city every four days; look back far
 // enough to return the latest useful Dari/Persian reporting, then show its
 // real date in Telegram.
-let found = (await search(target ? target.domains : AMAL, target ? 365 : 4)).filter(keep);
+let found = (await search(target ? target.domains : AMAL, target ? 7 : 4)).filter(keep);
 if (target) {
   const social = (await searchAmalSocial(amalTarget)).filter((item) =>
     isOfficialAmalSocial(item, amalTarget) && isPersian(item.text) &&
@@ -237,7 +237,7 @@ if (!found.length) {
     const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     await sendMessage({ token: tg.token, chatId: tg.chatId, text: `🔎 برای «${esc(liveQuery)}» خبر معتبرِ تازه پیدا نشد.\n\nبرای ادامه بنویس: <code>جستجوی جدید خبر: عبارت تازه</code>` });
   }
-  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 در یک سال اخیر، مطلب فارسی/دری قابل‌استفاده‌ای از ${target.label} پیدا نشد.` });
+  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 در هفت روز اخیر، مطلب فارسی/دری قابل‌استفاده‌ای از ${target.label} و WDR for you فارسی پیدا نشد.` });
   console.log("no new stories");
   process.exit(0);
 }
