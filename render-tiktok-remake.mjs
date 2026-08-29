@@ -23,7 +23,7 @@ const is4k = args.includes("--4k");
 const withMusic = args.includes("--with-music");
 const force = args.includes("--force");
 const voiceArg = args.find((a) => a.startsWith("--voice="));
-const HF = "npx --yes hyperframes@0.7.109";
+const HF = "npx --yes hyperframes@0.8.16";
 const resFlag = is4k ? "--resolution portrait-4k" : "";
 
 const pack = tiktokRemakePack();
