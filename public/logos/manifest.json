@@ -1,0 +1,38 @@
+{
+  "canva": {
+    "file": "public/logos/canva.jpg",
+    "source": "Canva Logo.jpg",
+    "licence": "CC0",
+    "fetchedAt": "2026-08-29"
+  },
+  "capcut": {
+    "file": "public/logos/capcut.png",
+    "source": "CapCut logo.svg",
+    "licence": "Public domain",
+    "fetchedAt": "2026-08-29"
+  },
+  "photopea": {
+    "file": "public/logos/photopea.png",
+    "source": "Photopea logo.svg",
+    "licence": "Public domain",
+    "fetchedAt": "2026-08-29"
+  },
+  "pexels": {
+    "file": "public/logos/pexels.png",
+    "source": "Pexels logo.png",
+    "licence": "Public domain",
+    "fetchedAt": "2026-08-29"
+  },
+  "google trends": {
+    "file": "public/logos/google-trends.png",
+    "source": "Google Trends Logo.png",
+    "licence": "Public domain",
+    "fetchedAt": "2026-08-29"
+  },
+  "kling ai": {
+    "file": "public/logos/kling-ai.png",
+    "source": "Kling-ai-logo-png.png",
+    "licence": "CC BY-SA 4.0",
+    "fetchedAt": "2026-08-29"
+  }
+}
