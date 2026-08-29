@@ -33,6 +33,8 @@ const META = ["about.instagram.com", "creators.instagram.com", "help.instagram.c
 // What to ask for, per feature. The query names the feature the way its own
 // platform names it — that is what the official page is titled.
 const WANTED = {
+  "view-jail": { q: "TikTok analytics video views watch time retention for creators", domains: TIKTOK },
+  "retention-graph": { q: "TikTok analytics audience retention watch time chart", domains: TIKTOK },
   "trial-reels": { q: "Trial reels test content with non-followers", domains: META },
   "tt-media-kit": { q: "TikTok Creator Marketplace media kit for creators", domains: TIKTOK },
   "replace-audio": { q: "Instagram replace audio on a published reel", domains: META },

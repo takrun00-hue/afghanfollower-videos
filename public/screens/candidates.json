@@ -173,5 +173,19 @@
       "pageTitle": "New Ways to Create With Music and Collaborate With Friends ...",
       "verified": false
     }
+  ],
+  "view-jail": [
+    {
+      "file": "public/screens/view-jail-1.jpg",
+      "page": "https://newsroom.tiktok.com/en-us/tiktok-for-artists-launches",
+      "pageTitle": "TikTok for Artists: The new all-in-one music insights platform for artists - Newsroom | TikTok",
+      "verified": false
+    },
+    {
+      "file": "public/screens/view-jail-3.jpg",
+      "page": "https://newsroom.tiktok.com/en-us/new-tools-for-creators",
+      "pageTitle": "New tools to protect and support TikTok creators - Newsroom | TikTok",
+      "verified": false
+    }
   ]
 }
