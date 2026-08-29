@@ -15,6 +15,7 @@ const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b
 <b>۶</b> تحلیل موضوع آماده و پیش‌نویس ویدیو
 <b>۷</b> ادیت قلاب آموزشی
 <b>۸</b> ادیت اسلایدهای آموزشی
+<b>۲۶</b> تقاضای واقعی مردم برای یک موضوع
 <b>۹</b> فهرست صداها
 <b>۱۰</b> ساخت محتوای تأییدشده با صدا
 
@@ -46,6 +47,7 @@ const NUMBERED_ACTIONS = {
   "6": { pending: "content-topic-preview", ask: "📝 موضوع آماده را بفرستید؛ بات قلاب و گام‌ها را تحلیل می‌کند و پیش‌نویس می‌فرستد." },
   "7": { pending: "content-edit-hook", ask: "✏️ متن تازهٔ قلاب آموزشی را بفرستید." },
   "8": { pending: "content-edit-steps", ask: "✏️ اسلایدهای تازه را با | جدا کنید: گام ۱ | گام ۲ | گام ۳" },
+  "26": { pending: "demand-research", ask: "🔎 موضوع را بفرستید تا ببینم مردم واقعاً چه چیزی درباره‌اش سرچ می‌کنند." },
   "9": { action: "voice-list" }, "10": { action: "content-approve", voiceMode: "on" },
   "11": { action: "news-scan" }, "12": { action: "news-germany" }, "13": { action: "news-europe" },
   "14": { pending: "news-search-live", ask: "🔎 عبارت جستجوی خبر را بفرستید؛ مثلاً: قوانین اقامت آلمان" },
@@ -95,6 +97,10 @@ function videoAction(text) {
     return payload.split("|").filter(Boolean).length >= 2
       ? { action: "custom-content", payload, ...audio }
       : { action: "custom-help" };
+  }
+  if (/^(?:تقاضا|سرچ مردم|دیماند)\s*[:：]/i.test(c)) {
+    const payload = String(text).replace(/^\s*(?:تقاضا|سرچ مردم|دیماند)\s*[:：]\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 120);
+    return payload ? { action: "demand-research", payload } : null;
   }
   if (/^(?:موضوع آماده|ایده آماده|ایده)\s*[:：]/i.test(c)) {
     const payload = String(text).replace(/^\s*(?:موضوع آماده|ایده آماده|ایده)\s*[:：]\s*/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
