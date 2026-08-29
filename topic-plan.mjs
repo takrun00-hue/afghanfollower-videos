@@ -22,7 +22,8 @@ const previewArg = Number(process.argv[process.argv.indexOf("--preview") + 1] ||
 const TRUSTED_SIGNAL_DOMAINS = new Set([
   "about.fb.com", "about.instagram.com", "newsroom.tiktok.com", "support.tiktok.com",
   "business.tiktok.com", "ads.tiktok.com", "socialmediatoday.com", "theverge.com",
-  "techcrunch.com", "buffer.com", "later.com",
+  "techcrunch.com", "buffer.com", "later.com", "blog.google", "blog.youtube",
+  "openai.com", "news.adobe.com", "canva.com", "capcut.com",
 ]);
 
 // This is written only after Telegram confirms a successful delivery, then
@@ -99,6 +100,7 @@ async function liveSignals() {
     "TikTok Creative Center current week trend popular hashtag creator viral content",
     "Instagram Reels current week trend creator viral content",
     "creator app current week social media revenue or viral content update",
+    "official technology app AI update this week useful for creators video editing",
   ];
   const results = [];
   for (const query of queries) {
@@ -137,6 +139,9 @@ function trustedDomainsFor(query) {
   }
   if (/(canva|کَنوا|adobe|فوتوشاپ|photopea|capcut|کپ\s*کات)/.test(q)) {
     return ["canva.com", "adobe.com", "photopea.com", "capcut.com"];
+  }
+  if (/(اپ|اپلیکیشن|application|app|تکنولوژی|فناوری|technology|هوش مصنوعی|\bai\b|edit|ادیت|video|ویدیو)/.test(q)) {
+    return ["blog.google", "blog.youtube", "openai.com", "news.adobe.com", "canva.com", "capcut.com", "about.fb.com", "newsroom.tiktok.com"];
   }
   return [];
 }
@@ -179,7 +184,7 @@ if (liveQuery) {
   });
   const text = `🔎 <b>نتیجهٔ جستجوی زندهٔ محتوا</b>\n<i>درخواست شما: ${esc(liveQuery)}</i>\n\n` +
     (items.length ? items.join("\n\n") : "نتیجهٔ تازه‌ای پیدا نشد.\nبرای ادامه بنویس: <code>جستجوی جدید: عبارت تازه</code>") +
-    "\n\nبرای ساخت از یک نتیجه، موضوع و گام‌ها را با <code>محتوا: موضوع | گام۱ | گام۲ | گام۳ | گام۴</code> بفرست.";
+    "\n\nبرای جستجوی تازه فقط <code>۵</code> را بفرست و عبارت جدید را وارد کن. نتیجهٔ خام، تا زمانی که به پیش‌نویس روشن تبدیل نشده، ویدیو نمی‌شود.";
   if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
   process.exit(0);
 }
@@ -210,9 +215,16 @@ const title = weekly ? "📅 برنامهٔ پیشنهادی هفته" : today ?
 const signals = await liveSignals();
 const evidenceText = signals.length
   ? signals.map((x, i) => `<b>${i + 1}. ${esc(x.title)}</b>${x.date ? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
-  : "در این جستجو سیگنال قابل‌سنجش پیدا نشد؛ هیچ موضوعی برای ساخت پیشنهاد نمی‌شود.";
+  : "سیگنال عددیِ تازه پیدا نشد؛ موضوع‌های زیر از منابع رسمیِ بررسی‌شده انتخاب شده‌اند و پیش از ساخت، متن کاملشان را می‌بینی.";
 let text = `${title}\n\n<b>🔎 سیگنال‌های زندهٔ بررسی‌شده</b>\n${evidenceText}`;
-text += "\n\nتا زمانی که موضوع و منبع را تأیید نکنی، هیچ ویدیویی ساخته نمی‌شود. برای جستجوی دقیق‌تر بنویس: <code>جستجوی جدید: موضوع</code>";
+const FA = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+const proposals = list.map((item, i) =>
+  `<b>موضوع ${FA(i + 1)} — ${esc(item.platform)}</b>\n${esc(item.hook)}\n${esc(item.why)}\n<a href="${item.source}">منبع رسمی</a>`
+).join("\n\n");
+text += proposals
+  ? `\n\n<b>✅ موضوع‌های قابل انتخاب</b>\n${proposals}\n\nبرای دیدن پیش‌نویس و ویرایش آن فقط بنویس: <code>موضوع ۱</code> یا <code>موضوع ۲</code>.`
+  : "\n\nمورد تازهٔ تکرارنشده‌ای برای پیشنهاد ندارم. فقط <code>۵</code> را بفرست و موضوع دلخواهت را جستجو کن.";
+text += " هیچ ویدیویی پیش از تأیید پیش‌نویس ساخته نمی‌شود.";
 
 if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
 else console.log(text);
