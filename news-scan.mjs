@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
-import { SOURCES, FA_DOMAINS, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
+import { SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -49,10 +49,10 @@ if (!KEY) {
 // sentences can go on a card as they stand. Everything else is a second pass.
 const AMAL = ["amalnews.de", "amalberlin.de", "amalhamburg.de", "amalfrankfurt.de"];
 const AMAL_TARGETS = {
-  berlin: { label: "امل برلین", domains: ["amalberlin.de", "wdr.de", "amu.tv"] },
-  hamburg: { label: "امل هامبورگ", domains: ["amalhamburg.de", "wdr.de", "amu.tv"] },
-  frankfurt: { label: "امل فرانکفورت", domains: ["amalfrankfurt.de", "wdr.de", "amu.tv"] },
-  farsi: { label: "امل فارسی", domains: [...AMAL, "wdr.de", "amu.tv"] },
+  berlin: { label: "امل برلین", domains: ["amalberlin.de", "wdr.de", "dw.com"] },
+  hamburg: { label: "امل هامبورگ", domains: ["amalhamburg.de", "wdr.de", "dw.com"] },
+  frankfurt: { label: "امل فرانکفورت", domains: ["amalfrankfurt.de", "wdr.de", "dw.com"] },
+  farsi: { label: "امل فارسی", domains: [...AMAL, "wdr.de", "dw.com"] },
 };
 const target = AMAL_TARGETS[amalTarget] || null;
 const REST_DE = DE_DOMAINS.filter((d) => !AMAL.includes(d));
@@ -171,11 +171,6 @@ const seenNow = new Set(found.map((r) => r.url));
 if (!target) {
   for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
     if (!seenNow.has(r.url)) { found.push(r); seenNow.add(r.url); }
-  }
-  if (found.length < 3) {
-    for (const r of (await search(FA_DOMAINS, 2)).filter(inGermanyScope)) {
-      if (!seenNow.has(r.url)) { found.push(r); seenNow.add(r.url); }
-    }
   }
 }
 

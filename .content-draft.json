@@ -1,0 +1,35 @@
+{
+  "kind": "tutorial",
+  "featureId": "creator-topic-1788030681267",
+  "generated": {
+    "id": "creator-topic-1788030681267",
+    "platform": "tools",
+    "feature": "چطور ویو بگیریم",
+    "title": "چطور ویو بگیریم",
+    "hook": {
+      "ask": "قلاب تست",
+      "l1": "قلاب تست",
+      "l2": "تا پایان، گام‌ها را ببین"
+    },
+    "payoff": "این پیش‌نویس بر اساس موضوعی است که خودت فرستادی؛ قبل از ساخت آن را بررسی و ادیت کن.",
+    "outroAsk": "دوست داری ویدیوی بعدی دربارهٔ چه موضوعی باشد؟",
+    "tgTitle": "🎬 چطور ویو بگیریم\n\n#viral #ContentCreator",
+    "tips": [
+      {
+        "head": "گام یک",
+        "icon": "target"
+      },
+      {
+        "head": "گام دو",
+        "icon": "play"
+      },
+      {
+        "head": "گام سه",
+        "icon": "chart"
+      }
+    ]
+  },
+  "hook": "قلاب تست",
+  "steps": null,
+  "updatedAt": "2026-08-29T19:11:21.267Z"
+}

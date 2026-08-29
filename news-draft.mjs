@@ -4,6 +4,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
+import { replyOnFailure } from "./lib/fail-soft.mjs";
+
+replyOnFailure();
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const FILE = ".news-draft.json";

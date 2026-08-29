@@ -12,7 +12,7 @@ const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b
 <b>۳</b> موضوع اپ‌ها و هوش مصنوعی
 <b>۴</b> موضوع‌های امروز
 <b>۵</b> جستجوی زندهٔ محتوا
-<b>۶</b> ساخت از متن شما
+<b>۶</b> تحلیل موضوع آماده و پیش‌نویس ویدیو
 <b>۷</b> ادیت قلاب آموزشی
 <b>۸</b> ادیت اسلایدهای آموزشی
 <b>۹</b> فهرست صداها
@@ -43,7 +43,7 @@ const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b
 const NUMBERED_ACTIONS = {
   "1": { action: "plan-tiktok" }, "2": { action: "plan-instagram" }, "3": { action: "plan-tools" },
   "4": { action: "plan-today" }, "5": { pending: "content-search-live", ask: "🔎 عبارت جستجوی محتوا را بفرستید؛ مثلاً: درآمد از تیک‌تاک" },
-  "6": { pending: "custom-content", ask: "📝 متن را بفرستید: موضوع | گام ۱ | گام ۲ | گام ۳" },
+  "6": { pending: "content-topic-preview", ask: "📝 موضوع آماده را بفرستید؛ بات قلاب و گام‌ها را تحلیل می‌کند و پیش‌نویس می‌فرستد." },
   "7": { pending: "content-edit-hook", ask: "✏️ متن تازهٔ قلاب آموزشی را بفرستید." },
   "8": { pending: "content-edit-steps", ask: "✏️ اسلایدهای تازه را با | جدا کنید: گام ۱ | گام ۲ | گام ۳" },
   "9": { action: "voice-list" }, "10": { action: "content-approve", voiceMode: "on" },
@@ -96,8 +96,12 @@ function videoAction(text) {
       ? { action: "custom-content", payload, ...audio }
       : { action: "custom-help" };
   }
+  if (/^(?:موضوع آماده|ایده آماده|ایده)\s*[:：]/i.test(c)) {
+    const payload = String(text).replace(/^\s*(?:موضوع آماده|ایده آماده|ایده)\s*[:：]\s*/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+    return payload ? { action: "content-topic-preview", payload, ...audio } : null;
+  }
   if (/^(?:انتخاب|موضوع|تأیید موضوع|تاييد موضوع)\s*[۰-۹0-9]+(?:\s|$)/i.test(c)) return { action: "topic-pick", pick: digits(c), ...audio };
-  if (/^(تایید|تأیید|approve)\s+[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
+  if (/^(تایید|تأیید|approve)\s+(?=[a-z0-9-]*[a-z])[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
   if (/^(بساز|تایید|تأیید|ok|build)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-approve", pick: digits(c) };
   if (any("تغییر موضوع امروز", "موضوع امروز تغییر", "ایده تازه امروز")) return { action: "plan-today" };
   if (any("تغییر موضوع فردا", "موضوع فردا تغییر", "ایده تازه فردا")) return { action: "plan-tomorrow" };
@@ -239,6 +243,33 @@ function commandFromPending(pending, text) {
   return { action: pending.action, payload, voiceMode: "on" };
 }
 
+// Safe local preparation: normalize Persian characters and turn a supplied
+// topic or news item into an editable structure. It deliberately does not
+// invent facts or send the creator's text to any third-party AI service.
+function cleanPersian(value, max = 180) {
+  return String(value || "").replace(/[\r\n]+/g, " ").replace(/[يى]/g, "ی").replace(/ك/g, "ک")
+    .replace(/\s+/g, " ").replace(/\s*([،؛؟.!])\s*/g, "$1 ").trim().slice(0, max);
+}
+
+function prepareNewsLocally(raw) {
+  const parts = String(raw || "").split("|").map((x) => cleanPersian(x)).filter(Boolean);
+  if (parts.length >= 2) return parts.slice(0, 5).join(" | ");
+  const sentences = cleanPersian(raw, 850).split(/(?<=[.!؟])\s+/).map((x) => cleanPersian(x)).filter(Boolean);
+  return [sentences.shift() || cleanPersian(raw, 110), ...sentences.slice(0, 4)].join(" | ");
+}
+
+function prepareTopicLocally(raw) {
+  const topic = cleanPersian(raw, 180);
+  return [
+    topic,
+    "فکر می‌کنید این نکته می‌تواند نتیجهٔ ویدیوی شما را بهتر کند؟",
+    "اول هدف و مخاطب اصلی را روشن کنید",
+    "یک نمونهٔ واقعی و قابل‌فهم نشان دهید",
+    "نکتهٔ اصلی را کوتاه و مرحله‌به‌مرحله توضیح دهید",
+    "نتیجه را با یک سؤال مرتبط جمع‌بندی کنید",
+  ].join(" | ");
+}
+
 const SYSTEM = `تو دستیار فارسی/دری برند GapMedia هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و از توضیحِ فرایند فکرکردن خودداری کن.`;
 
 function textFromWorkersAI(data) {
@@ -345,6 +376,8 @@ export default {
         } else if (command.action === "custom-help") {
           await reply(env, chatId, "برای ساخت از متن خودت این‌طور بنویس:\n\n<code>محتوا: موضوع | نکتهٔ ۱ | نکتهٔ ۲ | نکتهٔ ۳ | نکتهٔ ۴</code>\n\nمثال: <code>محتوا: راه پیدا کردن موضوع ترند در TikTok | Search را باز کن | Creator Search Insights را بنویس | Content gap را بزن | از موضوعِ پرجستجو ویدیو بساز</code>");
         } else {
+          if (command.action === "news-text-preview") command.payload = prepareNewsLocally(command.payload);
+          if (command.action === "content-topic-preview") command.payload = prepareTopicLocally(command.payload);
           if (command.action === "content-search-live") await setSelection(env, chatId, "content");
           if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi"].includes(command.action)) {
             await setSelection(env, chatId, "news");

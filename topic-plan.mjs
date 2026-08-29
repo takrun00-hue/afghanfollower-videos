@@ -181,22 +181,50 @@ async function liveSearchForCreatorNeed(query) {
   if (!key) throw new Error("EXA_API_KEY تنظیم نشده است");
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
   const domains = trustedDomainsFor(query);
-  const request = {
-    query: `${query} social media creator income viral views update`,
-    numResults: 6,
-    startPublishedDate: since,
-    type: "auto",
-    contents: { text: { maxCharacters: 550 } },
+  const ask = async (includeDomains) => {
+    const request = {
+      // Describe the page we want to find, not a bag of keywords. The old tail
+      // ("social media creator income viral views update") pulled every query
+      // toward corporate announcements, which is how "درآمد از تیک‌تاک" came
+      // back as a concert livestream and an IP agreement.
+      query: `${query} — guide explaining how creators actually do this, with the steps`,
+      numResults: 10,
+      startPublishedDate: since,
+      type: "auto",
+      contents: { text: { maxCharacters: 700 } },
+    };
+    if (includeDomains && includeDomains.length) request.includeDomains = includeDomains;
+    const response = await fetch("https://api.exa.ai/search", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": key },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) throw new Error(`Exa ${response.status}`);
+    return ((await response.json()).results || []).filter((item) => item?.title && item?.url);
   };
-  if (domains.length) request.includeDomains = domains;
-  const response = await fetch("https://api.exa.ai/search", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": key },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) throw new Error(`Exa ${response.status}`);
-  const data = await response.json();
-  return (data.results || []).filter((item) => item?.title && item?.url).slice(0, 5);
+
+  // A corporate newsroom post is a press release. It proves a feature exists,
+  // which is worth having, but it never answers what a creator should do — so
+  // it is ranked below anything that reads like an actual guide.
+  const PR = /newsroom|press|announc|celebrat|partnership|agreement/i;
+  const score = (item) => {
+    const hay = `${item.title} ${String(item.text || "").slice(0, 400)}`;
+    let n = 0;
+    if (/how to|step|guide|tutorial|چطور|چگونه|راهنما/i.test(hay)) n += 3;
+    if (String(item.text || "").length > 200) n += 1;          // has usable body
+    if (PR.test(`${item.title} ${item.url}`)) n -= 3;
+    return n;
+  };
+
+  const official = await ask(domains);
+  let pool = official;
+  // Official domains alone often cannot answer a demand question. Widen once,
+  // rather than shipping three irrelevant press releases as "research".
+  if (official.filter((x) => score(x) > 0).length < 3) {
+    const seen = new Set(official.map((x) => x.url));
+    for (const item of await ask(null)) if (!seen.has(item.url)) pool.push(item);
+  }
+  return pool.sort((a, b) => score(b) - score(a)).slice(0, 5);
 }
 
 function categoryForSearch(query) {
@@ -250,8 +278,8 @@ if (liveQuery) {
   writeFileSync(SEARCH_QUEUE, JSON.stringify(queue, null, 2));
   const items = queue.map((item, index) => {
     const title = esc(String(item.title).slice(0, 140));
-    const excerpt = esc(String(item.text || "").replace(/\s+/g, " ").slice(0, 180));
-    const date = item.publishedDate ? ` · <i>${esc(String(item.publishedDate).slice(0, 10))}</i>` : "";
+    const excerpt = esc(String(item.excerpt || "").replace(/\s+/g, " ").slice(0, 180));
+    const date = item.date ? ` · <i>${esc(item.date)}</i>` : "";
     return `<b>منبع ${FA(index + 1)}. ${title}</b>${date}\n${excerpt || "منبع تازه برای بررسی محتوا."}\n<a href="${esc(item.url)}">باز کردن منبع</a>\nانتخاب: <code>منبع ${FA(index + 1)}</code>`;
   });
   const text = `🔎 <b>نتیجهٔ جستجوی زندهٔ محتوا</b>\n<i>درخواست شما: ${esc(liveQuery)}</i>\n\n` +

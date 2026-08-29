@@ -14,7 +14,7 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
-import { TOPICS, topicFor, SOURCES, FA_DOMAINS, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
+import { TOPICS, topicFor, SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
 import { photoFor, photoPlan } from "./lib/news-media.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
@@ -77,19 +77,20 @@ if (has("--from-queue")) {
     return (await res.json()).results || [];
   }
 
-  const keep = (rs) => rs.filter((r) => inScope(scope, r.title, String(r.text || "").slice(0, 600)));
+  const isPersian = (value) => {
+    const sample = String(value || "").slice(0, 700);
+    const fa = (sample.match(/[؀-ۿ]/g) || []).length;
+    const en = (sample.match(/[A-Za-z]/g) || []).length;
+    return fa > 40 && fa > en;
+  };
+  const keep = (rs) => rs.filter((r) => isPersian(r.title) && isPersian(r.text) && inScope(scope, r.title, String(r.text || "").slice(0, 600)));
   // Germany first asks Amal, whose whole beat is Afghans living in Germany, then
   // widens to the general Persian outlets if that turns up nothing.
   let results = [];
-  if (scope === "germany") {
-    results = keep(await search(DE_DOMAINS));
-    const wider = keep(await search(FA_DOMAINS));
-    const seen = new Set(results.map((r) => r.url));
-    results = results.concat(wider.filter((r) => !seen.has(r.url)));
-  } else {
-    results = keep(await search(FA_DOMAINS));
-  }
-  if (!results.length) results = keep(await search(FA_DOMAINS, 10));
+  // German Insider uses German-based sources only.  We retain only their
+  // Persian/Dari reporting so no foreign-language source text reaches video.
+  results = keep(await search(DE_DOMAINS));
+  if (!results.length) results = keep(await search(DE_DOMAINS, 10));
 
   if (!results.length) {
     await say(`📭 ${SC.label}: خبر تازه‌ای در این حوزه پیدا نشد.`);

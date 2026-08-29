@@ -6,6 +6,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
+import { replyOnFailure } from "./lib/fail-soft.mjs";
+
+replyOnFailure();
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
