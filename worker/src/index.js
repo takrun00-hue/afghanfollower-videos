@@ -218,6 +218,18 @@ async function clearPending(env, chatId) {
   if (env.BOT_STATE) await env.BOT_STATE.delete(`pending:${chatId}`);
 }
 
+// A numbered «منبع ۲» must refer to the last search the creator ran, not to a
+// vague global command. The queue itself lives in Actions cache; this tiny KV
+// marker only tells the worker whether to open the content or news queue.
+async function selectionFor(env, chatId) {
+  if (!env.BOT_STATE) return null;
+  return env.BOT_STATE.get(`selection:${chatId}`, "json");
+}
+
+async function setSelection(env, chatId, kind) {
+  if (env.BOT_STATE) await env.BOT_STATE.put(`selection:${chatId}`, JSON.stringify({ kind }), { expirationTtl: 20 * 60 });
+}
+
 function commandFromPending(pending, text) {
   const payload = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
   if (!payload) return null;
@@ -309,6 +321,21 @@ export default {
           }
         }
       }
+      // A search result is always picked by its visible source number.  This
+      // makes the flow identical for tutorial research and German Insider.
+      if (!command) {
+        const sourceMatch = normalize(message.text).match(/^(?:منبع|source)\s*([۰-۹0-9]+)$/i);
+        if (sourceMatch) {
+          const selected = await selectionFor(env, chatId);
+          const pick = digits(sourceMatch[1]);
+          if (selected?.kind === "content") command = { action: "content-source-pick", pick, voiceMode: "on" };
+          else if (selected?.kind === "news") command = { action: "news-source-pick", pick, voiceMode: "on" };
+          else {
+            await reply(env, chatId, "ابتدا یک جستجو انجام دهید، سپس مثلاً <code>منبع ۲</code> را بفرستید.");
+            return new Response("ok");
+          }
+        }
+      }
       if (!command) command = videoAction(message.text);
       if (command) {
         if (command.action === "help") {
@@ -318,6 +345,10 @@ export default {
         } else if (command.action === "custom-help") {
           await reply(env, chatId, "برای ساخت از متن خودت این‌طور بنویس:\n\n<code>محتوا: موضوع | نکتهٔ ۱ | نکتهٔ ۲ | نکتهٔ ۳ | نکتهٔ ۴</code>\n\nمثال: <code>محتوا: راه پیدا کردن موضوع ترند در TikTok | Search را باز کن | Creator Search Insights را بنویس | Content gap را بزن | از موضوعِ پرجستجو ویدیو بساز</code>");
         } else {
+          if (command.action === "content-search-live") await setSelection(env, chatId, "content");
+          if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi"].includes(command.action)) {
+            await setSelection(env, chatId, "news");
+          }
           await dispatchWorkflow(env, command);
           const confirmedNews = command.action === "news-approve-draft";
           await reply(env, chatId, confirmedNews

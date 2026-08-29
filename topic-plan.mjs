@@ -2,7 +2,7 @@
 // It sends researched candidates and waits for an explicit Telegram approval.
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
@@ -11,12 +11,14 @@ const env = loadEnv();
 const tg = telegramConfig(env);
 const key = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
 const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const FA = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
 const categoryArg = (process.argv.find((x) => x.startsWith("--category=")) || "").slice(11);
 const weekly = process.argv.includes("--week");
 const today = process.argv.includes("--today");
 const dryRun = process.argv.includes("--dry-run");
 const queryAt = process.argv.indexOf("--query");
 const liveQuery = queryAt >= 0 ? String(process.argv[queryAt + 1] || "").trim().slice(0, 300) : "";
+const sourcePreviewArg = Number(process.argv[process.argv.indexOf("--source-preview") + 1] || 0);
 const pickArg = Number(process.argv[process.argv.indexOf("--build") + 1] || 0);
 const previewArg = Number(process.argv[process.argv.indexOf("--preview") + 1] || 0);
 const TRUSTED_SIGNAL_DOMAINS = new Set([
@@ -33,6 +35,7 @@ function publishedHistory() {
   catch { return []; }
 }
 const PUBLISHED = publishedHistory();
+const SEARCH_QUEUE = ".content-search-queue.json";
 function hasAlreadyReachedTelegram(item) {
   const id = String(item.id || "").toLowerCase();
   const text = `${item.id || ""} ${item.hook || ""} ${item.why || ""}`.toLowerCase();
@@ -196,6 +199,33 @@ async function liveSearchForCreatorNeed(query) {
   return (data.results || []).filter((item) => item?.title && item?.url).slice(0, 5);
 }
 
+function categoryForSearch(query) {
+  const q = String(query).toLowerCase();
+  if (/(instagram|انستا|ریلز|reels|edits)/.test(q)) return "instagram";
+  if (/(tiktok|tik tok|تیک\s*تاک)/.test(q)) return "tiktok";
+  return "tools";
+}
+
+function sourceQueue() {
+  try { return existsSync(SEARCH_QUEUE) ? JSON.parse(readFileSync(SEARCH_QUEUE, "utf8")) : []; }
+  catch { return []; }
+}
+
+if (sourcePreviewArg) {
+  const selected = sourceQueue().find((item) => item.n === sourcePreviewArg);
+  if (!selected) throw new Error(`منبع شمارهٔ ${sourcePreviewArg} در فهرست فعلی نیست.`);
+  const text =
+    `✅ <b>منبع ${sourcePreviewArg} انتخاب شد</b>\n\n` +
+    `<b>${esc(selected.title)}</b>${selected.date ? ` · <i>${esc(selected.date)}</i>` : ""}\n` +
+    `${esc(selected.excerpt || "برای بررسیِ جزئیات، منبع را باز کنید.")}\n\n` +
+    `<a href="${esc(selected.url)}">باز کردن منبع اصلی</a>\n\n` +
+    `این منبع برای <b>${esc(selected.categoryLabel)}</b> بررسی می‌شود. ` +
+    `اگر می‌خواهید از آن پیش‌نویس ویدیو ساخته شود، بنویسید: <code>تأیید منبع ${FA(sourcePreviewArg)}</code>\n` +
+    `یا با <code>۵</code> جستجوی تازه انجام دهید.`;
+  if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
+  process.exit(0);
+}
+
 if (liveQuery) {
   let results = [];
   try { results = await liveSearchForCreatorNeed(liveQuery); }
@@ -204,15 +234,29 @@ if (liveQuery) {
     if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text: message }); else console.log(message);
     process.exit(0);
   }
-  const items = results.map((item, index) => {
+  const category = categoryForSearch(liveQuery);
+  const categoryLabel = ({ tiktok: "تیک‌تاک", instagram: "اینستاگرام", tools: "اپ‌ها و هوش مصنوعی" })[category];
+  const queue = results.map((item, index) => ({
+    n: index + 1,
+    title: String(item.title).slice(0, 140),
+    excerpt: String(item.text || "").replace(/\s+/g, " ").slice(0, 360),
+    url: item.url,
+    date: String(item.publishedDate || "").slice(0, 10),
+    category,
+    categoryLabel,
+    query: liveQuery,
+    searchedAt: new Date().toISOString(),
+  }));
+  writeFileSync(SEARCH_QUEUE, JSON.stringify(queue, null, 2));
+  const items = queue.map((item, index) => {
     const title = esc(String(item.title).slice(0, 140));
     const excerpt = esc(String(item.text || "").replace(/\s+/g, " ").slice(0, 180));
     const date = item.publishedDate ? ` · <i>${esc(String(item.publishedDate).slice(0, 10))}</i>` : "";
-    return `<b>${index + 1}. ${title}</b>${date}\n${excerpt || "منبع تازه برای بررسی محتوا."}\n<a href="${esc(item.url)}">باز کردن منبع</a>`;
+    return `<b>منبع ${FA(index + 1)}. ${title}</b>${date}\n${excerpt || "منبع تازه برای بررسی محتوا."}\n<a href="${esc(item.url)}">باز کردن منبع</a>\nانتخاب: <code>منبع ${FA(index + 1)}</code>`;
   });
   const text = `🔎 <b>نتیجهٔ جستجوی زندهٔ محتوا</b>\n<i>درخواست شما: ${esc(liveQuery)}</i>\n\n` +
     (items.length ? items.join("\n\n") : "نتیجهٔ تازه‌ای پیدا نشد.\nبرای ادامه بنویس: <code>جستجوی جدید: عبارت تازه</code>") +
-    "\n\nبرای جستجوی تازه فقط <code>۵</code> را بفرست و عبارت جدید را وارد کن. نتیجهٔ خام، تا زمانی که به پیش‌نویس روشن تبدیل نشده، ویدیو نمی‌شود.";
+    "\n\nیکی را با <code>منبع ۱</code>، <code>منبع ۲</code> یا شمارهٔ دلخواه انتخاب کن. برای جستجوی تازه فقط <code>۵</code> را بفرست.";
   if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
   process.exit(0);
 }
@@ -245,7 +289,6 @@ const evidenceText = signals.length
   ? signals.map((x, i) => `<b>${i + 1}. ${esc(x.title)}</b>${x.date ? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
   : "سیگنال عددیِ تازه پیدا نشد؛ موضوع‌های زیر از منابع رسمیِ بررسی‌شده انتخاب شده‌اند و پیش از ساخت، متن کاملشان را می‌بینی.";
 let text = `${title}\n\n<b>🔎 سیگنال‌های زندهٔ بررسی‌شده</b>\n${evidenceText}`;
-const FA = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
 const proposals = list.map((item, i) =>
   `<b>موضوع ${FA(i + 1)} — ${esc(item.platform)}</b>\n${esc(item.hook)}\n${esc(item.why)}\n<a href="${item.source}">منبع رسمی</a>`
 ).join("\n\n");

@@ -21,6 +21,7 @@ function load() {
 }
 function save(draft) { writeFileSync(DRAFT, JSON.stringify(draft, null, 2) + "\n"); }
 function baseFor(draft) {
+  if (draft.generated && Array.isArray(draft.generated.tips)) return draft.generated;
   const pack = packForFeature(draft.featureId, new Date());
   if (!pack) throw new Error("موضوع پیش‌نویس دیگر در بانک محتوا نیست.");
   return pack;
