@@ -18,6 +18,7 @@ import { sceneArtPlan } from "./lib/scene-art.mjs";
 import { creativeBriefFor } from "./lib/creative-brief.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo } from "./lib/telegram.mjs";
+import { fingerprint, check, register, hasHistory } from "./lib/dedupe.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -111,6 +112,8 @@ function recordPublishedTopic(pack, entry) {
 }
 
 const results = [];
+// rule 10: items in one run are compared against each other, not only history
+const batchPrints = [];
 for (const platform of cats) {
   const pack = sel[platform];
   // Generate the topic-specific creative contract before any sound, HTML or
@@ -227,6 +230,24 @@ for (const platform of cats) {
   }
 
   let sent = false;
+  // Checkpoint 2: the last gate before delivery. The first gate is at topic
+  // selection, but two research runs can arrive at the same subject by
+  // different routes, and the batch itself has to be checked against its own
+  // earlier items — so the decision is made again here, against the registry
+  // plus whatever this run has already queued.
+  const print = fingerprint(pack);
+  const dup = check(print, { alsoAgainst: batchPrints });
+  if (dup.verdict === "DUPLICATE" && process.env.ALLOW_DUPLICATE !== "1") {
+    console.error(`   ✗ تکراری (${dup.score}) — همان محتوای «${dup.closest?.id}» در ۳۰ روز اخیر رفته است. ارسال نشد.`);
+    results.push({ platform, final, sent: false, duplicate: dup });
+    continue;
+  }
+  if (dup.verdict === "PARTIALLY_OVERLAPPING") {
+    console.warn(`   ⚠ هم‌پوشانی ${dup.score}٪ با «${dup.closest?.id}» — بررسی کن که چیز تازه‌ای می‌گوید`);
+  }
+  if (!dup.checked) console.warn("   ⚠ تاریخچه‌ای برای مقایسه نبود؛ یکتا بودن تأیید نشده است");
+  batchPrints.push(print);
+
   if (tg.enabled) {
     try {
       const res = await sendVideo({ token: tg.token, chatId: tg.chatId, file: final, caption: pack.tgTitle });
@@ -241,6 +262,7 @@ for (const platform of cats) {
         // published only after Telegram confirms a message id; drafts and
         // aborted renders must never suppress a future story.
         recordPublishedTopic(pack, delivery);
+        register({ ...print, messageId: res.message_id, kind: delivery.kind, sentAt: new Date().toISOString() });
       }
     } catch (e) {
       console.error(`   ✗ Telegram send failed: ${e.message}`);

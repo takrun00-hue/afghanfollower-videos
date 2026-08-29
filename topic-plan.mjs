@@ -5,6 +5,8 @@ import { dirname } from "node:path";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { rejectReason } from "./lib/source-quality.mjs";
+import { fingerprint, check } from "./lib/dedupe.mjs";
+import { featureById } from "./lib/features.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -312,8 +314,27 @@ if (liveQuery) {
 // The permanent bank is only an archive of researched items, never proof that
 // a subject is worth posting today. A current proposal therefore needs a live
 // signal. If search cannot substantiate it, Telegram receives no filler topic.
+// Checkpoint 1: reject a subject before any work is spent on it. A proposal the
+// audience received in the last thirty days is not a proposal, however well the
+// research supports it.
+const notRecentlySent = (item) => {
+  const found = item.id ? featureById(item.id) : null;
+  const f = found ? (found.feature || found) : null;
+  if (!f) return true;                     // nothing to compare — do not invent a verdict
+  const r = check(fingerprint({
+    id: item.id, platform: item.platform, feature: f.name, title: f.title,
+    hook: f.hook, benefit: f.benefit, payoff: f.payoff, tips: f.steps,
+  }));
+  if (r.verdict === "DUPLICATE") {
+    console.error(`  · کنار گذاشته شد: ${item.id} — ${r.score}٪ شبیه «${r.closest?.id}» که اخیراً رفته`);
+    return false;
+  }
+  return true;
+};
+
 const list = relevant
   .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
+  .filter(notRecentlySent)
   .sort((a, b) => (b.lane === "income") - (a.lane === "income"))
   .slice(0, weekly ? 6 : 3);
 
