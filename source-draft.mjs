@@ -18,6 +18,58 @@ const queue = existsSync(".content-search-queue.json")
 const source = queue.find((item) => item.n === n);
 if (!source) throw new Error(`منبع شمارهٔ ${n} در فهرست فعلی نیست.`);
 
+// Every picked source used to get the same opening line — "فکر می‌کنی این تغییر
+// تازه می‌تواند مسیر ساخت ویدیوی تو را عوض کند؟" — so choosing source 2 instead
+// of source 5 changed the body and left the first thing on screen identical.
+// The hook is what decides whether the video is watched, so it has to come from
+// the source that was actually chosen.
+function hookFromSource(src) {
+  const title = clean(src.title, 120);
+  const topic = topicOf(title);
+  const hay = title;
+
+  // A headline that already asks something is the question people are typing.
+  // Nothing beats using it as it stands.
+  if (/[؟?]\s*$/.test(topic)) {
+    return { ask: topic.replace(/\s*[?]\s*$/, "؟"), l1: "جوابش", l2: "در همین ویدیو" };
+  }
+
+  // A mostly-Latin headline cannot be dropped into the middle of a Persian
+  // sentence without reading badly, so it names the subject and the Persian
+  // frame carries the rest.
+  const latin = (topic.match(/[A-Za-z]/g) || []).length > (topic.match(/[؀-ۿ]/g) || []).length;
+
+  // Angle chosen from what the source is actually about. A refund policy is not
+  // a way to earn, and a news item is not a tutorial — matching those wrongly is
+  // how the hook ends up promising something the video cannot deliver.
+  if (/راهنما|آموزش|چطور|چگونه|how to|guide|step[- ]by[- ]step|tutorial/i.test(hay)) {
+    return latin
+      ? { ask: `${topic} — قدم‌به‌قدم`, l1: "مرحله به مرحله", l2: "بدون حدس زدن" }
+      : { ask: `${topic} را قدم‌به‌قدم یاد بگیر`, l1: "مرحله به مرحله", l2: "بدون حدس زدن" };
+  }
+  if (/درآمد|کسب درآمد|monet|payout|earn|pay per/i.test(hay)) {
+    return { ask: latin ? `${topic}: مسیر واقعی درآمد` : `از ${topic} چطور واقعاً درآمد می‌آید؟`,
+             l1: "مسیر درآمد", l2: "بدون وعدهٔ بی‌پایه" };
+  }
+  if (/سرچ|جستجو|\bsearch\b|\bseo\b|کنسول/i.test(hay)) {
+    return { ask: latin ? `${topic} و دیده‌شدن در سرچ` : `کاری کن ${topic} در سرچ پیدا شود`,
+             l1: "دیده شدن در سرچ", l2: "بدون تبلیغ" };
+  }
+  // Anything else is treated as news about a change, which is what it usually is.
+  return { ask: latin ? `${topic} — چه چیزی عوض می‌شود؟` : `${topic} برای تو چه فرقی می‌کند؟`,
+           l1: "یک تغییر تازه", l2: "که به کارت می‌آید" };
+}
+
+// The subject of the headline, without the outlet name and the trailing clause.
+function topicOf(title) {
+  const cut = clean(String(title)
+    .replace(/\s*[-–|؛].*$/, "")
+    .replace(/^(آموزش|راهنمای|راهنما)\s+/, ""), 52);
+  // A hard character cut lands mid-phrase ("… به سرچ  را"). Drop the dangling
+  // last word so the hook ends on something whole.
+  return cut.length >= 52 ? cut.replace(/\s+\S*$/, "").trim() : cut;
+}
+
 const sentences = String(source.excerpt || "")
   .split(/(?<=[.!؟])\s+/)
   .map((item) => clean(item, 165))
@@ -29,10 +81,7 @@ const generated = {
   platform: category,
   feature: clean(source.title, 110),
   title: clean(source.title, 130),
-  hook: {
-    ask: "فکر می‌کنی این تغییر تازه می‌تواند مسیر ساخت ویدیوی تو را عوض کند؟",
-    l1: "یک تغییر تازه", l2: "که نباید از آن رد شوی",
-  },
+  hook: hookFromSource(source),
   payoff: "جزئیات را در منبع اصلی بررسی کن و فقط نکته‌ای را استفاده کن که با کار خودت مرتبط است.",
   outroAsk: "دوست داری نمونهٔ بعدی دربارهٔ کدام موضوع باشد؟",
   tgTitle: `🎬 ${clean(source.title, 100)}\n\n#viral #ContentCreator`,
