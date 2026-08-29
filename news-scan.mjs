@@ -49,10 +49,10 @@ if (!KEY) {
 // sentences can go on a card as they stand. Everything else is a second pass.
 const AMAL = ["amalnews.de", "amalberlin.de", "amalhamburg.de", "amalfrankfurt.de"];
 const AMAL_TARGETS = {
-  berlin: { label: "امل برلین", domains: ["amalberlin.de", "wdr.de"] },
-  hamburg: { label: "امل هامبورگ", domains: ["amalhamburg.de", "wdr.de"] },
-  frankfurt: { label: "امل فرانکفورت", domains: ["amalfrankfurt.de", "wdr.de"] },
-  farsi: { label: "امل فارسی", domains: [...AMAL, "wdr.de"] },
+  berlin: { label: "امل برلین", domains: ["amalberlin.de", "wdr.de", "amu.tv"] },
+  hamburg: { label: "امل هامبورگ", domains: ["amalhamburg.de", "wdr.de", "amu.tv"] },
+  frankfurt: { label: "امل فرانکفورت", domains: ["amalfrankfurt.de", "wdr.de", "amu.tv"] },
+  farsi: { label: "امل فارسی", domains: [...AMAL, "wdr.de", "amu.tv"] },
 };
 const target = AMAL_TARGETS[amalTarget] || null;
 const REST_DE = DE_DOMAINS.filter((d) => !AMAL.includes(d));
@@ -138,12 +138,20 @@ const inGermanyScope = (r) =>
   isPersian(r.title) && isPersian(r.text) &&
   inScope("germany", r.title, String(r.text || "").slice(0, 600));
 
+const isAmalDomain = (url) => {
+  try { return new URL(String(url || "")).hostname.replace(/^www\./, "").includes("amal"); }
+  catch { return false; }
+};
+const inAmalTargetScope = (r) =>
+  isPersianHeadline(r.title) && isPersian(r.text) &&
+  (isAmalDomain(r.url) || inScope("germany", r.title, String(r.text || "").slice(0, 600)));
+
 // Amal first and on a wider window — being the channel's home source, an Amal
 // story from yesterday still beats a fresher one from a general outlet.
 // A named Amal command is a source digest: it stays Persian but does not throw
 // away useful local information merely because it does not contain migration
 // keywords. The normal German Insider scan remains migration-impact only.
-const keep = target ? (r) => isPersianHeadline(r.title) && isPersian(r.text) : inGermanyScope;
+const keep = target ? inAmalTargetScope : inGermanyScope;
 // A named Amal command is a source digest, not a breaking-news alarm. Amal
 // does not necessarily publish in every city every four days; look back far
 // enough to return the latest useful Dari/Persian reporting, then show its
@@ -237,7 +245,7 @@ if (!found.length) {
     const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     await sendMessage({ token: tg.token, chatId: tg.chatId, text: `🔎 برای «${esc(liveQuery)}» خبر معتبرِ تازه پیدا نشد.\n\nبرای ادامه بنویس: <code>جستجوی جدید خبر: عبارت تازه</code>` });
   }
-  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 در هفت روز اخیر، مطلب فارسی/دری قابل‌استفاده‌ای از ${target.label} و WDR for you فارسی پیدا نشد.` });
+  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 در هفت روز اخیر، مطلب فارسی/دری قابل‌استفاده‌ای از ${target.label} و منابع تکمیلی پیدا نشد.` });
   console.log("no new stories");
   process.exit(0);
 }
