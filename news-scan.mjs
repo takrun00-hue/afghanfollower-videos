@@ -111,7 +111,7 @@ const keep = target ? (r) => isPersianHeadline(r.title) && isPersian(r.text) : i
 // does not necessarily publish in every city every four days; look back far
 // enough to return the latest useful Dari/Persian reporting, then show its
 // real date in Telegram.
-let found = (await search(target ? target.domains : AMAL, target ? 60 : 4)).filter(keep);
+let found = (await search(target ? target.domains : AMAL, target ? 365 : 4)).filter(keep);
 const seenNow = new Set(found.map((r) => r.url));
 if (!target) {
   for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
@@ -167,6 +167,10 @@ const past = store.map((x) => (typeof x === "string" ? { url: x, key: [] } : x))
 const pastUrls = new Set(past.map((x) => x.url));
 
 found = found.filter((r) => {
+  // An explicit Amal source request is a reader's digest. It should show the
+  // latest reporting even when the same link was listed in an earlier scan.
+  // Repeated *video* delivery remains blocked later by content-history.json.
+  if (target) return true;
   if (pastUrls.has(r.url)) return false;
   const k = keyOf(r.title);
   return !past.some((p) => sameStory(k, p.key || []));
@@ -186,7 +190,7 @@ if (!found.length) {
     const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     await sendMessage({ token: tg.token, chatId: tg.chatId, text: `🔎 برای «${esc(liveQuery)}» خبر معتبرِ تازه پیدا نشد.\n\nبرای ادامه بنویس: <code>جستجوی جدید خبر: عبارت تازه</code>` });
   }
-  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 در ۶۰ روز اخیر، مطلب فارسی/دری قابل‌استفاده‌ای از ${target.label} پیدا نشد.` });
+  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 در یک سال اخیر، مطلب فارسی/دری قابل‌استفاده‌ای از ${target.label} پیدا نشد.` });
   console.log("no new stories");
   process.exit(0);
 }
