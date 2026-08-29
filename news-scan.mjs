@@ -88,6 +88,15 @@ const isPersian = (t) => {
   return fa > 40 && fa > en;
 };
 
+// Headlines are naturally short (for example «خبر مهم در برلین»), so applying
+// the long-article threshold to them discarded otherwise valid Amal articles.
+const isPersianHeadline = (t) => {
+  const x = String(t || "").slice(0, 220);
+  const fa = (x.match(/[؀-ۿ]/g) || []).length;
+  const en = (x.match(/[A-Za-z]/g) || []).length;
+  return fa >= 5 && fa > en;
+};
+
 const inGermanyScope = (r) =>
   isPersian(r.title) && isPersian(r.text) &&
   inScope("germany", r.title, String(r.text || "").slice(0, 600));
@@ -97,8 +106,12 @@ const inGermanyScope = (r) =>
 // A named Amal command is a source digest: it stays Persian but does not throw
 // away useful local information merely because it does not contain migration
 // keywords. The normal German Insider scan remains migration-impact only.
-const keep = target ? (r) => isPersian(r.title) && isPersian(r.text) : inGermanyScope;
-let found = (await search(target ? target.domains : AMAL, 4)).filter(keep);
+const keep = target ? (r) => isPersianHeadline(r.title) && isPersian(r.text) : inGermanyScope;
+// A named Amal command is a source digest, not a breaking-news alarm. Amal
+// does not necessarily publish in every city every four days; look back far
+// enough to return the latest useful Dari/Persian reporting, then show its
+// real date in Telegram.
+let found = (await search(target ? target.domains : AMAL, target ? 60 : 4)).filter(keep);
 const seenNow = new Set(found.map((r) => r.url));
 if (!target) {
   for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
@@ -173,7 +186,7 @@ if (!found.length) {
     const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     await sendMessage({ token: tg.token, chatId: tg.chatId, text: `🔎 برای «${esc(liveQuery)}» خبر معتبرِ تازه پیدا نشد.\n\nبرای ادامه بنویس: <code>جستجوی جدید خبر: عبارت تازه</code>` });
   }
-  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 خبر فارسیِ تازه‌ای از ${target.label} پیدا نشد.` });
+  if (target && tg.enabled && !quiet) await sendMessage({ token: tg.token, chatId: tg.chatId, text: `📭 در ۶۰ روز اخیر، مطلب فارسی/دری قابل‌استفاده‌ای از ${target.label} پیدا نشد.` });
   console.log("no new stories");
   process.exit(0);
 }
