@@ -3,6 +3,7 @@
 // into a composition, manifest, or Git repository.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { ttsBody, voiceSettings, drift } from "../lib/voice-settings.mjs";
 
 const argv = process.argv.slice(2);
 const outAt = argv.indexOf("-o");
@@ -14,42 +15,22 @@ if (!text || !output) {
 }
 
 const apiKey = process.env.MINIMAX_API_KEY || "";
-const voiceId = process.env.MINIMAX_VOICE_ID || "";
 if (!apiKey) {
   console.error("MINIMAX_API_KEY is not set. Add it to .env locally and to GitHub Actions secrets.");
   process.exit(1);
 }
-if (!voiceId) {
-  console.error("MINIMAX_VOICE_ID is not set. Run node music/minimax-voices.mjs after adding the key, then choose a Persian voice.");
-  process.exit(1);
-}
+
+// Voice, emotion, speed and pitch come from lib/voice-settings.mjs, which holds
+// the values a listening test approved. They used to be inlined here at values
+// that were auditioned and rejected, so every render shipped the wrong reading.
+const settings = voiceSettings();
+const off = drift(settings);
+if (off.length) console.warn(`  voice differs from the approved reading — ${off.join(", ")}`);
 
 const response = await fetch(process.env.MINIMAX_TTS_ENDPOINT || "https://api.minimax.io/v1/t2a_v2", {
   method: "POST",
   headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-  body: JSON.stringify({
-    model: process.env.MINIMAX_TTS_MODEL || "speech-2.8-hd",
-    text,
-    stream: false,
-    language_boost: "Persian",
-    output_format: "hex",
-    voice_setting: {
-      voice_id: voiceId,
-      // 0.96 made Persian sentence endings unnaturally long. A small lift keeps
-      // the delivery lively without turning it into a rushed announcer voice.
-      speed: Number(process.env.VOICE_SPEED || 1.1),
-      // The model takes an emotion, and the default reading is flat — which is
-      // what "بی‌احساس" was describing. "happy" is the one that carries the
-      // energy this channel wants; the API accepts happy, sad, angry, fearful,
-      // disgusted, surprised, neutral and calm, and rejects everything else.
-      emotion: process.env.MINIMAX_EMOTION || "happy",
-      vol: 1,
-      // MiniMax requires a whole-number pitch. Keep the default neutral: the
-      // small speed lift above supplies clarity without an artificial tone.
-      pitch: Math.round(Number(process.env.MINIMAX_VOICE_PITCH || 1)),
-    },
-    audio_setting: { sample_rate: 44100, bitrate: 128000, format: "mp3", channel: 1 },
-  }),
+  body: JSON.stringify(ttsBody(text, settings)),
 });
 const data = await response.json().catch(() => ({}));
 if (!response.ok || data?.base_resp?.status_code !== 0 || !data?.data?.audio) {
