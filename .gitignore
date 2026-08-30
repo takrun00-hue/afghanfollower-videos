@@ -22,3 +22,6 @@ lib/generated/
 renders/news/
 compositions/news/
 .topic-proposals.json
+public/broll/*.mp4
+!public/broll/*-thread.mp4
+public/screens/*.img
