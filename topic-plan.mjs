@@ -7,6 +7,8 @@ import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { rejectReason } from "./lib/source-quality.mjs";
 import { fingerprint, check } from "./lib/dedupe.mjs";
 import { featureById } from "./lib/features.mjs";
+import { evaluate } from "./lib/selection-gate.mjs";
+import { probeDemand, seedFor } from "./lib/demand-probe.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -332,11 +334,40 @@ const notRecentlySent = (item) => {
   return true;
 };
 
-const list = relevant
+// Rule 14: a Telegram command is a request for content, not permission to
+// skip the gate. Everything that reaches a proposal has been through it,
+// whether the run was scheduled, typed by hand, or triggered from a phone.
+const gateRejects = [];
+const passesGate = async (item) => {
+  // Rule 2: research first, then judge. The gate refuses to assert interest it
+  // never saw, so the interest is measured here rather than assumed.
+  item.demandPhrases = await probeDemand(seedFor(item), { english: false });
+  const found = item.id ? featureById(item.id) : null;
+  const f = found ? (found.feature || found) : null;
+  const v = evaluate({
+    topic: item.hook || item.id,
+    question: item.hook || "",
+    keyPoints: f ? (f.steps || []).map((x) => x.text) : [],
+    sources: [item.source].filter(Boolean),
+    sourceDate: item.sourceDate || null,
+    demandPhrases: item.demandPhrases || [],
+    discussions: item.discussions || [],
+  });
+  if (v.decision === "REJECT") { gateRejects.push({ id: item.id, why: v.failures.join("، ") }); return false; }
+  item.gate = v;
+  return true;
+};
+let list = relevant
   .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
   .filter(notRecentlySent)
+
   .sort((a, b) => (b.lane === "income") - (a.lane === "income"))
-  .slice(0, weekly ? 6 : 3);
+  
+
+// Applied after the synchronous filters because the probe is a network call.
+const gated = [];
+for (const item of list) if (await passesGate(item)) gated.push(item);
+list = gated;
 
 if (pickArg || previewArg) {
   const selected = list[(pickArg || previewArg) - 1];
@@ -363,7 +394,11 @@ const proposals = list.map((item, i) =>
 ).join("\n\n");
 text += proposals
   ? `\n\n<b>✅ موضوع‌های قابل انتخاب</b>\n${proposals}\n\nبرای دیدن پیش‌نویس و ویرایش آن فقط یکی را بفرست: ${list.map((_, i) => `<code>موضوع ${FA(i + 1)}</code>`).join("، ")}.`
-  : "\n\nمورد تازهٔ تکرارنشده‌ای برای پیشنهاد ندارم. فقط <code>۵</code> را بفرست و موضوع دلخواهت را جستجو کن.";
+  : "\n\n<b>موضوع واجد شرایطی پیدا نشد.</b>\n" +
+    (gateRejects.length
+      ? gateRejects.map((r) => "• " + esc(r.id) + " — " + esc(r.why)).join("\n")
+      : "همهٔ موضوع‌های بانک در ۳۰ روز اخیر رفته‌اند یا تکراری‌اند.") +
+    "\n\nموضوع ضعیف نمی‌سازم. <code>۵</code> را بفرست و موضوع دلخواهت را جستجو کن.";
 text += " هیچ ویدیویی پیش از تأیید پیش‌نویس ساخته نمی‌شود.";
 
 if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
