@@ -6,9 +6,10 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { rejectReason } from "./lib/source-quality.mjs";
 import { fingerprint, check } from "./lib/dedupe.mjs";
-import { featureById } from "./lib/features.mjs";
+import { featureById, featuresFor } from "./lib/features.mjs";
 import { evaluate } from "./lib/selection-gate.mjs";
 import { probeDemand, seedFor } from "./lib/demand-probe.mjs";
+import { recentlyProposed, recordProposed, COOLDOWN_DAYS } from "./lib/proposed.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -348,7 +349,7 @@ const passesGate = async (item) => {
     topic: item.hook || item.id,
     question: item.hook || "",
     keyPoints: f ? (f.steps || []).map((x) => x.text) : [],
-    sources: [item.source].filter(Boolean),
+    sources: [item.source || item.sourceNote].filter(Boolean),
     sourceDate: item.sourceDate || null,
     demandPhrases: item.demandPhrases || [],
     discussions: item.discussions || [],
@@ -357,9 +358,52 @@ const passesGate = async (item) => {
   item.gate = v;
   return true;
 };
-let list = relevant
+// The hand-written TOPICS list above holds eleven subjects. Most have been sent,
+// and once the proposal cooldown also excludes what was offered yesterday, a
+// second run in the same week finds nothing left and reports "no qualified
+// topic" — which is true of that list and false of the channel, because the
+// feature catalogue carries eighty-odd more.
+//
+// So the pool is topped up from the catalogue itself. These entries carry no
+// source URL, and one is NOT invented for them: they are labelled as documented
+// platform features, which is what they are, and the proposal shows that
+// instead of a link that would look like a citation nobody checked.
+const LANE_FOR = { income: "income", viral: "viral", seen: "reach", trend: "trend" };
+const PLATFORM_FOR = { tiktok: "TikTok", instagram: "Instagram", tools: "AI / App", ai: "AI / App", general: "AI / App" };
+function catalogueTopics() {
+  const out = [];
+  for (const c of ["tiktok", "instagram", "tools", "ai", "general"]) {
+    for (const f of featuresFor(c) || []) {
+      if (!f?.id || !f?.hook?.ask) continue;
+      out.push({
+        id: f.id,
+        platform: PLATFORM_FOR[c] || "AI / App",
+        lane: LANE_FOR[f.benefit?.key] || "reach",
+        hook: f.hook.ask,
+        why: f.payoff || f.benefit?.fa || "",
+        source: null,
+        sourceLabel: "قابلیت مستندشدهٔ پلتفرم",
+        // Scored by the gate as the one weak-but-real source it is. Deliberately
+        // not a URL: the feature is documented in the platform's own app, and
+        // inventing a help-centre link would manufacture a citation.
+        sourceNote: `${c} platform feature, catalogue entry`,
+      });
+    }
+  }
+  return out;
+}
+const alreadyOffered = recentlyProposed();
+let list = [...relevant, ...catalogueTopics().filter((c) => !relevant.some((r) => r.id === c.id) && !hasAlreadyReachedTelegram(c))]
   .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
   .filter(notRecentlySent)
+  // A topic offered and not taken must not be offered again tomorrow. The
+  // sent-registry above cannot see those — nothing was ever sent — so the
+  // same ranked list came back day after day.
+  .filter((item) => {
+    if (!item.id || !alreadyOffered.has(String(item.id).toLowerCase())) return true;
+    console.error(`  · کنار گذاشته شد: ${item.id} — در ${COOLDOWN_DAYS} روز اخیر پیشنهاد شده بود`);
+    return false;
+  })
 
   .sort((a, b) => (b.lane === "income") - (a.lane === "income"))
   
@@ -367,7 +411,12 @@ let list = relevant
 // Applied after the synchronous filters because the probe is a network call.
 const gated = [];
 for (const item of list) if (await passesGate(item)) gated.push(item);
-list = gated;
+// Capped: offering everything at once empties the catalogue in a single
+// message and leaves nothing for tomorrow, which is the same starvation
+// problem the cooldown was added to fix, just in the other direction.
+// Only what is actually offered goes on cooldown, so the remainder stays
+// available for the next run.
+list = gated.slice(0, Number(process.env.TOPIC_PROPOSAL_LIMIT || 3));
 
 if (pickArg || previewArg) {
   const selected = list[(pickArg || previewArg) - 1];
@@ -390,7 +439,7 @@ const evidenceText = signals.length
   : "سیگنال عددیِ تازه پیدا نشد؛ موضوع‌های زیر از منابع رسمیِ بررسی‌شده انتخاب شده‌اند و پیش از ساخت، متن کاملشان را می‌بینی.";
 let text = `${title}\n\n<b>🔎 سیگنال‌های زندهٔ بررسی‌شده</b>\n${evidenceText}`;
 const proposals = list.map((item, i) =>
-  `<b>موضوع ${FA(i + 1)} — ${esc(item.platform)}</b>\n${esc(item.hook)}\n${esc(item.why)}\n<a href="${item.source}">منبع رسمی</a>`
+  `<b>موضوع ${FA(i + 1)} — ${esc(item.platform)}</b>\n${esc(item.hook)}\n${esc(item.why)}\n${item.source ? `<a href="${item.source}">منبع رسمی</a>` : esc(item.sourceLabel || "قابلیت مستندشدهٔ پلتفرم")}`
 ).join("\n\n");
 text += proposals
   ? `\n\n<b>✅ موضوع‌های قابل انتخاب</b>\n${proposals}\n\nبرای دیدن پیش‌نویس و ویرایش آن فقط یکی را بفرست: ${list.map((_, i) => `<code>موضوع ${FA(i + 1)}</code>`).join("، ")}.`
@@ -401,7 +450,10 @@ text += proposals
     "\n\nموضوع ضعیف نمی‌سازم. <code>۵</code> را بفرست و موضوع دلخواهت را جستجو کن.";
 text += " هیچ ویدیویی پیش از تأیید پیش‌نویس ساخته نمی‌شود.";
 
-if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
+// Recorded before sending, and only when the list has something in it: an
+// empty proposal is not an offer and must not put ids on cooldown.
+if (list.length && !dryRun) recordProposed(list.map((x) => x.id).filter(Boolean));
+if (tg.enabled && !dryRun && process.env.NO_TELEGRAM !== "1") await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
 else console.log(text);
 
 function laneFa(lane) {

@@ -21,3 +21,4 @@ lib/generated/
 .media-cache/
 renders/news/
 compositions/news/
+.topic-proposals.json
