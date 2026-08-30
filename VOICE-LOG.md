@@ -156,3 +156,43 @@ letter left out and refuses a letter added, which is the right asymmetry — a
 missing letter is a vowel the transcriber could not see written, an extra one is
 a syllable that was said. It still cannot arbitrate a one-consonant difference
 inside a brand name. That one stays with the ear.
+
+---
+
+## Pitch range — «کمی شاد و انسانی‌تر»
+
+**Measured, 2026-08-30.** Five reference videos the user sent were analysed with
+`lib/prosody.py` and the narration measured the same way. "Flat" and "robotic"
+turned out to be one number:
+
+| | reference speakers | narration, before | after |
+|---|---|---|---|
+| range (semitones) | 12.8 – 19.1 | **8.1** | **12.4** |
+| step-to-step movement | 0.20 – 0.23 | 0.21 ✓ | 0.22 ✓ |
+| voiced frames / second | 74 – 78 | **67.6** | **75.3** |
+| share of track silent | 0.22 – 0.26 | **0.32** | **0.25** |
+
+The voice was moving as often as a person — it simply was not travelling as far.
+Half the distance, which is what a flat reading is.
+
+**pitch 2 → 3.** Tested 1, 2, 3, 4, 5 at the approved speed. Range peaks at 3
+(11.8) and falls again at 4 (7.8) and 5 (10.2), so 3 is a real optimum and not
+"higher is better".
+
+**Silence trimmed at generation.** MiniMax pads each clip and leaves long gaps at
+commas. Trimming the ends and capping interior silence at 0.22s brings rate and
+pause share inside the human band without removing the breaths. `trimDeadAir()`
+in `lib/voice-settings.mjs`, run as each clip is written so plan-voice and the
+render measure the same audio.
+
+**Rejected again, with a number this time:** `emotion=happy` measures a range of
+10.0 against `surprised` at 11.8, and `speed` above 0.95 *narrows* the range
+(1.0 → 9.4, 1.05 → 9.0) because a faster reading has less room for a contour.
+Both had already been rejected by ear; the measurement agrees.
+
+### Open, and probably not real
+«تعریف» transcribes as «تریف» and «تطبیق» as «تطویق» in most runs. Persian ASR
+drops ع and softens ب routinely, and the voice is an Arabic timbre that should
+carry ع well. Not changed — the user has not reported either by ear, and
+respelling a word that is being said correctly would be a fix for a fault that
+does not exist. Listen for them before acting.

@@ -20,7 +20,7 @@
 import { mkdirSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
-import { ttsBody, voiceSettings, drift } from "./lib/voice-settings.mjs";
+import { ttsBody, voiceSettings, drift, trimDeadAir } from "./lib/voice-settings.mjs";
 import { faults, mmss } from "./lib/hear.mjs";
 import { loadEnv, telegramConfig, sendAudio, sendMessage } from "./lib/telegram.mjs";
 
@@ -93,6 +93,7 @@ if (reuse) {
     }
     const f = `${dir}/line${i}.mp3`;
     writeFileSync(f, Buffer.from(data.data.audio, "hex"));
+    trimDeadAir(f);
     files.push(f);
     process.stdout.write(`  generated ${i + 1}/${spoken.length}\r`);
   }

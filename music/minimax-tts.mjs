@@ -3,7 +3,7 @@
 // into a composition, manifest, or Git repository.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { ttsBody, voiceSettings, drift } from "../lib/voice-settings.mjs";
+import { ttsBody, voiceSettings, drift, trimDeadAir } from "../lib/voice-settings.mjs";
 
 const argv = process.argv.slice(2);
 const outAt = argv.indexOf("-o");
@@ -40,4 +40,6 @@ if (!response.ok || data?.base_resp?.status_code !== 0 || !data?.data?.audio) {
 
 mkdirSync(dirname(output), { recursive: true });
 writeFileSync(output, Buffer.from(data.data.audio, "hex"));
+trimDeadAir(output);
 console.log(`  MiniMax voice -> ${output}`);
+
