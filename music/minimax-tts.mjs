@@ -38,10 +38,15 @@ const response = await fetch(process.env.MINIMAX_TTS_ENDPOINT || "https://api.mi
       // 0.96 made Persian sentence endings unnaturally long. A small lift keeps
       // the delivery lively without turning it into a rushed announcer voice.
       speed: Number(process.env.VOICE_SPEED || 1.1),
+      // The model takes an emotion, and the default reading is flat — which is
+      // what "بی‌احساس" was describing. "happy" is the one that carries the
+      // energy this channel wants; the API accepts happy, sad, angry, fearful,
+      // disgusted, surprised, neutral and calm, and rejects everything else.
+      emotion: process.env.MINIMAX_EMOTION || "happy",
       vol: 1,
       // MiniMax requires a whole-number pitch. Keep the default neutral: the
       // small speed lift above supplies clarity without an artificial tone.
-      pitch: Math.round(Number(process.env.MINIMAX_VOICE_PITCH || 0)),
+      pitch: Math.round(Number(process.env.MINIMAX_VOICE_PITCH || 1)),
     },
     audio_setting: { sample_rate: 44100, bitrate: 128000, format: "mp3", channel: 1 },
   }),
