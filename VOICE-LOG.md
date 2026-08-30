@@ -196,3 +196,22 @@ drops ع and softens ب routinely, and the voice is an Arabic timbre that should
 carry ع well. Not changed — the user has not reported either by ear, and
 respelling a word that is being said correctly would be a fix for a fault that
 does not exist. Listen for them before acting.
+
+### pitch 3 — REJECTED by ear, 2026-08-30
+Heard as childish («کودکانه»). Reverted to 2 and locked there.
+
+This is the entry to read before trusting `lib/prosody.py` again. Pitch 3
+measured a range of 12.4 semitones against 8.1 at pitch 2, much closer to the
+reference speakers, and it still sounded wrong. **A wider range is not the same
+thing as sounding like an adult** — raising the pitch of a voice widens its
+range and also makes it younger, and the measurement can only see the first.
+
+The tool keeps its use: it found that the narration was travelling half the
+distance a person travels, which was a real fault and a real explanation of
+«شاد نیست». It cannot judge whether a reading is right. When a number and the
+ear disagree, the ear decides, and the number gets written down here as wrong.
+
+**Kept from that round:** the silence trimming. It removes dead air at the ends
+of a clip and caps interior gaps at 0.22s; it cannot raise pitch and had nothing
+to do with the childish reading. Speaking rate 75.3 and pause share 0.25, both
+inside the human band, come from it.
