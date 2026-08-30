@@ -40,7 +40,11 @@ const feature = flag("feature");
 const reuse = flag("reuse");
 const model = flag("model") || "medium";
 
-/** The lines the video will speak, in order. */
+/** The lines the video will speak, in order — from narrationFor(), the same
+ * function make-voice.mjs calls. Reconstructing hook+tips by hand here once
+ * missed the payoff/outro line entirely — narrationFor() falls back to
+ * pack.payoff for a feature with no hand-written script, and that line is
+ * where «لای الگوریتم فید» actually lived. Whatever ships is what this reads. */
 async function linesFor() {
   const given = many("text");
   if (given.length) return given;
@@ -48,9 +52,10 @@ async function linesFor() {
     console.error("give --feature <key> or one or more --text \"...\"");
     process.exit(1);
   }
-  const content = await import("./lib/content.mjs");
-  const pack = content.packForFeature(feature, new Date());
-  return [pack.hook.ask, ...pack.tips.map((t) => t.head)].filter(Boolean);
+  const { narrationFor } = await import("./lib/narration.mjs");
+  const vo = narrationFor(feature);
+  if (!vo) { console.error(`no narration found for "${feature}"`); process.exit(1); }
+  return [vo.hook, ...vo.steps, vo.outro].filter(Boolean);
 }
 
 const written = await linesFor();

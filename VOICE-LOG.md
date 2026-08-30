@@ -215,3 +215,106 @@ ear disagree, the ear decides, and the number gets written down here as wrong.
 of a clip and caps interior gaps at 0.22s; it cannot raise pitch and had nothing
 to do with the childish reading. Speaking rate 75.3 and pause share 0.25, both
 inside the human band, come from it.
+
+---
+
+## The 2026-08-31 batch — five real bugs in one report
+
+The user's complaint bundled several things together; each was checked
+independently rather than assumed. Two turned out to be real structural bugs
+with fixes at the class level; one turned out not to be a bug at all (the ear
+was reacting to something else); two were tested and found not reproducible.
+
+### «تیک‌تاک» split into «تیک، تاک» — CONFIRMED, FIXED (class-level)
+Root cause: `normalise()` converts every leftover ZWNJ to a plain space,
+including inside a brand name that has no possessive suffix — the protection
+that exists for «تیک‌تاکت» never covered the bare name. That plain space then
+sat exposed to `breathe()` exactly like the 31 pronunciation values did before
+they were protected.
+**Fixed at the class, not the instance:** a scan of every ZWNJ compound in the
+whole feature catalogue found the same exposure in `بک‌گراند`, `به‌خاطر`,
+`ری‌اکشن`, `اسکرین‌شات`, `پلی‌لیست`, `تله‌پرامپتر`, `ثبت‌نام`, `زمان‌بندی`,
+`کلین‌آپ` — none ever reported broken, all carrying the identical risk. All
+protected the same way. **Status: LOCKED.**
+
+**Investigated and reverted:** `JOIN_AFTER`'s `` never matches Persian
+letters (`` is defined over `\w`, which excludes them), so the "glue plural/
+comparative suffixes" step has been a silent no-op the whole time. Fixing the
+regex made it fire — and glued «بیننده‌های» into «بینندههای», a double-ه that
+was never heard by anyone. Reverted unheard rather than shipped; the no-op is
+the state every video so far was built and approved against.
+
+### «رایگان» opening the hook — CONFIRMED, FIXED (7 of 7 instances)
+A LOCKED content rule — stated repeatedly — says free/name/logo never opens a
+tool video. `hook.ask` is shown on screen AND spoken, so this was a double
+violation. Every tools-bank feature was scanned: **all seven** that mention
+رایگان put it as the literal first word. All seven reworded to lead with the
+result and mention رایگان after a natural pause instead.
+
+### Mid-sentence em-dash and semicolon — CONFIRMED, FIXED
+A dash used as a written pause (`... شو — رایگان`) was never converted to
+anything the engine reads as a pause; it sat as a raw character, occupying a
+slot in `breathe()`'s word array and corrupting its count. Now converted to a
+comma before tokenising. Semicolons the same way.
+
+### The breath counter never reset on an existing comma — CONFIRMED, FIXED
+Once a comma already sits in the text — hand-written, or just produced by the
+dash conversion above — `breathe()`'s `since` counter kept climbing through it
+and inserted more, stacking three commas where one was intended
+(«به‌خاطر، موزیک، حذف نشود،»). Now any comma already in the token resets the
+counter, whether it came from the source text or from `breathe()` itself.
+
+### «نه لای الگوریتم» — CONFIRMED via 4/4 independent takes, FIXED by rewording
+This is very likely what the user actually heard and called «لای» — not the
+word itself (a correct, ordinary Persian word meaning "amid/within"), but
+whatever came apart right next to it. Isolated and tested: «الگوریتم» alone
+reads fine; «نه لای الگوریتم» together breaks on **every one of four
+independent generations** («نلویه آلگوریتام», «نه، لویه آلگوریتم» ×2, similar
+on the fourth). Reworded to «نه توی الگوریتم گم می‌شود» — tested clean or
+near-clean in 3 of 3. **Status: reworded, not a pronunciation-layer fix**; this
+specific three-word sequence may simply be hard for this engine, the same class
+of problem as «سوار … شو» below.
+
+### «قبل از همه سوار ترند شو» — a discontinuous light verb, REWORDED
+«سوار … شو» (get on/board) brackets its object; no positional breath rule can
+safely place a pause inside it without more context than `breathe()` has.
+Reworded to «به ترند سوار شو» so the two verb halves sit adjacent. Same fix
+class as the «نه لای» rewording above: when a specific grammatical construction
+is what breaks, the construction is changed rather than teaching the breath
+placer one more special case.
+
+### دایرکت, and English words appearing in the transcript — INVESTIGATED, NOT A BUG
+The user heard English inside the Persian narration. Eight independent
+generations of the دایرکت line and four of «ترند … وایرال» never once produced
+an actual English-pronunciation reading — Whisper's transcript occasionally
+romanises a confidently-pronounced loanword («trend», «viral», «algoritm») even
+though `language_boost` is Persian and the source text is pure Persian script.
+**Do not "fix" a word on the strength of what a transcript says if the audio
+itself, generated repeatedly, never shows the fault.** This is the same
+principle as the earlier سرپرست note on transcript noise, applied to a new
+failure mode: romanisation instead of a wrong letter.
+
+### «برایت» and «صدایت» — TESTED, NOT ADDED
+Both appear in the catalogue with the same unmarked-possessive shape as
+«پیامت»/«تیک‌تاکت». Tested marked vs. plain, three takes each: **no
+consistent difference** — both forms showed the same scatter of ASR noise.
+Unlike «پیامت» (which the ear can be shown breaking on 4/4 plain takes and
+recovering on marked ones), there is no reproducible defect here to fix.
+Not added. A possessive shape being on the known-risk list is a reason to test
+it, not a reason to mark it.
+
+### «پیامت» — CONFIRMED, FIXED
+Same class as `ویوهایت`/`تیک‌تاکت`: unmarked, it broke in 4 of 4 independent
+generations of the line it actually appears in. Marked «پیامَت», clean or
+near-clean across the same count. **Status: LOCKED.**
+
+### `verify-voice.mjs` had a blind spot — FIXED
+It reconstructed `hook + tips` by hand instead of calling `narrationFor()`,
+the function the render actually uses. `narrationFor()` falls back to
+`pack.payoff` as the outro line when a feature has no hand-written script —
+and «نه لای الگوریتم» lived in exactly that line, never checked. Every
+finding above involving the outro came from re-pointing the tool at the real
+source, not from a lucky guess about where to look. **Any feature with no
+hand-authored entry in `lib/narration.mjs` speaks its payoff as the last line
+— check it.**
+
