@@ -351,6 +351,11 @@ pronunciation with a letter the engine reads reliably: «قِیر». **FIXED.**
 This is the same move as respelling a loanword, applied to a native word: what
 is written and what must be said are allowed to differ, and here they must.
 
+### «ریلزت» — LOCKED as «ریلزِت»
+Three spellings were auditioned on 2026-08-31 and the kasra form was chosen by
+ear. **Rejected:** «ریلسِت» (the ز respelled as س) and «ریلزَت» (the fatha, which
+is the same wrong vowel the rule above is about). Do not re-try either.
+
 ### What a short line cannot be tested on
 «ریلزت» could not be settled by transcript. Whisper needs surrounding words; on
 a two-word line it returned «بریلستر», which is a failure of the transcriber and
