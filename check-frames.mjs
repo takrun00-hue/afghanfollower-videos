@@ -56,7 +56,10 @@ const frames = readdirSync(dir).filter((f) => f.endsWith(".png")).sort();
 const sizes = frames.map((f) => statSync(join(dir, f)).size);
 
 const median = [...sizes].sort((a, b) => a - b)[Math.floor(sizes.length / 2)];
-const floor = median * 0.42;
+// 0.42 flagged a slide that was simply simple — one illustration and a line of
+// text compresses well and is not empty. An empty frame is a smooth gradient
+// and sits far below even that, so the bar is lower and the false alarms stop.
+const floor = median * 0.26;
 
 const blanks = [];
 sizes.forEach((size, i) => {
