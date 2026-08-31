@@ -323,6 +323,14 @@ hand-authored entry in `lib/narration.mjs` speaks its payoff as the last line
 
 ## Persian reading rules, written down
 
+The general rules moved to the **persian-tts-reading** skill
+(`~/.claude/skills/persian-tts-reading/`) — seven files covering unwritten
+sounds, homophone letters, what must never be split, foreign words, colloquial
+register, breath, and verification. Read it before changing pronounce.mjs.
+
+What stays here is this channel's own verdicts: what was approved by ear, and
+what was rejected.
+
 Fixes were being added one reported word at a time. These are the rules behind
 them, so the next word of the same shape is right before anyone has to report it.
 
