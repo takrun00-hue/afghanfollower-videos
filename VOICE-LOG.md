@@ -318,3 +318,41 @@ source, not from a lucky guess about where to look. **Any feature with no
 hand-authored entry in `lib/narration.mjs` speaks its payoff as the last line
 — check it.**
 
+
+---
+
+## Persian reading rules, written down
+
+Fixes were being added one reported word at a time. These are the rules behind
+them, so the next word of the same shape is right before anyone has to report it.
+
+### The possessive enclitic is /-et/, not /-at/
+**FIXED 2026-08-31.** Spelled «ـَت» with a fatha, but modern spoken Persian says
+**-et**: «کتابت» is ketâb-**et**, «حسابت» is hesâb-**et**, «ریلزت» is relz-**et**.
+
+All twenty-two entries in the table marked it with a fatha, telling the engine to
+say /-at/ — a vowel Persian does not use there. That is why the suffix kept
+arriving as a separate, English-sounding syllable instead of joining the word:
+the engine was being asked for a sound that does not belong to the word, so it
+put it outside the word.
+
+Marked with a kasra it joins. Verified by transcript: «حسابت» and «ویدیویت» now
+come back as single words.
+
+**Never write the enclitic as its own token.** «ویوت» was spelled «ویو اِت» —
+two words on the page and therefore two words in the mouth. It is not a word; it
+is a vowel and a consonant on the end of one.
+
+### غ and ق are one sound
+Both are /q/ in Persian. The engine reads غ as a hard g and said «گیر» for
+«غیر» — a different word. Spelling the sound with ق gives the right
+pronunciation with a letter the engine reads reliably: «قِیر». **FIXED.**
+
+This is the same move as respelling a loanword, applied to a native word: what
+is written and what must be said are allowed to differ, and here they must.
+
+### What a short line cannot be tested on
+«ریلزت» could not be settled by transcript. Whisper needs surrounding words; on
+a two-word line it returned «بریلستر», which is a failure of the transcriber and
+not evidence about the audio. Short lines go to the ear, and a transcript of one
+is not a result.
