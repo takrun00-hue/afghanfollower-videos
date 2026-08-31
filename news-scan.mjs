@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
-import { amalPersian, amalSocial } from "./lib/amal.mjs";
+import { amalPersian, amalSocial, amalFacebook } from "./lib/amal.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -30,6 +30,7 @@ const amalTarget = amalAt >= 0 ? String(argv[amalAt + 1] || "").trim().toLowerCa
 const env = loadEnv();
 const tg = telegramConfig(env);
 const KEY = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
+const FB_TOKEN = process.env.FACEBOOK_PAGE_TOKEN || env.FACEBOOK_PAGE_TOKEN || "";
 
 const QUEUE = ".news-queue.json";
 const SEEN = ".news-seen.json";
@@ -155,6 +156,22 @@ if (target) {
   // carries none, so it must never sit above dated reporting as though it were
   // newer.
   const seen = new Set(found.map((r) => r.url));
+  // Facebook first among the social layers: Amal posts there more often than to
+  // the website, and the Graph API is the only social route that returns a
+  // publish date — which is what makes a post usable in a news scan at all.
+  if (FB_TOKEN) {
+    try {
+      for (const r of await amalFacebook({ token: FB_TOKEN })) {
+        if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
+      }
+    } catch (e) {
+      // An expired token must not read as a quiet news day.
+      console.error(String(e.message));
+      if (tg.enabled && !quiet) {
+        await sendMessage({ token: tg.token, chatId: tg.chatId, text: `⚠️ ${target.label} — ${e.message}` });
+      }
+    }
+  }
   for (const r of await amalSocial({ city: amalTarget === "farsi" ? null : amalTarget, key: KEY })) {
     if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
   }

@@ -32,6 +32,7 @@ jobs:
       - name: Scan
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node news-scan.mjs

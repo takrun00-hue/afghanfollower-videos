@@ -68,6 +68,7 @@ jobs:
       - name: Build one current short news video
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
@@ -164,6 +165,7 @@ jobs:
         if: contains(fromJSON('["plan-today","plan-tomorrow","plan-week","plan-tiktok","plan-instagram","plan-tools","content-search","content-search-live"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
@@ -243,6 +245,7 @@ jobs:
         if: steps.cmd.outputs.ACTION == 'research'
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node research.mjs
@@ -260,6 +263,7 @@ jobs:
         if: contains(fromJSON('["news-scan","news-search-live","amal-berlin","amal-hamburg","amal-frankfurt","amal-farsi"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
@@ -289,6 +293,7 @@ jobs:
         if: contains(fromJSON('["news-germany","news-europe","news-today"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -302,6 +307,7 @@ jobs:
         if: contains(fromJSON('["news-breaking","news-pick","europe-pick","news-text","news-approve","news-approve-draft"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
@@ -324,6 +330,7 @@ jobs:
         if: contains(fromJSON('["news-breaking-preview","news-pick-preview","europe-pick-preview","news-text-preview","news-edit-hook","news-edit-text"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
