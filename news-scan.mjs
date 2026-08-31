@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
-import { amalPersian, amalSocial, amalFacebook, amalFacebookDiagnose } from "./lib/amal.mjs";
+import { amalPersian, amalSocial } from "./lib/amal.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -30,7 +30,6 @@ const amalTarget = amalAt >= 0 ? String(argv[amalAt + 1] || "").trim().toLowerCa
 const env = loadEnv();
 const tg = telegramConfig(env);
 const KEY = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
-const FB_TOKEN = process.env.FACEBOOK_PAGE_TOKEN || env.FACEBOOK_PAGE_TOKEN || "";
 
 const QUEUE = ".news-queue.json";
 const SEEN = ".news-seen.json";
@@ -155,43 +154,16 @@ if (target) {
   // the website, which is the only layer with real publish dates. A social post
   // carries none, so it must never sit above dated reporting as though it were
   // newer.
+  //
+  // The Graph API route (amalFacebook/amalFacebookDiagnose in lib/amal.mjs) was
+  // tried and works, but Meta refuses it regardless of token: reading a page you
+  // do not administer needs Page Public Content Access, which needs Business
+  // Verification + App Review. Confirmed 2026-08-31 with a real page token —
+  // (#10) "requires 'pages_read_engagement' ... or 'Page Public Content Access'".
+  // Calling it every run would just repeat that failure, so the command no
+  // longer depends on a Facebook token at all. If Amal ever makes the operator
+  // an admin of the page, wiring it back in is a two-line change.
   const seen = new Set(found.map((r) => r.url));
-  // Facebook first among the social layers: Amal posts there more often than to
-  // the website, and the Graph API is the only social route that returns a
-  // publish date — which is what makes a post usable in a news scan at all.
-  // The token lives in Actions secrets, so it cannot be checked locally.
-  // An Amal command is therefore also the token check: whatever the scan
-  // found is said out loud, once, in the reply.
-  if (!FB_TOKEN && tg.enabled && !quiet) {
-    await sendMessage({ token: tg.token, chatId: tg.chatId,
-      text: `ℹ️ ${target.label}: FACEBOOK_PAGE_TOKEN به این اجرا نرسید — فقط وب‌سایت خوانده شد.` });
-  }
-  if (FB_TOKEN) {
-    try {
-      // What kind of token it is decides what it can see, and the wrong kind
-      // authenticates fine and then returns nothing. Report it, so a token
-      // problem never looks like a quiet news day.
-      const who = await amalFacebookDiagnose(FB_TOKEN);
-      const posts = await amalFacebook({ token: FB_TOKEN });
-      for (const r of posts) {
-        if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
-      }
-      if (tg.enabled && !quiet) {
-        const line = who.ok
-          ? (who.type === "PAGE"
-            ? `✅ فیسبوک: توکن صفحه، معتبر تا ${who.expires} — ${posts.length} پست فارسی`
-            : `⚠️ فیسبوک: توکن از نوع ${who.type} است، نه PAGE — ${posts.length} پست خوانده شد. برای پست‌های صفحه، Page access token لازم است.`)
-          : `⚠️ فیسبوک: ${who.why}`;
-        await sendMessage({ token: tg.token, chatId: tg.chatId, text: line });
-      }
-    } catch (e) {
-      // An expired token must not read as a quiet news day.
-      console.error(String(e.message));
-      if (tg.enabled && !quiet) {
-        await sendMessage({ token: tg.token, chatId: tg.chatId, text: `⚠️ ${target.label} — ${e.message}` });
-      }
-    }
-  }
   for (const r of await amalSocial({ city: amalTarget === "farsi" ? null : amalTarget, key: KEY })) {
     if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
   }
