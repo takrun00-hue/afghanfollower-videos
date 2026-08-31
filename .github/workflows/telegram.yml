@@ -102,6 +102,12 @@ jobs:
             # the Actions cache avoids requiring `contents: write` just to
             # move from a Telegram preview to an approval.
             .content-draft.json
+            # Repeat suppression lives in these two. Without them in the
+            # cache each run starts blank: nothing remembers what was
+            # offered yesterday or sent today, and the same topic comes
+            # back — which is what it did.
+            .topic-proposals.json
+            .content-registry.json
             .news-draft.json
             .news-queue.json
             .news-seen.json

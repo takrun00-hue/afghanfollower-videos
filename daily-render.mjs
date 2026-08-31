@@ -201,7 +201,18 @@ for (const platform of cats) {
         { stdio: "inherit" }
       );
       if (existsSync(vFile)) voice = vFile;
-      if (!voice && process.env.REQUIRE_VOICE === "on") throw new Error("Narration did not render for voice-required run");
+      if (!voice && process.env.REQUIRE_VOICE === "on") {
+        // "Narration did not render" on its own sent a CI failure back with no
+        // way to tell a missing API key from a feature whose lines could not be
+        // resolved — the last one took a code read to find. Say which it is.
+        const { narrationFor } = await import("./lib/narration.mjs");
+        const why = !narrationFor(pack.id)
+          ? `no narration resolved for "${pack.id}" — lib/generated/custom-current.mjs is missing or holds a different id`
+          : !process.env.MINIMAX_API_KEY
+            ? "MINIMAX_API_KEY is not set in this environment"
+            : `MiniMax returned no audio for "${pack.id}"`;
+        throw new Error(`Narration did not render for voice-required run: ${why}`);
+      }
     } catch (e) {
       console.error("   ✗ voice failed, continuing music-only:", String(e.message).split(String.fromCharCode(10))[0]);
       // A requested narrated video must not silently arrive as music-only.
