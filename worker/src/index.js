@@ -106,6 +106,12 @@ function videoAction(text) {
     const payload = String(text).replace(/^\s*(?:موضوع آماده|ایده آماده|ایده)\s*[:：]\s*/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
     return payload ? { action: "content-topic-preview", payload, ...audio } : null;
   }
+  // Refusing a topic, before the rule that selects one — «رد موضوع ۲» would
+  // otherwise be read as «موضوع ۲» and build the thing the operator rejected.
+  if (/^(?:رد|حذف|نمی‌خواهم|نمیخواهم)\s*(?:موضوع)?\s*[۰-۹0-9]+\s*$/i.test(c)) return { action: "topic-reject", pick: digits(c) };
+  if (/^(?:رد|حذف)\s*(?:موضوع)?\s+[a-z0-9-]+$/i.test(c)) return { action: "topic-reject", payload: c.replace(/^(?:رد|حذف)\s*(?:موضوع)?\s+/i, "").trim() };
+  if (/^(?:برگردان|بازگردان)\s+[a-z0-9-]+$/i.test(c)) return { action: "topic-unreject", payload: c.replace(/^(?:برگردان|بازگردان)\s+/i, "").trim() };
+  if (/^(?:رد‌شده|رد شده|فهرست رد|موضوع.?های رد)/i.test(c)) return { action: "topic-rejected-list" };
   if (/^(?:انتخاب|موضوع|تأیید موضوع|تاييد موضوع)\s*[۰-۹0-9]+(?:\s|$)/i.test(c)) return { action: "topic-pick", pick: digits(c), ...audio };
   if (/^(تایید|تأیید|approve)\s+(?=[a-z0-9-]*[a-z])[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
   if (/^(بساز|تایید|تأیید|ok|build)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-approve", pick: digits(c) };

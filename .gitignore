@@ -25,3 +25,7 @@ compositions/news/
 public/broll/*.mp4
 !public/broll/*-thread.mp4
 public/screens/*.img
+.topic-rejected.json
+.topic-offered.json
+out/tune/
+out/verify/

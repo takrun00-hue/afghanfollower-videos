@@ -9,7 +9,7 @@ import { fingerprint, check } from "./lib/dedupe.mjs";
 import { featureById, featuresFor } from "./lib/features.mjs";
 import { evaluate } from "./lib/selection-gate.mjs";
 import { probeDemand, seedFor } from "./lib/demand-probe.mjs";
-import { recentlyProposed, recordProposed, COOLDOWN_DAYS } from "./lib/proposed.mjs";
+import { recentlyProposed, recordProposed, rejectedIds, COOLDOWN_DAYS } from "./lib/proposed.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -393,6 +393,7 @@ function catalogueTopics() {
   return out;
 }
 const alreadyOffered = recentlyProposed();
+const refused = rejectedIds();
 let list = [...relevant, ...catalogueTopics().filter((c) => !relevant.some((r) => r.id === c.id) && !hasAlreadyReachedTelegram(c))]
   .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
   .filter(notRecentlySent)
@@ -400,6 +401,13 @@ let list = [...relevant, ...catalogueTopics().filter((c) => !relevant.some((r) =
   // sent-registry above cannot see those — nothing was ever sent — so the
   // same ranked list came back day after day.
   .filter((item) => {
+    // A refusal is permanent — the cooldown says "not today", this says
+    // "not ever", and re-offering a refused topic in a fortnight would make
+    // the operator refuse it twice.
+    if (item.id && refused.has(String(item.id).toLowerCase())) {
+      console.error(`  · کنار گذاشته شد: ${item.id} — رد شده است`);
+      return false;
+    }
     if (!item.id || !alreadyOffered.has(String(item.id).toLowerCase())) return true;
     console.error(`  · کنار گذاشته شد: ${item.id} — در ${COOLDOWN_DAYS} روز اخیر پیشنهاد شده بود`);
     return false;
@@ -453,6 +461,13 @@ text += " هیچ ویدیویی پیش از تأیید پیش‌نویس ساخ�
 // Recorded before sending, and only when the list has something in it: an
 // empty proposal is not an offer and must not put ids on cooldown.
 if (list.length && !dryRun) recordProposed(list.map((x) => x.id).filter(Boolean));
+// The same list, kept in the order it was numbered. «رد موضوع ۲» has to mean
+// the second line of the message the operator is looking at, not the second
+// item of a ranking recomputed later.
+if (list.length && !dryRun) {
+  writeFileSync(".topic-offered.json", JSON.stringify(
+    list.map((x, n) => ({ n: n + 1, id: x.id, platform: x.platform, hook: x.hook })), null, 2) + "\n");
+}
 if (tg.enabled && !dryRun && process.env.NO_TELEGRAM !== "1") await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
 else console.log(text);
 

@@ -1,48 +1,43 @@
 {
   "kind": "tutorial",
-  "featureId": "source-5-1788041961277",
+  "featureId": "source-2-1788185521888",
   "generated": {
-    "id": "source-5-1788041961277",
-    "platform": "tiktok",
-    "feature": "دریافت درآمد یوتیوب در ایران چگونه است؟ | راهنمای ۲۰۲۶",
-    "title": "دریافت درآمد یوتیوب در ایران چگونه است؟ | راهنمای ۲۰۲۶",
+    "id": "source-2-1788185521888",
+    "platform": "tools",
+    "feature": "با Reels Insights نقطهٔ افت ویدیو را پیدا کن",
+    "title": "با Reels Insights نقطهٔ افت ویدیو را پیدا کن",
     "hook": {
-      "ask": "دریافت درآمد یوتیوب در ایران چگونه است؟",
-      "l1": "جوابش",
-      "l2": "در همین ویدیو"
+      "ask": "با Reels Insights نقطهٔ افت ویدیو را پیدا کن برای تو چه فرقی می‌کند؟",
+      "l1": "یک تغییر تازه",
+      "l2": "که به کارت می‌آید"
     },
     "payoff": "جزئیات را در منبع اصلی بررسی کن و فقط نکته‌ای را استفاده کن که با کار خودت مرتبط است.",
     "outroAsk": "دوست داری نمونهٔ بعدی دربارهٔ کدام موضوع باشد؟",
-    "tgTitle": "🎬 دریافت درآمد یوتیوب در ایران چگونه است؟ | راهنمای ۲۰۲۶\n\n#viral #ContentCreator",
+    "tgTitle": "🎬 با Reels Insights نقطهٔ افت ویدیو را پیدا کن\n\n#viral #ContentCreator",
     "tips": [
       {
-        "head": "دریافت درآمد یوتیوب در ایران چگونه است؟",
+        "head": "برای اینکه بفهمی بیننده کجا ویدیو را رها می‌کند، بخش تحلیل‌ها را باز کن.",
         "icon": "target",
-        "path": "https://divan-ads.com/blog/youtube-income-iran/"
+        "path": "https://example.ir/y"
       },
       {
-        "head": "| راهنمای ۲۰۲۶ # دریافت درآمد یوتیوب در ایران چگونه است؟",
+        "head": "نمودار نگه‌داشت را ببین و ثانیهٔ افت را پیدا کن.",
         "icon": "play",
-        "path": "https://divan-ads.com/blog/youtube-income-iran/"
+        "path": "https://example.ir/y"
       },
       {
-        "head": "راهنمای کامل ۲۰۲۶ ##### نقد کردن درآمد یوتیوب ###### نقد کردن درآمد دلاری یوتیوب با کمترین کارمزد و تسویه فوری - تاریخ انتشار: 27 مرداد, 1405 وقتی یک کانال یوتیوب به",
+        "head": "بعد همان قسمت را کوتاه‌تر کن.",
         "icon": "chart",
-        "path": "https://divan-ads.com/blog/youtube-income-iran/"
-      },
-      {
-        "head": "برای یک یوتیوبر ایرانی سؤال",
-        "icon": "pen",
-        "path": "https://divan-ads.com/blog/youtube-income-iran/"
+        "path": "https://example.ir/y"
       }
     ]
   },
   "source": {
-    "title": "دریافت درآمد یوتیوب در ایران چگونه است؟ | راهنمای ۲۰۲۶",
-    "url": "https://divan-ads.com/blog/youtube-income-iran/",
-    "date": "2026-08-18"
+    "title": "با Reels Insights نقطهٔ افت ویدیو را پیدا کن",
+    "url": "https://example.ir/y",
+    "date": "2026-08-20"
   },
-  "hook": "دریافت درآمد یوتیوب در ایران چگونه است؟",
+  "hook": "با Reels Insights نقطهٔ افت ویدیو را پیدا کن برای تو چه فرقی می‌کند؟",
   "steps": null,
-  "updatedAt": "2026-08-29T22:19:21.277Z"
+  "updatedAt": "2026-08-31T14:12:01.888Z"
 }

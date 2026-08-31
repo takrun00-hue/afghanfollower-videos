@@ -36,18 +36,30 @@ const hookOverride = String(arg("--hook") || "").replace(/[\r\n]+/g, " ").trim()
 // --from-queue N builds the story the operator actually read and approved.
 // Re-running the search at approval time was a correctness bug: an hour later
 // the same number could point at a different story than the one in the message.
-if (has("--from-queue")) {
-  const n = Math.max(1, Number(arg("--from-queue")) || 1);
-  const q = existsSync(".news-queue.json")
-    ? JSON.parse(readFileSync(".news-queue.json", "utf8")).find((x) => x.n === n)
-    : null;
-  if (!q) {
-    await say("❌ خبر شماره " + n + " در فهرست نیست.");
-    process.exit(1);
-  }
-  headline = q.title;
-  body = q.sentences.slice();
-  source = q.source;
+const queued = (n) => {
+  try {
+    return existsSync(".news-queue.json")
+      ? JSON.parse(readFileSync(".news-queue.json", "utf8")).find((x) => x.n === n) || null
+      : null;
+  } catch { return null; }
+};
+
+// A number the operator sent refers to the list they were just shown. Reading
+// it back is the only way that stays true: «خبر ۱» used to re-run the search
+// and take the first result of a NEW set, so choosing a Merkel story could
+// build a Taliban one. --from-queue was fixed for this a while ago; --pick was
+// left re-fetching, and it is the path Telegram actually uses.
+const pickedNumber = has("--from-queue") ? Number(arg("--from-queue"))
+  : (has("--pick") && !has("--list")) ? Number(arg("--pick")) : 0;
+const fromQueue = pickedNumber ? queued(Math.max(1, pickedNumber || 1)) : null;
+
+if (fromQueue) {
+  headline = fromQueue.title;
+  body = (fromQueue.sentences || []).slice();
+  source = fromQueue.source;
+} else if (has("--from-queue")) {
+  await say("❌ خبر شماره " + pickedNumber + " در فهرست نیست.");
+  process.exit(1);
 } else if (has("--fetch")) {
   if (!KEY) {
     await say("🔑 برای جستجوی خبر، EXA_API_KEY لازم است.");
@@ -101,6 +113,25 @@ if (has("--from-queue")) {
   results.sort((a, b) => String(b.publishedDate || "").localeCompare(String(a.publishedDate || "")));
 
   if (has("--list")) {
+    // Save what is being shown, in the same shape news-scan.mjs writes, so the
+    // number the operator sends back resolves to this story and not to
+    // whatever a fresh search returns a minute later.
+    const shown = results.slice(0, 6).map((r, i2) => {
+      const host = new URL(r.url).hostname.replace(/^www\./, "");
+      const known = Object.values(SOURCES).find((x) => host.includes(x.domain));
+      return {
+        n: i2 + 1,
+        title: String(r.title || "").replace(/\s*[-–|]\s*(BBC News دری|DW\.com|.*اینترنشنال).*$/, "").trim(),
+        url: r.url,
+        source: `${known ? known.name : host} · ${String(r.publishedDate || "").slice(0, 10)}`,
+        date: String(r.publishedDate || "").slice(0, 10),
+        sentences: String(r.text || "").replace(/\s+/g, " ").split(/(?<=[.!؟])\s+/)
+          .map((x) => x.trim()).filter((x) => x.length > 45 && x.length < 190).slice(0, 6),
+        scannedAt: new Date().toISOString(),
+      };
+    });
+    writeFileSync(".news-queue.json", JSON.stringify(shown, null, 2));
+
     const lines = results.slice(0, 6).map((r, i) =>
       `${i + 1}. <a href="${r.url}">${String(r.title).slice(0, 90)}</a>\n   <i>${new URL(r.url).hostname.replace(/^www\./, "")} · ${String(r.publishedDate || "").slice(0, 10)}</i>`
     );

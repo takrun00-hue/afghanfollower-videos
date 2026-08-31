@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { replyOnFailure } from "./lib/fail-soft.mjs";
+import { isPersianEnough } from "./lib/source-quality.mjs";
+import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 
 replyOnFailure();
 
@@ -68,6 +70,31 @@ function topicOf(title) {
   // A hard character cut lands mid-phrase ("… به سرچ  را"). Drop the dangling
   // last word so the hook ends on something whole.
   return cut.length >= 52 ? cut.replace(/\s+\S*$/, "").trim() : cut;
+}
+
+// The title and excerpt below go onto the cards and into the narration word
+// for word. An English page therefore produced an English video on a Persian
+// channel — the search deliberately allows English sources because the
+// operator reads them, which is right for choosing and wrong for building.
+// Refuse rather than ship it, and name the way round it.
+if (!isPersianEnough(source.title) || !isPersianEnough(String(source.excerpt || "").slice(0, 400))) {
+  const msg = [
+    "🌐 <b>این منبع فارسی نیست.</b>",
+    "",
+    "<code>" + clean(source.title, 90) + "</code>",
+    "",
+    "متنش همان‌طور که هست روی کارت‌ها و در صدا می‌رفت و ویدیو انگلیسی می‌شد.",
+    "",
+    "اگر موضوعش را می‌خواهی، خودت فارسی‌اش را بفرست:",
+    "<code>محتوا: قلاب | گام ۱ | گام ۲ | گام ۳</code>",
+  ].join(String.fromCharCode(10));
+  const env2 = loadEnv();
+  const tg2 = telegramConfig(env2);
+  if (tg2.enabled && process.env.NO_TELEGRAM !== "1") {
+    await sendMessage({ token: tg2.token, chatId: tg2.chatId, text: msg });
+  }
+  console.log(msg.replace(/<[^>]*>/g, ""));
+  process.exit(0);
 }
 
 const sentences = String(source.excerpt || "")
