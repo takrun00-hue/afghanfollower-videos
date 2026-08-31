@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
-import { amalPersian, amalSocial, amalFacebook } from "./lib/amal.mjs";
+import { amalPersian, amalSocial, amalFacebook, amalFacebookDiagnose } from "./lib/amal.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -159,10 +159,30 @@ if (target) {
   // Facebook first among the social layers: Amal posts there more often than to
   // the website, and the Graph API is the only social route that returns a
   // publish date — which is what makes a post usable in a news scan at all.
+  // The token lives in Actions secrets, so it cannot be checked locally.
+  // An Amal command is therefore also the token check: whatever the scan
+  // found is said out loud, once, in the reply.
+  if (!FB_TOKEN && tg.enabled && !quiet) {
+    await sendMessage({ token: tg.token, chatId: tg.chatId,
+      text: `ℹ️ ${target.label}: FACEBOOK_PAGE_TOKEN به این اجرا نرسید — فقط وب‌سایت خوانده شد.` });
+  }
   if (FB_TOKEN) {
     try {
-      for (const r of await amalFacebook({ token: FB_TOKEN })) {
+      // What kind of token it is decides what it can see, and the wrong kind
+      // authenticates fine and then returns nothing. Report it, so a token
+      // problem never looks like a quiet news day.
+      const who = await amalFacebookDiagnose(FB_TOKEN);
+      const posts = await amalFacebook({ token: FB_TOKEN });
+      for (const r of posts) {
         if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
+      }
+      if (tg.enabled && !quiet) {
+        const line = who.ok
+          ? (who.type === "PAGE"
+            ? `✅ فیسبوک: توکن صفحه، معتبر تا ${who.expires} — ${posts.length} پست فارسی`
+            : `⚠️ فیسبوک: توکن از نوع ${who.type} است، نه PAGE — ${posts.length} پست خوانده شد. برای پست‌های صفحه، Page access token لازم است.`)
+          : `⚠️ فیسبوک: ${who.why}`;
+        await sendMessage({ token: tg.token, chatId: tg.chatId, text: line });
       }
     } catch (e) {
       // An expired token must not read as a quiet news day.
