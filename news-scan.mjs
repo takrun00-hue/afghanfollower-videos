@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
-import { amalPersian } from "./lib/amal.mjs";
+import { amalPersian, amalSocial } from "./lib/amal.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -79,30 +79,6 @@ async function search(domains, days, n = 10) {
   return (await res.json()).results || [];
 }
 
-// Amal often puts the short, timely version of a local item on Facebook or
-// Instagram before a full website article is available. Social posts are only
-// used when their text identifies Amal and can be read in Persian/Dari.
-async function searchAmalSocial(targetName, days = 7) {
-  if (!targetName) return [];
-  const place = {
-    berlin: "Amal Berlin Farsi Dari",
-    hamburg: "Amal Hamburg Farsi Dari",
-    frankfurt: "Amal Frankfurt Farsi Dari",
-    farsi: "Amal Farsi Dari Berlin Hamburg Frankfurt",
-  }[targetName] || "Amal Farsi Dari";
-  const res = await fetch("https://api.exa.ai/search", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": KEY },
-    body: JSON.stringify({
-      query: `${place} Germany news post`, numResults: 12,
-      startPublishedDate: new Date(Date.now() - days * 86400000).toISOString(),
-      includeDomains: ["facebook.com", "instagram.com"], type: "auto",
-      contents: { text: { maxCharacters: 2000 } },
-    }),
-  });
-  if (!res.ok) return [];
-  return (await res.json()).results || [];
-}
 
 // The cards are Persian, so an English article is unusable whatever it says —
 // its sentences cannot go on screen and it arrives as a "new" story even when it
@@ -123,17 +99,6 @@ const isPersianHeadline = (t) => {
   return fa >= 5 && fa > en;
 };
 
-function isOfficialAmalSocial(result, which) {
-  let host = "";
-  try { host = new URL(String(result.url || "")).hostname.replace(/^www\./, ""); } catch {}
-  if (!(host === "facebook.com" || host.endsWith(".facebook.com") || host === "instagram.com" || host.endsWith(".instagram.com"))) return false;
-  const hay = `${result.title || ""} ${result.text || ""} ${result.url || ""}`.toLowerCase();
-  if (!hay.includes("amal")) return false;
-  if (which === "berlin") return hay.includes("berlin");
-  if (which === "hamburg") return hay.includes("hamburg");
-  if (which === "frankfurt") return hay.includes("frankfurt");
-  return /farsi|dari|فارسی|دری/.test(`${result.title || ""} ${result.text || ""}`);
-}
 
 const inGermanyScope = (r) =>
   isPersian(r.title) && isPersian(r.text) &&
@@ -185,24 +150,25 @@ if (target) {
       });
     }
   }
-  // The German outlets stay as a second layer, after Amal's own reporting.
+  // Amal's own Facebook and Instagram, then the German outlets — both behind
+  // the website, which is the only layer with real publish dates. A social post
+  // carries none, so it must never sit above dated reporting as though it were
+  // newer.
   const seen = new Set(found.map((r) => r.url));
+  for (const r of await amalSocial({ city: amalTarget === "farsi" ? null : amalTarget, key: KEY })) {
+    if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
+  }
   for (const r of (await search(target.domains, 7)).filter(keep)) {
     if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
   }
 } else {
   found = (await search(AMAL, 4)).filter(keep);
 }
-if (target) {
-  const social = (await searchAmalSocial(amalTarget)).filter((item) =>
-    isOfficialAmalSocial(item, amalTarget) && isPersian(item.text) &&
-    (isPersianHeadline(item.title) || isPersianHeadline(item.text))
-  );
-  const urls = new Set(found.map((item) => item.url));
-  for (const item of social) {
-    if (!urls.has(item.url)) { found.push(item); urls.add(item.url); }
-  }
-}
+// The social layer used to live here as well, filtered by a seven-day publish
+// window. Social results carry no publish date at all, so that window discarded
+// every one of them — a second reason the «امل» commands returned nothing.
+// It now runs once, above, in lib/amal.mjs, where it is marked undated and
+// placed behind the dated website reporting rather than in front of it.
 const seenNow = new Set(found.map((r) => r.url));
 if (!target) {
   for (const r of (await search(REST_DE, 2)).filter(inGermanyScope)) {
