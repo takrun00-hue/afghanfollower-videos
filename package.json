@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node test-locked-rules.mjs && node test-english-path.mjs && node test-telegram-paths.mjs && node test-telegram-commands.mjs && node test-pick-resolves.mjs",
     "dev": "npx --yes hyperframes@0.8.16 preview",
     "check": "npx --yes hyperframes@0.8.16 check",
     "render": "npx --yes hyperframes@0.8.16 render",
