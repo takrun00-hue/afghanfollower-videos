@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
+import { amalPersian } from "./lib/amal.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -156,7 +157,42 @@ const keep = target ? inAmalTargetScope : inGermanyScope;
 // does not necessarily publish in every city every four days; look back far
 // enough to return the latest useful Dari/Persian reporting, then show its
 // real date in Telegram.
-let found = (await search(target ? target.domains : AMAL, target ? 7 : 4)).filter(keep);
+// Amal is read from Amal, not searched for.
+//
+// Exa has none of the four Amal domains indexed — amalnews.de, amalberlin.de,
+// amalhamburg.de and amalfrankfurt.de all return zero results for any query at
+// any date range. So the «امل» commands have never once returned an Amal story;
+// what arrived came from dw.com and wdr.de, which sat in the domain list beside
+// Amal, and when those were already seen the scan reported "no new stories"
+// without saying why.
+//
+// Amal publishes a public WordPress API carrying its Persian desk. Reading it
+// directly needs no index and no query.
+let found = [];
+if (target) {
+  try {
+    found = (await amalPersian({ city: amalTarget === "farsi" ? null : amalTarget }))
+      .filter(keep);
+  } catch (e) {
+    // Name the source that failed. A silent empty list is exactly what hid this
+    // for weeks: "no new stories" reads as "nothing happened today", not as
+    // "the source was never reachable".
+    console.error(`Amal unreachable: ${e.message}`);
+    if (tg.enabled && !quiet) {
+      await sendMessage({
+        token: tg.token, chatId: tg.chatId,
+        text: `⚠️ ${target.label}: ${e.message}`,
+      });
+    }
+  }
+  // The German outlets stay as a second layer, after Amal's own reporting.
+  const seen = new Set(found.map((r) => r.url));
+  for (const r of (await search(target.domains, 7)).filter(keep)) {
+    if (!seen.has(r.url)) { found.push(r); seen.add(r.url); }
+  }
+} else {
+  found = (await search(AMAL, 4)).filter(keep);
+}
 if (target) {
   const social = (await searchAmalSocial(amalTarget)).filter((item) =>
     isOfficialAmalSocial(item, amalTarget) && isPersian(item.text) &&
