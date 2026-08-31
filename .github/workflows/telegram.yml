@@ -137,7 +137,7 @@ jobs:
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
-              approved-feature|topic-pick|topic-reject|topic-unreject|topic-rejected-list|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
+              approved-feature|topic-pick|topic-reject|topic-unreject|topic-rejected-list|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|demand-research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
               *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
             esac
             safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
@@ -337,6 +337,14 @@ jobs:
             news-edit-text)      node news-draft.mjs --edit-text "$PAYLOAD" ;;
             *)                   node news-build.mjs --fetch --preview ;;
           esac
+
+      - name: Real search demand for a topic
+        if: steps.cmd.outputs.ACTION == 'demand-research'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+        run: node demand.mjs "$PAYLOAD"
 
       - name: Reject or restore a topic
         if: contains(fromJSON('["topic-reject","topic-unreject","topic-rejected-list"]'), steps.cmd.outputs.ACTION)

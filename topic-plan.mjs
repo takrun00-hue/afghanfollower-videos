@@ -427,8 +427,29 @@ for (const item of list) if (await passesGate(item)) gated.push(item);
 list = gated.slice(0, Number(process.env.TOPIC_PROPOSAL_LIMIT || 3));
 
 if (pickArg || previewArg) {
-  const selected = list[(pickArg || previewArg) - 1];
-  if (!selected) throw new Error(`موضوع شمارهٔ ${pickArg || previewArg} پیدا نشد`);
+  const n = pickArg || previewArg;
+  // «موضوع ۲» means the second line of the message that was sent, not the
+  // second item of a ranking computed now. Those are different lists, and the
+  // proposal cooldown makes them differ MORE the moment a list goes out: the
+  // ids just offered are filtered from the next run, so a recomputed list is
+  // guaranteed not to contain what the operator is looking at. Choosing topic 2
+  // — TikTok story highlights — built Reels Insights.
+  //
+  // Resolve against the saved list. Fall back to the live one only when there
+  // is no saved list at all, and refuse a number that is in neither rather than
+  // building whatever happens to sit at that position.
+  const offered = (() => {
+    try {
+      return existsSync(".topic-offered.json")
+        ? JSON.parse(readFileSync(".topic-offered.json", "utf8"))
+        : [];
+    } catch { return []; }
+  })();
+  const fromOffer = offered.find((x) => x.n === n);
+  const selected = fromOffer
+    ? (list.find((x) => x.id === fromOffer.id) || fromOffer)
+    : list[n - 1];
+  if (!selected?.id) throw new Error(`موضوع شمارهٔ ${n} در فهرستی که فرستاده شد نیست.`);
   if (previewArg) {
     const { execFileSync } = await import("node:child_process");
     execFileSync(process.execPath, ["content-draft.mjs", "--create", selected.id], { stdio: "inherit", env: process.env });
