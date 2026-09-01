@@ -150,6 +150,26 @@ runFfmpeg(
 
 let audioSource = voiceMix;
 if (withMusic) {
+  // CONTENT-PRODUCTION-RULES.md: music is built separately for each video,
+  // its beat synced to that video's own slide cuts — not a reused generic
+  // bed, which has no relationship to this pack's timing and is what made an
+  // earlier render feel unsynced. Cut points are this pack's own tip
+  // boundaries (mirrors the cutTimes construction in daily-render.mjs).
+  const cutTimes = Array.from({ length: n }, (_, i) => +(HOOK + (i + 1) * TIP).toFixed(3));
+  mkdirSync("music/auto", { recursive: true });
+  console.log(`\n=== composing music for this video (${TOTAL}s, mood=${pack.mood}) ===`);
+  execSync(
+    `node music/make-one.mjs ${TOTAL} ${pack.musicVariant || 1} "${pack.music}" ${pack.musicOutroBars || 4}`,
+    {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        MUSIC_CUTS: cutTimes.join(","),
+        MUSIC_MOOD: pack.mood || "",
+        MUSIC_ACCENTS: cutTimes.map((t) => `${t.toFixed(3)}:click:0.7`).join(","),
+      },
+    }
+  );
   const music = existsSync(pack.music) ? pack.music : "music/bed-60s.m4a";
   const audioMix = `${outDir}/voice-mix.m4a`;
   runFfmpeg(
