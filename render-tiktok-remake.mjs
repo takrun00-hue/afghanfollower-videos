@@ -1,26 +1,21 @@
-// Build + render the compositions/tiktok-remake video. Two content modes
-// share this one composition file, per pack shape — not two projects:
-//   node render-tiktok-remake.mjs                  # default: Ali/Zahra dialogue, 1080x1920, voiced
-//   node render-tiktok-remake.mjs --with-music     # add sidechain-ducked music bed
-//   node render-tiktok-remake.mjs --voice=fa-IR-DilaraNeural
-//   node render-tiktok-remake.mjs --4k
+// Build + render the compositions/tiktok-remake video: a faceless AI-tool
+// tier-list, one category per slide, narrated by a single voice.
 //   node render-tiktok-remake.mjs --input "بهترین هوش مصنوعی برای چت، برای تحقیق"
-//                                                   # faceless tool tier-list — no voice, no character
 //   node render-tiktok-remake.mjs --input "..." --preview   # write the composition and open Studio, skip render
+//   node render-tiktok-remake.mjs --input "..." --with-music   # add sidechain-ducked music bed
+//   node render-tiktok-remake.mjs --input "..." --voice=fa-IR-DilaraNeural
+//   node render-tiktok-remake.mjs --input "..." --4k
 //
-// Reads pack from lib/content.mjs (tiktokRemakePack(), or tierListPack(input)
-// when --input asks for a tool list), derives the timing from pack.duration /
-// pack.hookDuration / pack.outroDuration, renders the silent master via
-// Hyperframes. The dialogue pack then gets a synthesized Persian voiceover
-// muxed in; the tier-list pack has no dialogue field and nothing to voice —
-// the reference format it copies is silent, so the silent master IS the
-// final file.
+// Reads pack from lib/content.mjs (tierListPack(input)), derives the timing
+// from pack.duration / pack.hookDuration / pack.outroDuration, renders the
+// silent master via Hyperframes, then synthesizes and muxes in
+// pack.narration read by pack.voice.
 import { spawnSync, execSync } from "node:child_process";
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { buildHTML } from "./lib/build.mjs";
-import { tiktokRemakePack, tierListPack, isTierListRequest } from "./lib/content.mjs";
+import { tierListPack, isTierListRequest } from "./lib/content.mjs";
 import { synthesize } from "./lib/edge-tts.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -37,25 +32,18 @@ const previewOnly = args.includes("--preview");
 const HF = "npx --yes hyperframes@0.8.16";
 const resFlag = is4k ? "--resolution portrait-4k" : "";
 
-const pack = inputText
-  ? (isTierListRequest(inputText)
-      ? tierListPack(inputText)
-      : (() => { throw new Error(`این متن یک درخواست فهرست ابزار نیست — مثال: «بهترین هوش مصنوعی برای چت، برای تحقیق». دریافتی: «${inputText}»`); })())
-  : tiktokRemakePack();
-if (voiceArg && pack.voice) pack.voice.name = voiceArg.slice("--voice=".length);
-
-const isDialogue = !!pack.dialogue;
-// Choose voice for each narration line based on whether it's a dialogue
-// turn (line[1..] follows tip[1..]) and which character speaks in that beat.
-// The hook line is pack.voice.name; the outro line is also pack.voice.name.
-// Each dialogue tip's speaker picks its configured Edge neural voice.
-function voiceForLine(i) {
-  if (!isDialogue) return pack.voice.name;
-  if (i === 0 || i === pack.tips.length + 1) return pack.voice.name; // hook / outro
-  const turn = pack.tips[i - 1];                 // i=1..tips.length
-  const who = turn.speaker || "zahra";
-  return (pack.dialogue[who] && pack.dialogue[who].voice) || pack.voice.name;
+if (!inputText) {
+  throw new Error('این کامپوزیشن حالا فقط فهرست ابزار می‌سازد؛ --input را بدهید. مثال: --input "بهترین هوش مصنوعی برای چت، برای تحقیق"');
 }
+if (!isTierListRequest(inputText)) {
+  throw new Error(`این متن یک درخواست فهرست ابزار نیست — مثال: «بهترین هوش مصنوعی برای چت، برای تحقیق». دریافتی: «${inputText}»`);
+}
+const pack = tierListPack(inputText);
+if (voiceArg) pack.voice.name = voiceArg.slice("--voice=".length);
+
+// One narrator for the whole video — the hook, every category, and the
+// outro all read by pack.voice.
+const voiceForLine = () => pack.voice.name;
 
 // Timeline derived from the pack so it stays in sync with the composition.
 const TOTAL = pack.duration;
@@ -99,14 +87,6 @@ if (!existsSync(silent) || is4k || force || inputText) {
   );
 } else {
   console.log(`\n=== reusing silent master: ${silent} ===`);
-}
-
-// The tier-list pack has no dialogue and no narration to voice — the format
-// it copies is silent by design (big captions and a pill popping in ARE the
-// video), so the silent master is the finished file; nothing to mux.
-if (!pack.narration) {
-  console.log(`\n✅ ${resolve(silent)}\n`);
-  process.exit(0);
 }
 
 // 2) Synthesize each Persian narration line.
