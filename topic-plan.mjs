@@ -126,21 +126,44 @@ const relevant = TOPICS.filter((x) => !hasAlreadyReachedTelegram(x) && (!cat ||
   (cat === "tiktok" && x.platform === "TikTok") ||
   (cat === "tools" && x.platform === "AI / App")));
 
+// Exa is queried in English because the trusted sources (TikTok Newsroom,
+// Meta, Google, TechCrunch…) publish in English — there is no Persian edition
+// to search instead. What was wrong was putting the RAW result straight into
+// a Persian Telegram message: the scraped headline («Google Flow brings new
+// creative control features…») went out unedited, English hashtags and all.
+// That is the exact thing reported: «موضوعات روز» arriving in English.
+//
+// Fix: a query says what KIND of signal it is looking for, and that intent —
+// not the scraped headline — is what gets shown. The link, date and metric are
+// the real, checkable evidence; the label is just what category they fall
+// under, fixed per query and not invented per article.
+const SIGNAL_QUERIES = [
+  { q: "TikTok Creative Center current week trend popular hashtag creator viral content", labelFa: "روند تازهٔ تیک‌تاک" },
+  { q: "Instagram Reels current week trend creator viral content", labelFa: "روند تازهٔ ریلز اینستاگرام" },
+  { q: "creator app current week social media revenue or viral content update", labelFa: "بروزرسانی تازهٔ اپ‌های سازنده‌محتوا" },
+  { q: "official technology app AI update this week useful for creators video editing", labelFa: "ابزار هوش‌مصنوعیِ تازه برای ویرایش ویدیو" },
+];
+
+// The regex captures the unit in English because it is matched out of English
+// source text. Shown to the operator, the unit must read in Persian.
+const UNIT_FA = { k: "هزار", m: "میلیون", million: "میلیون", billion: "میلیارد", posts: "پست", views: "بازدید", videos: "ویدیو" };
+function metricToFa(raw) {
+  const m = raw.match(/^([\d,.]+)\s*([a-z%]*)$/i);
+  if (!m) return raw;
+  const unit = UNIT_FA[m[2].toLowerCase()];
+  if (m[2] === "%") return `${m[1]}٪`;
+  return unit ? `${m[1]} ${unit}` : raw;
+}
+
 async function liveSignals(category = "") {
   if (!key) return [];
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
-  const allQueries = [
-    "TikTok Creative Center current week trend popular hashtag creator viral content",
-    "Instagram Reels current week trend creator viral content",
-    "creator app current week social media revenue or viral content update",
-    "official technology app AI update this week useful for creators video editing",
-  ];
-  const queries = category === "tiktok" ? allQueries.slice(0, 1)
-    : category === "instagram" ? allQueries.slice(1, 2)
-    : category === "tools" ? allQueries.slice(2)
-    : allQueries;
+  const picked = category === "tiktok" ? SIGNAL_QUERIES.slice(0, 1)
+    : category === "instagram" ? SIGNAL_QUERIES.slice(1, 2)
+    : category === "tools" ? SIGNAL_QUERIES.slice(2)
+    : SIGNAL_QUERIES;
   const results = [];
-  for (const query of queries) {
+  for (const { q: query, labelFa } of picked) {
     try {
       const response = await fetch("https://api.exa.ai/search", {
         method: "POST",
@@ -154,8 +177,9 @@ async function liveSignals(category = "") {
         try { host = new URL(item.url).hostname.replace(/^www\./, ""); } catch {}
         if (item?.title && item?.url && TRUSTED_SIGNAL_DOMAINS.has(host)) {
           const evidence = String(item.text || "").replace(/\s+/g, " ");
-          const metric = evidence.match(/(?:\d[\d,.]*\s*(?:K|M|million|billion|posts|views|videos)|\d+(?:\.\d+)?%)/i)?.[0] || "آمار عمومیِ قابل‌استخراج ندارد";
-          results.push({ title: String(item.title).slice(0, 100), url: item.url, date: String(item.publishedDate || "").slice(0, 10), metric });
+          const rawMetric = evidence.match(/(?:\d[\d,.]*\s*(?:K|M|million|billion|posts|views|videos)|\d+(?:\.\d+)?%)/i)?.[0];
+          const metric = rawMetric ? metricToFa(rawMetric) : "آمار عمومیِ قابل‌استخراج ندارد";
+          results.push({ labelFa, host, url: item.url, date: String(item.publishedDate || "").slice(0, 10), metric });
         }
       }
     } catch { /* Signals are optional; curated topics still go out. */ }
@@ -464,7 +488,7 @@ if (pickArg || previewArg) {
 const title = weekly ? "📅 برنامهٔ پیشنهادی هفته" : today ? "🗓️ موضوع‌های پیشنهادی امروز" : "🗓️ موضوع‌های پیشنهادی فردا";
 const signals = await liveSignals(cat);
 const evidenceText = signals.length
-  ? signals.map((x, i) => `<b>${i + 1}. ${esc(x.title)}</b>${x.date ? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
+  ? signals.map((x, i) => `<b>${i + 1}. ${esc(x.labelFa)} — ${esc(x.host)}</b>${x.date ? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
   : "سیگنال عددیِ تازه پیدا نشد؛ موضوع‌های زیر از منابع رسمیِ بررسی‌شده انتخاب شده‌اند و پیش از ساخت، متن کاملشان را می‌بینی.";
 let text = `${title}\n\n<b>🔎 سیگنال‌های زندهٔ بررسی‌شده</b>\n${evidenceText}`;
 const proposals = list.map((item, i) =>
