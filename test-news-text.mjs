@@ -12,7 +12,12 @@
 // the gate alone would still have dropped a third of it without a word.
 //
 //   node test-news-text.mjs
-import { commandFromPending, prepareNewsLocally } from "./worker/src/index.js";
+// The tutorial side had the same fault in a quieter form: prepareTopicLocally()
+// kept the first 180 characters as the topic and appended five fixed sentences,
+// so pasted steps were replaced by boilerplate with nothing said. Those cases
+// live here too, because it is one rule — what the creator wrote is what gets
+// used — and it has now been broken twice in two commands.
+import { commandFromPending, prepareNewsLocally, prepareTopicLocally, videoAction } from "./worker/src/index.js";
 
 // The article that was refused, as it was pasted — paragraphs, a source link
 // in the middle, no separators anywhere.
@@ -56,18 +61,68 @@ const CASES = [
     },
   },
   {
-    name: "آموزش هنوز | لازم دارد",
-    input: "یک موضوع بدون هیچ جداکننده",
+    name: "آموزش خیلی کوتاه رد می‌شود",
+    input: "سلام",
     action: "custom-content",
     check(cmd) {
-      return cmd?.error ? null : "custom-content accepted steps it cannot separate";
+      return cmd?.error ? null : "a one-word message was accepted as a tutorial";
+    },
+  },
+  {
+    name: "آموزش: گام شماره‌دار",
+    input: "راه پیدا کردن موضوع ترند در تیک‌تاک ۱. بخش Search را باز کن ۲. عبارت Creator Search Insights را بنویس ۳. روی Content gap بزن",
+    action: "custom-content",
+    check(cmd) {
+      if (cmd?.error) return `refused: ${cmd.error}`;
+      const cards = prepareTopicLocally(cmd.payload).split("|").map((x) => x.trim());
+      // The creator's own steps, not the scaffold.
+      if (cards.length < 4) return `only ${cards.length} parts`;
+      if (!cards[1].includes("Search")) return `step 1 is not the creator's: ${cards[1]}`;
+      if (cards.some((c) => SCAFFOLD_MARK.test(c))) return "boilerplate replaced the pasted steps";
+      return null;
+    },
+  },
+  {
+    name: "آموزش: پاراگراف ساده",
+    input: "کانال پخش اینستاگرام چطور ساخته می‌شود. دایرکت را باز کن و روی آیکون مداد بزن. نام کانال را بنویس و بساز. لینک کانال را در استوری بگذار.",
+    action: "custom-content",
+    check(cmd) {
+      if (cmd?.error) return `refused: ${cmd.error}`;
+      const cards = prepareTopicLocally(cmd.payload).split("|").map((x) => x.trim());
+      if (cards.length < 3) return `only ${cards.length} parts`;
+      if (cards.some((c) => SCAFFOLD_MARK.test(c))) return "boilerplate replaced the pasted sentences";
+      return null;
+    },
+  },
+  {
+    name: "موضوع خالی ساختار می‌گیرد",
+    input: "درآمد از تیک‌تاک",
+    action: "content-topic-preview",
+    check(cmd) {
+      if (cmd?.error) return `refused: ${cmd.error}`;
+      const cards = prepareTopicLocally(cmd.payload).split("|").map((x) => x.trim());
+      // Nothing of the creator's to use, so the scaffold is the right answer.
+      if (!cards.some((c) => SCAFFOLD_MARK.test(c))) return "a bare topic got no structure at all";
+      return cards[0] === "درآمد از تیک‌تاک" ? null : `topic was mangled: ${cards[0]}`;
+    },
+  },
+  {
+    name: "«محتوا:» متن آزاد را می‌پذیرد",
+    raw: "محتوا: راه پیدا کردن موضوع ترند در تیک‌تاک ۱. Search را باز کن ۲. Content gap را بزن",
+    check() {
+      const a = videoAction("محتوا: راه پیدا کردن موضوع ترند در تیک‌تاک ۱. Search را باز کن ۲. Content gap را بزن");
+      return a?.action === "custom-content" ? null : `routed to ${a?.action} instead of custom-content`;
     },
   },
 ];
 
+// Any line from the fixed scaffold. Its presence beside pasted content means
+// the creator's words were thrown away.
+const SCAFFOLD_MARK = /هدف و مخاطب اصلی|نمونهٔ واقعی و قابل‌فهم|مرحله‌به‌مرحله توضیح دهید|جمع‌بندی کنید|نتیجهٔ ویدیوی شما را بهتر/;
+
 let bad = 0;
 for (const c of CASES) {
-  const cmd = commandFromPending({ action: c.action || "news-text-preview" }, c.input);
+  const cmd = c.input === undefined ? null : commandFromPending({ action: c.action || "news-text-preview" }, c.input);
   const fail = c.check(cmd);
   if (fail) bad++;
   console.log(`${fail ? "  FAIL" : "  ok  "} ${c.name.padEnd(28)} ${fail || ""}`);
@@ -75,6 +130,6 @@ for (const c of CASES) {
 
 console.log("");
 console.log(bad === 0
-  ? `${CASES.length} inputs: a pasted article becomes a draft, a tutorial still asks for steps`
+  ? `${CASES.length} inputs: a pasted article and a pasted tutorial both become drafts`
   : `${bad} of ${CASES.length} inputs are handled wrongly`);
 process.exit(bad === 0 ? 0 : 1);

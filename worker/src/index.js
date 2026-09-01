@@ -44,7 +44,7 @@ const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b
 const NUMBERED_ACTIONS = {
   "1": { action: "plan-tiktok" }, "2": { action: "plan-instagram" }, "3": { action: "plan-tools" },
   "4": { action: "plan-today" }, "5": { pending: "content-search-live", ask: "🔎 عبارت جستجوی محتوا را بفرستید؛ مثلاً: درآمد از تیک‌تاک" },
-  "6": { pending: "content-topic-preview", ask: "📝 موضوع آماده را بفرستید؛ بات قلاب و گام‌ها را تحلیل می‌کند و پیش‌نویس می‌فرستد." },
+  "6": { pending: "content-topic-preview", ask: "📝 موضوع یا متن آموزشی را بفرستید — همان‌طور که هست. اگر گام‌ها را نوشته باشید (۱. ۲. ۳. یا خط‌به‌خط) بات همان‌ها را برمی‌دارد؛ اگر فقط موضوع بفرستید، خودش ساختار پیشنهاد می‌دهد." },
   "7": { pending: "content-edit-hook", ask: "✏️ متن تازهٔ قلاب آموزشی را بفرستید." },
   "8": { pending: "content-edit-steps", ask: "✏️ اسلایدهای تازه را با | جدا کنید: گام ۱ | گام ۲ | گام ۳" },
   "26": { pending: "demand-research", ask: "🔎 موضوع را بفرستید تا ببینم مردم واقعاً چه چیزی درباره‌اش سرچ می‌کنند." },
@@ -94,7 +94,9 @@ function videoAction(text) {
   if (/^(?:پیش\s*نویس|نمایش محتوا|دیدن محتوا)$/i.test(c)) return { action: "content-preview" };
   if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]/i.test(c)) {
     const payload = cleanContent(text);
-    return payload.split("|").filter(Boolean).length >= 2
+    // Free-form text is separated below, the same way «موضوع آماده» is, so only
+    // a message with nothing in it to make a step from still asks for the form.
+    return payload.trim().length >= 25
       ? { action: "custom-content", payload, ...audio }
       : { action: "custom-help" };
   }
@@ -254,18 +256,16 @@ function commandFromPending(pending, text) {
   // saying so — the preview simply came back short.
   const payload = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 4000);
   if (!payload) return null;
-  // A tutorial is a list of discrete actions and custom-content.mjs has no way
-  // to tell one step from the next without the separators, so it still asks.
-  if (pending.action === "custom-content" && payload.split("|").filter(Boolean).length < 2) {
-    return { error: "متن را با این قالب بفرستید: موضوع | گام ۱ | گام ۲ | گام ۳" };
-  }
-  // News text was held to that same rule, so a pasted article was refused at
-  // the door — even though prepareNewsLocally() below and news-build.mjs both
-  // already split plain sentences. Two splitters written for this exact input
-  // and neither could ever be reached. Now only text too short to make a card
-  // out of is turned away.
+  // Both of these were once held to «تیتر | جمله | جمله», so a pasted article
+  // or a pasted how-to was refused at the door — even though the splitters for
+  // exactly that text already existed further down and could never be reached.
+  // Now only a message with too little in it to make a card or a step from is
+  // turned away, and it is told which one it is.
   if (pending.action === "news-text-preview" && payload.replace(/\|/g, " ").trim().length < 40) {
     return { error: "متن خبر خیلی کوتاه است. یک تیتر و دست‌کم یک جمله بفرستید." };
+  }
+  if (pending.action === "custom-content" && payload.replace(/\|/g, " ").trim().length < 25) {
+    return { error: "متن آموزشی خیلی کوتاه است. موضوع و دست‌کم یک گام بفرستید." };
   }
   return { action: pending.action, payload, voiceMode: "on" };
 }
@@ -297,16 +297,48 @@ function prepareNewsLocally(raw) {
   return [headline, ...sentences.filter((x) => x.length > 12).slice(0, 4)].join(" | ");
 }
 
+// The scaffold is what to ask when a bare topic arrives and there is genuinely
+// nothing of the creator's to build steps from. It is a prompt, not content.
+const TOPIC_SCAFFOLD = [
+  "فکر می‌کنید این نکته می‌تواند نتیجهٔ ویدیوی شما را بهتر کند؟",
+  "اول هدف و مخاطب اصلی را روشن کنید",
+  "یک نمونهٔ واقعی و قابل‌فهم نشان دهید",
+  "نکتهٔ اصلی را کوتاه و مرحله‌به‌مرحله توضیح دهید",
+  "نتیجه را با یک سؤال مرتبط جمع‌بندی کنید",
+];
+
+// A pasted how-to, cut into the steps a tutorial video is built from.
+//
+// Newlines are gone by the time this runs, so the list markers a person types —
+// «۱.» «۲)» «-» «•» — are the only boundary left. They are tried first because a
+// step written as a list item is rarely one clean sentence, and falling back to
+// sentence punctuation would split it in the middle.
+function splitSteps(raw) {
+  const flat = String(raw || "").replace(/[(（]?\s*https?:\/\/\S+\s*[)）]?/g, " ");
+  const marked = flat
+    .split(/\s*(?:[۰-۹0-9]{1,2}\s*[.)–-]|[-•*])\s+/)
+    .map((x) => cleanPersian(x))
+    .filter((x) => x.length > 8);
+  // Three parts is the point where a numbered list is a list rather than a
+  // sentence that happens to contain a figure and a full stop.
+  if (marked.length >= 3) return marked;
+  return flat.split(/(?<=[.!؟])\s+/).map((x) => cleanPersian(x)).filter(Boolean);
+}
+
+// This used to keep the first 180 characters as the topic and append the five
+// scaffold lines, whatever had been sent. A creator who pasted real steps got
+// boilerplate back and their own words were dropped without a word — worse than
+// the news command's refusal, because a refusal at least shows itself.
+//
+// Now what was written is what is used, and the scaffold is reached only by a
+// bare topic that contains no steps to find.
 function prepareTopicLocally(raw) {
-  const topic = cleanPersian(raw, 180);
-  return [
-    topic,
-    "فکر می‌کنید این نکته می‌تواند نتیجهٔ ویدیوی شما را بهتر کند؟",
-    "اول هدف و مخاطب اصلی را روشن کنید",
-    "یک نمونهٔ واقعی و قابل‌فهم نشان دهید",
-    "نکتهٔ اصلی را کوتاه و مرحله‌به‌مرحله توضیح دهید",
-    "نتیجه را با یک سؤال مرتبط جمع‌بندی کنید",
-  ].join(" | ");
+  const parts = String(raw || "").split("|").map((x) => cleanPersian(x)).filter(Boolean);
+  if (parts.length >= 2) return parts.slice(0, 6).join(" | ");
+  const found = splitSteps(raw);
+  const topic = found.shift() || cleanPersian(raw, 180);
+  const steps = found.filter((x) => x.length > 12).slice(0, 5);
+  return [topic, ...(steps.length ? steps : TOPIC_SCAFFOLD)].join(" | ");
 }
 
 const SYSTEM = `تو دستیار فارسی/دری برند GapMedia هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و از توضیحِ فرایند فکرکردن خودداری کن.`;
@@ -413,10 +445,15 @@ export default {
         } else if (command.action === "status") {
           await reply(env, chatId, "✅ بات آنلاین است. چت فوری و فرمان ساخت ویدیو فعال‌اند.");
         } else if (command.action === "custom-help") {
-          await reply(env, chatId, "برای ساخت از متن خودت این‌طور بنویس:\n\n<code>محتوا: موضوع | نکتهٔ ۱ | نکتهٔ ۲ | نکتهٔ ۳ | نکتهٔ ۴</code>\n\nمثال: <code>محتوا: راه پیدا کردن موضوع ترند در TikTok | Search را باز کن | Creator Search Insights را بنویس | Content gap را بزن | از موضوعِ پرجستجو ویدیو بساز</code>");
+          await reply(env, chatId, "متن آموزشی را بعد از «محتوا:» بفرستید — همان‌طور که هست، با گام‌های شماره‌دار یا خط‌به‌خط:\n\n<code>محتوا: راه پیدا کردن موضوع ترند در TikTok\n۱. Search را باز کن\n۲. Creator Search Insights را بنویس\n۳. Content gap را بزن\n۴. از موضوعِ پرجستجو ویدیو بساز</code>\n\nقالب <code>|</code> هم اگر خواستید کار می‌کند.");
         } else {
           if (command.action === "news-text-preview") command.payload = prepareNewsLocally(command.payload);
-          if (command.action === "content-topic-preview") command.payload = prepareTopicLocally(command.payload);
+          // custom-content.mjs and content-draft.mjs both read «|» separated
+          // steps, so the separating happens here for every route that can send
+          // a tutorial — typed as «محتوا:», or pasted after menu 6.
+          if (command.action === "content-topic-preview" || command.action === "custom-content") {
+            command.payload = prepareTopicLocally(command.payload);
+          }
           if (command.action === "content-search-live") await setSelection(env, chatId, "content");
           if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi"].includes(command.action)) {
             await setSelection(env, chatId, "news");
@@ -439,5 +476,5 @@ export default {
 };
 
 // Kept outside the HTTP handler solely for deterministic local command tests.
-export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally };
+export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally, prepareTopicLocally };
 
