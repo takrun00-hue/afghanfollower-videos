@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { buildHTML } from "./lib/build.mjs";
-import { tierListPack, isTierListRequest, spokenForm } from "./lib/content.mjs";
+import { tierListPack, isTierListRequest, spokenSSML } from "./lib/content.mjs";
 import { synthesize } from "./lib/edge-tts.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -93,8 +93,11 @@ if (!existsSync(silent) || is4k || force || inputText) {
 console.log(`\n=== voiceover (per-speaker) ===`);
 const lines = [];
 for (let i = 0; i < pack.narration.length; i++) {
-  // The pill still shows "ChatGPT" in Latin; only the TTS input is respelled.
-  const text = spokenForm(pack.narration[i]);
+  // A <lang> switch was tried here so this could stay Latin visually and be
+  // spoken as real English — the endpoint silently returns 0 bytes for any
+  // SSML beyond plain text (see spokenSSML's comment). Sent as plain text,
+  // which synthesize() escapes itself.
+  const text = spokenSSML(pack.narration[i]);
   const voice = voiceForLine(i);
   const file = `${voiceDir}/line-${String(i).padStart(2, "0")}.mp3`;
   process.stdout.write(`  [tts ${i + 1}/${pack.narration.length}] (${voice}) ${text.slice(0, 44)}…`);
