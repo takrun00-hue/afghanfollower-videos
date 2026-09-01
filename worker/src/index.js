@@ -105,7 +105,7 @@ function videoAction(text) {
     return payload ? { action: "demand-research", payload } : null;
   }
   if (/^(?:موضوع آماده|ایده آماده|ایده)\s*[:：]/i.test(c)) {
-    const payload = String(text).replace(/^\s*(?:موضوع آماده|ایده آماده|ایده)\s*[:：]\s*/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+    const payload = stripLinks(String(text).replace(/^\s*(?:موضوع آماده|ایده آماده|ایده)\s*[:：]\s*/i, "")).replace(/[\r\n]+/g, " ").trim().slice(0, 5000);
     return payload ? { action: "content-topic-preview", payload, ...audio } : null;
   }
   // Refusing a topic, before the rule that selects one — «رد موضوع ۲» would
@@ -164,13 +164,12 @@ function digits(text) {
 }
 
 function cleanNews(text) {
-  return String(text).replace(/^\s*(?:خبر|news)\s*[:：]\s*/i, "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+  return stripLinks(String(text).replace(/^\s*(?:خبر|news)\s*[:：]\s*/i, "")).replace(/[\r\n]+/g, " ").trim().slice(0, 5000);
 }
 
 function cleanContent(text) {
-  return String(text)
-    .replace(/^\s*(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]\s*/i, "")
-    .replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+  return stripLinks(String(text).replace(/^\s*(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]\s*/i, ""))
+    .replace(/[\r\n]+/g, " ").trim().slice(0, 5000);
 }
 
 function cleanEdit(text, label) {
@@ -251,10 +250,10 @@ async function setSelection(env, chatId, kind) {
 function commandFromPending(pending, text) {
   // Newlines collapse because the payload travels as one workflow input. The
   // splitters downstream read sentence punctuation, not layout, so nothing is
-  // lost by it. The cap is 4000 rather than 900 because a pasted article runs
+  // lost by it. The cap is 5000 rather than 900 because a pasted article runs
   // past 2000 characters routinely, and the old cap cut one in half without
   // saying so — the preview simply came back short.
-  const payload = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 4000);
+  const payload = stripLinks(String(text || "")).replace(/[\r\n]+/g, " ").trim().slice(0, 5000);
   if (!payload) return null;
   // Both of these were once held to «تیتر | جمله | جمله», so a pasted article
   // or a pasted how-to was refused at the door — even though the splitters for
@@ -273,6 +272,12 @@ function commandFromPending(pending, text) {
 // Safe local preparation: normalize Persian characters and turn a supplied
 // topic or news item into an editable structure. It deliberately does not
 // invent facts or send the creator's text to any third-party AI service.
+// A pasted article carries its own source link inline — abendblatt.de's URLs
+// run 90+ characters and read aloud terribly on a caption. Stripped once, here,
+// so every text-cleaning path shares the same rule instead of three near-copies
+// of it drifting apart.
+const stripLinks = (s) => String(s || "").replace(/https?:\/\/\S+|www\.\S+|abendblatt\.de\S*/gi, " ");
+
 function cleanPersian(value, max = 180) {
   return String(value || "").replace(/[\r\n]+/g, " ").replace(/[يى]/g, "ی").replace(/ك/g, "ک")
     .replace(/\s+/g, " ").replace(/\s*([،؛؟.!])\s*/g, "$1 ").trim().slice(0, max);

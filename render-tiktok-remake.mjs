@@ -1,18 +1,26 @@
-// Build + render the Persian TikTok-style remake of the reference video.
-//   node render-tiktok-remake.mjs                  # 1080x1920, no music, voice only
+// Build + render the compositions/tiktok-remake video. Two content modes
+// share this one composition file, per pack shape — not two projects:
+//   node render-tiktok-remake.mjs                  # default: Ali/Zahra dialogue, 1080x1920, voiced
 //   node render-tiktok-remake.mjs --with-music     # add sidechain-ducked music bed
 //   node render-tiktok-remake.mjs --voice=fa-IR-DilaraNeural
 //   node render-tiktok-remake.mjs --4k
+//   node render-tiktok-remake.mjs --input "بهترین هوش مصنوعی برای چت، برای تحقیق"
+//                                                   # faceless tool tier-list — no voice, no character
+//   node render-tiktok-remake.mjs --input "..." --preview   # write the composition and open Studio, skip render
 //
-// Reads pack from lib/content.mjs (tiktokRemakePack()), derives the timing
-// from pack.duration / pack.hookDuration / pack.outroDuration, renders the
-// silent master via Hyperframes, then muxes the Persian voiceover.
+// Reads pack from lib/content.mjs (tiktokRemakePack(), or tierListPack(input)
+// when --input asks for a tool list), derives the timing from pack.duration /
+// pack.hookDuration / pack.outroDuration, renders the silent master via
+// Hyperframes. The dialogue pack then gets a synthesized Persian voiceover
+// muxed in; the tier-list pack has no dialogue field and nothing to voice —
+// the reference format it copies is silent, so the silent master IS the
+// final file.
 import { spawnSync, execSync } from "node:child_process";
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { buildHTML } from "./lib/build.mjs";
-import { tiktokRemakePack } from "./lib/content.mjs";
+import { tiktokRemakePack, tierListPack, isTierListRequest } from "./lib/content.mjs";
 import { synthesize } from "./lib/edge-tts.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -23,11 +31,18 @@ const is4k = args.includes("--4k");
 const withMusic = args.includes("--with-music");
 const force = args.includes("--force");
 const voiceArg = args.find((a) => a.startsWith("--voice="));
+const inputAt = args.indexOf("--input");
+const inputText = inputAt >= 0 ? args[inputAt + 1] || "" : "";
+const previewOnly = args.includes("--preview");
 const HF = "npx --yes hyperframes@0.8.16";
 const resFlag = is4k ? "--resolution portrait-4k" : "";
 
-const pack = tiktokRemakePack();
-if (voiceArg) pack.voice.name = voiceArg.slice("--voice=".length);
+const pack = inputText
+  ? (isTierListRequest(inputText)
+      ? tierListPack(inputText)
+      : (() => { throw new Error(`این متن یک درخواست فهرست ابزار نیست — مثال: «بهترین هوش مصنوعی برای چت، برای تحقیق». دریافتی: «${inputText}»`); })())
+  : tiktokRemakePack();
+if (voiceArg && pack.voice) pack.voice.name = voiceArg.slice("--voice=".length);
 
 const isDialogue = !!pack.dialogue;
 // Choose voice for each narration line based on whether it's a dialogue
@@ -59,12 +74,23 @@ const outDir = "renders/tiktok-remake";
 const voiceDir = `${outDir}/voice`;
 mkdirSync(voiceDir, { recursive: true });
 
+// The composition is content, not a cache key, so a run with --input always
+// rewrites it — the previous run's tier-list categories must never survive
+// into this one's preview or render.
+const compDir = "compositions/tiktok-remake";
+mkdirSync(compDir, { recursive: true });
+const comp = `${compDir}/index.html`;
+if (inputText || !existsSync(comp)) writeFileSync(comp, buildHTML(pack));
+
+if (previewOnly) {
+  console.log(`\n=== ${resolve(comp)} written — opening preview ===`);
+  execSync(`${HF} preview -c "${comp}"`, { stdio: "inherit" });
+  process.exit(0);
+}
+
 // 1) Silent master (video only) — reused unless --force.
 const silent = `${outDir}/tiktok-remake-silent.mp4`;
-if (!existsSync(silent) || is4k || force) {
-  const compDir = "compositions/tiktok-remake";
-  mkdirSync(compDir, { recursive: true });
-  const comp = `${compDir}/index.html`;
+if (!existsSync(silent) || is4k || force || inputText) {
   writeFileSync(comp, buildHTML(pack));
   console.log(`\n=== rendering silent master (${is4k ? "4K" : "1080p"}) ===`);
   execSync(
@@ -73,6 +99,14 @@ if (!existsSync(silent) || is4k || force) {
   );
 } else {
   console.log(`\n=== reusing silent master: ${silent} ===`);
+}
+
+// The tier-list pack has no dialogue and no narration to voice — the format
+// it copies is silent by design (big captions and a pill popping in ARE the
+// video), so the silent master is the finished file; nothing to mux.
+if (!pack.narration) {
+  console.log(`\n✅ ${resolve(silent)}\n`);
+  process.exit(0);
 }
 
 // 2) Synthesize each Persian narration line.

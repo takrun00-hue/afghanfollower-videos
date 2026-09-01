@@ -23,7 +23,12 @@ const weekly = process.argv.includes("--week");
 const today = process.argv.includes("--today");
 const dryRun = process.argv.includes("--dry-run");
 const queryAt = process.argv.indexOf("--query");
-const liveQuery = queryAt >= 0 ? String(process.argv[queryAt + 1] || "").trim().slice(0, 300) : "";
+// A pasted link is noise to a search API, not a query — stripped so it never
+// becomes the whole request. The cap is wider than a short phrase needs
+// because this field is also where a longer descriptive request lands.
+const liveQuery = queryAt >= 0
+  ? String(process.argv[queryAt + 1] || "").replace(/https?:\/\/\S+|www\.\S+|abendblatt\.de\S*/gi, " ").replace(/\s+/g, " ").trim().slice(0, 600)
+  : "";
 const sourcePreviewArg = Number(process.argv[process.argv.indexOf("--source-preview") + 1] || 0);
 const pickArg = Number(process.argv[process.argv.indexOf("--build") + 1] || 0);
 const previewArg = Number(process.argv[process.argv.indexOf("--preview") + 1] || 0);

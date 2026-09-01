@@ -33,9 +33,12 @@ const CASES = [
     check(cmd) {
       if (cmd?.error) return `refused: ${cmd.error}`;
       if (!cmd?.payload) return "no payload";
-      // The cap must not eat the article. Allow the trailing newline trim.
-      if (cmd.payload.length < ARTICLE.trim().length - 5) {
-        return `truncated to ${cmd.payload.length} of ${ARTICLE.trim().length}`;
+      // The cap must not eat the article. The source link is legitimately
+      // gone by now — commandFromPending strips it before this check runs —
+      // so compare against the article with that link already removed.
+      const withoutLink = ARTICLE.trim().replace(/[(（]?\s*https?:\/\/\S+\s*[)）]?/g, " ").replace(/\s+/g, " ").trim();
+      if (cmd.payload.replace(/\s+/g, " ").trim().length < withoutLink.length - 5) {
+        return `truncated to ${cmd.payload.length} of ${withoutLink.length}`;
       }
       const cards = prepareNewsLocally(cmd.payload).split("|").map((x) => x.trim()).filter(Boolean);
       if (cards.length < 3) return `only ${cards.length} cards`;
