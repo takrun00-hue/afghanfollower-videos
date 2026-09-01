@@ -51,7 +51,7 @@ const NUMBERED_ACTIONS = {
   "9": { action: "voice-list" }, "10": { action: "content-approve", voiceMode: "on" },
   "11": { action: "news-scan" }, "12": { action: "news-germany" }, "13": { action: "news-europe" },
   "14": { pending: "news-search-live", ask: "🔎 عبارت جستجوی خبر را بفرستید؛ مثلاً: قوانین اقامت آلمان" },
-  "15": { pending: "news-text-preview", ask: "📝 متن خبر را بفرستید: تیتر | جمله ۱ | جمله ۲ | جمله ۳" },
+  "15": { pending: "news-text-preview", ask: "📝 متن خبر را بفرستید — همان‌طور که هست، با پاراگراف. بات خودش تیتر و جمله‌ها را جدا می‌کند.\nاگر خواستید خودتان جدا کنید: تیتر | جمله ۱ | جمله ۲" },
   "16": { pending: "news-edit-hook", ask: "✏️ تیتر تازهٔ خبر را بفرستید." },
   "17": { pending: "news-edit-text", ask: "✏️ متن تازهٔ خبر را با | جدا کنید." },
   "18": { action: "news-approve-draft", voiceMode: "on" }, "19": { action: "status" },
@@ -247,10 +247,25 @@ async function setSelection(env, chatId, kind) {
 }
 
 function commandFromPending(pending, text) {
-  const payload = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 900);
+  // Newlines collapse because the payload travels as one workflow input. The
+  // splitters downstream read sentence punctuation, not layout, so nothing is
+  // lost by it. The cap is 4000 rather than 900 because a pasted article runs
+  // past 2000 characters routinely, and the old cap cut one in half without
+  // saying so — the preview simply came back short.
+  const payload = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 4000);
   if (!payload) return null;
-  if ((pending.action === "custom-content" || pending.action === "news-text-preview") && payload.split("|").filter(Boolean).length < 2) {
-    return { error: "متن را با این قالب بفرستید: تیتر یا موضوع | جمله یا گام ۱ | جمله یا گام ۲ | جمله یا گام ۳" };
+  // A tutorial is a list of discrete actions and custom-content.mjs has no way
+  // to tell one step from the next without the separators, so it still asks.
+  if (pending.action === "custom-content" && payload.split("|").filter(Boolean).length < 2) {
+    return { error: "متن را با این قالب بفرستید: موضوع | گام ۱ | گام ۲ | گام ۳" };
+  }
+  // News text was held to that same rule, so a pasted article was refused at
+  // the door — even though prepareNewsLocally() below and news-build.mjs both
+  // already split plain sentences. Two splitters written for this exact input
+  // and neither could ever be reached. Now only text too short to make a card
+  // out of is turned away.
+  if (pending.action === "news-text-preview" && payload.replace(/\|/g, " ").trim().length < 40) {
+    return { error: "متن خبر خیلی کوتاه است. یک تیتر و دست‌کم یک جمله بفرستید." };
   }
   return { action: pending.action, payload, voiceMode: "on" };
 }
@@ -263,11 +278,23 @@ function cleanPersian(value, max = 180) {
     .replace(/\s+/g, " ").replace(/\s*([،؛؟.!])\s*/g, "$1 ").trim().slice(0, max);
 }
 
+// A pasted article, turned into the cards a news video is built from.
+//
+// The split runs BEFORE any length cap. Capping first — cleanPersian(raw, 850)
+// — cut the article mid-sentence and dropped everything after it, so a long
+// paste quietly became a short one and the later paragraphs never appeared.
 function prepareNewsLocally(raw) {
   const parts = String(raw || "").split("|").map((x) => cleanPersian(x)).filter(Boolean);
   if (parts.length >= 2) return parts.slice(0, 5).join(" | ");
-  const sentences = cleanPersian(raw, 850).split(/(?<=[.!؟])\s+/).map((x) => cleanPersian(x)).filter(Boolean);
-  return [sentences.shift() || cleanPersian(raw, 110), ...sentences.slice(0, 4)].join(" | ");
+  // A link in the body is the source, not a sentence. Left in place it is read
+  // aloud and printed across a card, and it breaks the sentence it sits in.
+  const flat = String(raw || "").replace(/[(（]?\s*https?:\/\/\S+\s*[)）]?/g, " ");
+  const sentences = flat.split(/(?<=[.!؟])\s+/).map((x) => cleanPersian(x)).filter(Boolean);
+  if (!sentences.length) return cleanPersian(raw, 110);
+  const headline = sentences.shift();
+  // Fragments left by an abbreviation or a stray full stop would render as an
+  // empty card, so only real sentences become body lines.
+  return [headline, ...sentences.filter((x) => x.length > 12).slice(0, 4)].join(" | ");
 }
 
 function prepareTopicLocally(raw) {
@@ -412,5 +439,5 @@ export default {
 };
 
 // Kept outside the HTTP handler solely for deterministic local command tests.
-export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction };
+export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally };
 
