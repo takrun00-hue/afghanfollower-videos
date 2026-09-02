@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
 import { minimaxSpeakable } from "../lib/pronounce.mjs";
+import { narrationLineCheck } from "../lib/voice-settings.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -40,9 +41,15 @@ function dur(file) {
 const texts = [vo.hook, ...vo.steps.slice(0, requestedTips), vo.outro];
 const files = [], durs = [];
 for (let i = 0; i < texts.length; i++) {
+  const spoken = minimaxSpeakable(texts[i]);
+  const issues = narrationLineCheck(spoken);
+  if (issues.length) {
+    console.error(`Narration QC failed for line ${i + 1}: ${issues.join(", ")}`);
+    process.exit(1);
+  }
   const f = `music/voice/${featureId}-${voiceKey}-minimax-line${i}.mp3`;
   if (!existsSync(f)) {
-    execFileSync("node", [TTS, minimaxSpeakable(texts[i]), "-o", f], {
+    execFileSync("node", [TTS, spoken, "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],
     });
   }
