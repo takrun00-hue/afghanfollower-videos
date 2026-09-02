@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage, getUpdates } from "./lib/telegram.mjs";
-import { parseCommand, normalize } from "./lib/commands.mjs";
+import { parseCommand, normalize, HELP_TEXT } from "./lib/commands.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const tg = telegramConfig(loadEnv());
@@ -22,20 +22,11 @@ if (!tg.enabled) { console.error("✗ Telegram not configured (.env)."); process
 const today = () => new Date().toISOString().slice(0, 10);
 const say = (text) => sendMessage({ token: tg.token, chatId: tg.chatId, text });
 
-const HELP =
-  "🤖 <b>ربات GapMedia</b>\n\n" +
-  "🎬 <b>ساخت ویدیو</b>\n" +
-  "• <b>تیک‌تاک بساز</b> — فقط ویدیوی تیک‌تاک\n" +
-  "• <b>انستا بساز</b> — فقط ویدیوی اینستاگرام\n" +
-  "• <b>ابزار بساز</b> — فقط ویدیوی ابزارها\n" +
-  "• <b>بساز</b> — هر ۳ ویدیوی امروز\n" +
-  "• <b>فردا</b> — ویدیوهای فردا را از حالا بساز\n\n" +
-  "🔎 <b>بقیه</b>\n" +
-  "• <b>خبر</b> — آپدیت‌های تازه‌ای که هنوز ویدیو نشده‌اند\n" +
-  "• <b>بفرست</b> — ارسال دوبارهٔ ویدیوهای امروز\n" +
-  "• <b>وضعیت</b> — چه چیزی برای امروز آماده است\n" +
-  "• <b>راهنما</b> — همین فهرست\n\n" +
-  "جمله را هر طور خواستی بنویس — «یک ویدیوی تیک تاک برایم بساز» هم کار می‌کند.";
+// Was its own hand-copied text here, independent of lib/commands.mjs's
+// HELP_TEXT — which cloud-listen.mjs already used — so the two silently
+// drifted: this one never listed موضوع فردا/برنامه هفته/تأیید/صداها even
+// after those commands were wired up below. One shared string now.
+const HELP = HELP_TEXT;
 
 const norm = normalize;
 const has = (c, ...words) => words.some((w) => c.includes(w));
@@ -78,11 +69,55 @@ async function handle(text) {
   }
 
   const cmd = parseCommand(text);
-  const LABEL = { tiktok: "تیک‌تاک", instagram: "اینستاگرام", tools: "ابزارها" };
-  if (cmd && LABEL[cmd.action]) {
-    await say(`🎬 در حال ساخت ویدیوی ${LABEL[cmd.action]}…`);
-    const r = build(`--only ${cmd.action}`);
-    return say(r.ok ? `✅ ویدیوی ${LABEL[cmd.action]} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
+  // commands.mjs names these actions "build-tiktok"/"build-instagram"/
+  // "build-tools" — a LABEL object keyed by "tiktok"/"instagram"/"tools"
+  // never matched cmd.action, so this branch was always false and every
+  // platform-specific build command ("تیک‌تاک بساز" etc.) silently fell
+  // through to the catch-all "بساز" handler and built all 3 videos
+  // instead of just the one asked for. daily-render.mjs's --only also
+  // filters on the newer 4-slot names (tiktok/instagram/ai-tiktok/
+  // ai-instagram), not the older 3-category ones, so "ابزار" maps to
+  // ai-tiktok (the AI topic's TikTok-native package), not a literal
+  // "tools" slot that no longer exists.
+  const BUILD_SLOT = { "build-tiktok": "tiktok", "build-instagram": "instagram", "build-tools": "ai-tiktok" };
+  const BUILD_LABEL = { "build-tiktok": "تیک‌تاک", "build-instagram": "اینستاگرام", "build-tools": "ابزارها" };
+  if (cmd && BUILD_SLOT[cmd.action]) {
+    const label = BUILD_LABEL[cmd.action];
+    await say(`🎬 در حال ساخت ویدیوی ${label}…`);
+    const r = build(`--only ${BUILD_SLOT[cmd.action]}`);
+    return say(r.ok ? `✅ ویدیوی ${label} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
+  }
+
+  // Content-selection (proposal, not build) commands. commands.mjs already
+  // recognises these — "موضوع فردا"/"برنامه هفته"/bare "تیک تاک" etc. —
+  // but bot.mjs had no branch for any of them, so typing one to the local
+  // bot produced no reply at all. topic-plan.mjs sends the proposal
+  // itself (to the same Telegram chat) and never renders anything.
+  const PLAN_CATEGORY = { "plan-tiktok": "tiktok", "plan-instagram": "instagram", "plan-tools": "tools" };
+  if (cmd && PLAN_CATEGORY[cmd.action]) {
+    try { execSync(`node topic-plan.mjs --category=${PLAN_CATEGORY[cmd.action]}`, { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+  if (cmd && cmd.action === "plan-tomorrow") {
+    try { execSync("node topic-plan.mjs", { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+  if (cmd && cmd.action === "plan-week") {
+    try { execSync("node topic-plan.mjs --week", { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+  if (cmd && cmd.action === "approved-feature") {
+    await say("🎬 در حال ساخت موضوع تأییدشده…");
+    try { execFileSync("node", ["approve-feature.mjs", text], { stdio: "inherit" }); return say("✅ ساخته و فرستاده شد."); }
+    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+  }
+  if (cmd && cmd.action === "voice-list") {
+    try { execSync("node music/minimax-voices.mjs", { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
   }
 
   if (cmd && (cmd.action === "news-scan" || cmd.action === "news-search-live")) {

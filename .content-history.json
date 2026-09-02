@@ -126,5 +126,37 @@
     "hook": "با این ترفند ساده، کامنت و ویوِ ویدیوهایت را چند برابر کن",
     "messageId": 1092,
     "sentAt": "2026-08-31T02:33:10.890Z"
+  },
+  {
+    "id": "tiktok-shop-video-assistant",
+    "platform": "tiktok",
+    "topic": "TikTok Shop Video Assistant",
+    "hook": "برای محصولت ویدیو می‌سازی، اما از TikTok Shop فروش نمی‌گیری؟",
+    "messageId": 1296,
+    "sentAt": "2026-09-02T10:44:43.127Z"
+  },
+  {
+    "id": "elevenlabs",
+    "platform": "tiktok",
+    "topic": "ElevenLabs",
+    "hook": "بدون هیچ هزینه‌ای، بدون میکروفون روایت حرفه‌ای بساز",
+    "messageId": 1297,
+    "sentAt": "2026-09-02T10:50:47.788Z"
+  },
+  {
+    "id": "elevenlabs",
+    "platform": "instagram",
+    "topic": "ElevenLabs",
+    "hook": "بدون هیچ هزینه‌ای، بدون میکروفون روایت حرفه‌ای بساز",
+    "messageId": 1298,
+    "sentAt": "2026-09-02T10:53:32.607Z"
+  },
+  {
+    "id": "custom-tt-caption-lang",
+    "platform": "tiktok",
+    "topic": "Select video language",
+    "hook": "چرا بعضی ویدیوها را کسانی که زبانت را نمی‌دانند هم تا آخر تماشا می‌کنند؟",
+    "messageId": 1330,
+    "sentAt": "2026-09-02T22:00:00.782Z"
   }
 ]

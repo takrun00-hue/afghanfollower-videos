@@ -16,6 +16,7 @@ import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { TOPICS, topicFor, SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
 import { photoFor, photoPlan } from "./lib/news-media.mjs";
+import { amalPersian } from "./lib/amal.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -99,10 +100,29 @@ if (fromQueue) {
   // Germany first asks Amal, whose whole beat is Afghans living in Germany, then
   // widens to the general Persian outlets if that turns up nothing.
   let results = [];
+  // Amal's own domains (amalnews.de, amalberlin.de, amalhamburg.de,
+  // amalfrankfurt.de) are not indexed by Exa at any date range — see
+  // lib/amal.mjs's own header. The DE_DOMAINS search below therefore never
+  // actually returns Amal, only whichever of the other Germany sources
+  // (dw.com, wdr.de) happen to be indexed and fresh, which is how "خبر
+  // آلمان" ended up surfacing week-old DW stories instead of Amal's own
+  // day-old reporting. Read Amal directly first; it needs no search index.
+  // Its whole desk IS the Germany-migrant scope by editorial curation, so
+  // skip the keyword inScope() check for it (that check exists for the
+  // general outlets below, which mix in unrelated German news) — only
+  // confirm it's genuinely Persian, which amalPersian() already filters.
+  if (scope === "germany") {
+    try {
+      const amal = await amalPersian({ limit: 10, days: days + 10 });
+      results.push(...amal.map((a) => ({ ...a, source: "amal" })));
+    } catch (e) {
+      console.error("امل: خطای دریافت — " + e.message);
+    }
+  }
   // German Insider uses German-based sources only.  We retain only their
   // Persian/Dari reporting so no foreign-language source text reaches video.
-  results = keep(await search(DE_DOMAINS));
-  if (!results.length) results = keep(await search(DE_DOMAINS, 10));
+  results.push(...keep(await search(DE_DOMAINS)));
+  if (!results.length) results.push(...keep(await search(DE_DOMAINS, 10)));
 
   if (!results.length) {
     await say(`📭 ${SC.label}: خبر تازه‌ای در این حوزه پیدا نشد.`);

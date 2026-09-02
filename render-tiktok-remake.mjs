@@ -3,29 +3,39 @@
 //   node render-tiktok-remake.mjs --input "بهترین هوش مصنوعی برای چت، برای تحقیق"
 //   node render-tiktok-remake.mjs --input "..." --preview   # write the composition and open Studio, skip render
 //   node render-tiktok-remake.mjs --input "..." --with-music   # add sidechain-ducked music bed
-//   node render-tiktok-remake.mjs --input "..." --voice=fa-IR-DilaraNeural
 //   node render-tiktok-remake.mjs --input "..." --4k
 //
 // Reads pack from lib/content.mjs (tierListPack(input)), derives the timing
 // from pack.duration / pack.hookDuration / pack.outroDuration, renders the
 // silent master via Hyperframes, then synthesizes and muxes in
-// pack.narration read by pack.voice.
-import { spawnSync, execSync } from "node:child_process";
+// pack.narration.
+//
+// Narration is read by MiniMax (music/minimax-tts.mjs), the same engine and
+// approved settings (lib/voice-settings.mjs) that daily-render.mjs uses —
+// Edge TTS's free endpoint doesn't support real SSML language-switching and
+// was heard reading embedded English words too fast and unclear in either
+// language. minimaxSpeakable() is the tested pipeline that keeps English UI
+// labels/brand names literal inline in the Persian sentence.
+import { spawnSync, execSync, execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { buildHTML } from "./lib/build.mjs";
-import { tierListPack, isTierListRequest, spokenSSML } from "./lib/content.mjs";
-import { synthesize } from "./lib/edge-tts.mjs";
+import { tierListPack, isTierListRequest } from "./lib/content.mjs";
+import { minimaxSpeakable } from "./lib/pronounce.mjs";
+import { loadEnv } from "./lib/telegram.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
+// minimax-tts.mjs (spawned below) reads MINIMAX_API_KEY only from
+// process.env — same promotion daily-render.mjs does for .env values.
+Object.assign(process.env, loadEnv());
 
 const args = process.argv.slice(2);
 const is4k = args.includes("--4k");
 const withMusic = args.includes("--with-music");
 const force = args.includes("--force");
-const voiceArg = args.find((a) => a.startsWith("--voice="));
 const inputAt = args.indexOf("--input");
 const inputText = inputAt >= 0 ? args[inputAt + 1] || "" : "";
 const previewOnly = args.includes("--preview");
@@ -39,11 +49,6 @@ if (!isTierListRequest(inputText)) {
   throw new Error(`این متن یک درخواست فهرست ابزار نیست — مثال: «بهترین هوش مصنوعی برای چت، برای تحقیق». دریافتی: «${inputText}»`);
 }
 const pack = tierListPack(inputText);
-if (voiceArg) pack.voice.name = voiceArg.slice("--voice=".length);
-
-// One narrator for the whole video — the hook, every category, and the
-// outro all read by pack.voice.
-const voiceForLine = () => pack.voice.name;
 
 // Timeline derived from the pack so it stays in sync with the composition.
 const TOTAL = pack.duration;
@@ -89,20 +94,29 @@ if (!existsSync(silent) || is4k || force || inputText) {
   console.log(`\n=== reusing silent master: ${silent} ===`);
 }
 
-// 2) Synthesize each Persian narration line.
-console.log(`\n=== voiceover (per-speaker) ===`);
+// 2) Synthesize each Persian narration line via MiniMax.
+// "انرژی کافی در نریشن نیست" — the global APPROVED voice (voice-settings.mjs)
+// is deliberately calm (0.95x, tuned by ear for the daily explainer's
+// register) and locked: "change these only after a listening test says to".
+// This pipeline overrides just VOICE_SPEED for its own synthesis call
+// instead of touching that shared default — a punchy tier-list hook can
+// read faster than a calm explainer without the global voice drifting.
+const TIER_VOICE_SPEED = process.env.TIER_VOICE_SPEED || "1.05";
+console.log(`\n=== voiceover (MiniMax, speed=${TIER_VOICE_SPEED}) ===`);
 const lines = [];
 for (let i = 0; i < pack.narration.length; i++) {
-  // A <lang> switch was tried here so this could stay Latin visually and be
-  // spoken as real English — the endpoint silently returns 0 bytes for any
-  // SSML beyond plain text (see spokenSSML's comment). Sent as plain text,
-  // which synthesize() escapes itself.
-  const text = spokenSSML(pack.narration[i]);
-  const voice = voiceForLine(i);
-  const file = `${voiceDir}/line-${String(i).padStart(2, "0")}.mp3`;
-  process.stdout.write(`  [tts ${i + 1}/${pack.narration.length}] (${voice}) ${text.slice(0, 44)}…`);
-  const mp3 = await synthesize({ text, voice, rate: pack.voice.rate });
-  writeFileSync(file, mp3);
+  const text = minimaxSpeakable(pack.narration[i]);
+  // Cache by content AND speed so a speed change doesn't silently reuse
+  // audio synthesized at the old rate.
+  const key = createHash("md5").update(`${TIER_VOICE_SPEED}|${text}`).digest("hex").slice(0, 12);
+  const file = `${voiceDir}/line-${String(i).padStart(2, "0")}-${key}.mp3`;
+  process.stdout.write(`  [tts ${i + 1}/${pack.narration.length}] ${text.slice(0, 44)}…`);
+  if (!existsSync(file)) {
+    execFileSync("node", ["music/minimax-tts.mjs", text, "-o", file], {
+      stdio: ["ignore", "ignore", "inherit"],
+      env: { ...process.env, VOICE_SPEED: TIER_VOICE_SPEED },
+    });
+  }
   const dur = parseFloat(
     execSync(
       `ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "${file}"`,
@@ -175,13 +189,22 @@ if (withMusic) {
   );
   const music = existsSync(pack.music) ? pack.music : "music/bed-60s.m4a";
   const audioMix = `${outDir}/voice-mix.m4a`;
+  // "صدای موزیک بلندتر از نریشن است" — measured, not just heard: with the
+  // old settings (volume 0.85, threshold 0.02, ratio 8) the ducked music
+  // sat at -23.1dB mean during active narration while the voice itself
+  // measured -30.5dB in that same window — music louder than the voice it
+  // was supposed to duck under. A lower base level (0.45) plus a much
+  // deeper, faster-reacting duck (ratio 20, threshold 0.015, attack 5ms)
+  // brought ducked music to -30.7dB in the same window — at/under the
+  // voice instead of well above it. Verified against the actual rendered
+  // files with ffmpeg's volumedetect before this went into the pipeline.
   runFfmpeg(
     [
       "-i", voiceMix, "-i", music,
       "-filter_complex",
       `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[vmain][vside];` +
-        `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:${TOTAL},volume=0.85[music];` +
-        `[music][vside]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=300[ducked];` +
+        `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:${TOTAL},volume=0.45[music];` +
+        `[music][vside]sidechaincompress=threshold=0.015:ratio=20:attack=5:release=250[ducked];` +
         `[vmain][ducked]amix=inputs=2:duration=longest:normalize=0,apad,atrim=0:${TOTAL}[aout]`,
       "-map", "[aout]", "-c:a", "aac", "-b:a", "192k", "-t", String(TOTAL), "-y", audioMix,
     ],

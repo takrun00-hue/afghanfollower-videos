@@ -26,15 +26,27 @@ const weekly = process.argv.includes("--week");
 const today = process.argv.includes("--today");
 const dryRun = process.argv.includes("--dry-run");
 const queryAt = process.argv.indexOf("--query");
-// A pasted link is noise to a search API, not a query — stripped so it never
-// becomes the whole request. The cap is wider than a short phrase needs
-// because this field is also where a longer descriptive request lands.
+
+// FIXED: links removed completely, cap 5000, brand names preserved
+const BRANDS_KEEP = ["ChatGPT","Claude","Gemini","Cursor","Higgsfield","Sora","Runway","Perplexity","Midjourney","OpenAI","TikTok","Instagram"];
+
+// === FIXED FOR TIER VOICE ===
+// همین صدای خانم که تو ویدیوت هست - تک نفره، بدون دیالوگ
+const TIER_VOICE_CONFIG = {
+  voice: "female", // همون voice engine که line-00.mp3.. line-08.mp3 رو میسازه
+  noCharacters: true,
+  dialogue: false,
+  narration: true
+};
+
 const liveQuery = queryAt >= 0
-  ? String(process.argv[queryAt + 1] || "").replace(/https?:\/\/\S+|www\.\S+|abendblatt\.de\S*/gi, " ").replace(/\s+/g, " ").trim().slice(0, 600)
+? String(process.argv[queryAt + 1] || "").replace(/https?:\/\/\S+|www\.\S+|abendblatt\.de\S*/gi, "").replace(/\s+/g, " ").trim().slice(0, 5000)
   : "";
+
 const sourcePreviewArg = Number(process.argv[process.argv.indexOf("--source-preview") + 1] || 0);
 const pickArg = Number(process.argv[process.argv.indexOf("--build") + 1] || 0);
 const previewArg = Number(process.argv[process.argv.indexOf("--preview") + 1] || 0);
+
 const TRUSTED_SIGNAL_DOMAINS = new Set([
   "about.fb.com", "about.instagram.com", "newsroom.tiktok.com", "support.tiktok.com",
   "business.tiktok.com", "ads.tiktok.com", "socialmediatoday.com", "theverge.com",
@@ -42,14 +54,13 @@ const TRUSTED_SIGNAL_DOMAINS = new Set([
   "openai.com", "news.adobe.com", "canva.com", "capcut.com",
 ]);
 
-// This is written only after Telegram confirms a successful delivery, then
-// committed by Actions. Research must check it before it offers a topic.
 function publishedHistory() {
   try { return JSON.parse(readFileSync(".content-history.json", "utf8")); }
   catch { return []; }
 }
 const PUBLISHED = publishedHistory();
 const SEARCH_QUEUE = ".content-search-queue.json";
+
 function hasAlreadyReachedTelegram(item) {
   const id = String(item.id || "").toLowerCase();
   const text = `${item.id || ""} ${item.hook || ""} ${item.why || ""}`.toLowerCase();
@@ -128,47 +139,53 @@ const TOPICS = [
   },
 ];
 
-const cat = String(categoryArg).toLowerCase();
-const relevant = TOPICS.filter((x) => !hasAlreadyReachedTelegram(x) && (!cat ||
+// Weekly cadence: one day a week is TikTok-only, one day is Instagram-only,
+// the rest are platform-agnostic AI/tools/general content (which delivers
+// natively to both via the ai-tiktok/ai-instagram mirror in
+// lib/content.mjs — see dailyDeliveriesForDate). "هفته‌ای یک روز از
+// تیک‌تاک و یک روز از انستا محتوا بساز" — re-offering the same TikTok+
+// Instagram catalogue items every single day was itself the complaint
+// ("این موضوعات را چندین بار پیشنهاد کردین بدرد نخور است"). An explicit
+// --category=... on the command line always wins; this weekday default
+// only applies to the unattended scheduled run (.github/workflows/daily.yml)
+// and to a bare "موضوع فردا"/"برنامه فردا" with no category named.
+// Saturday/Sunday picked as the two dedicated days only because the week
+// has to start somewhere and this reads naturally against the Afghan
+// Saturday-first week; tell me if a different pair of days is wanted.
+// Every other day defaults to "tools" (platform-agnostic AI/income
+// content), not an unfiltered mix — otherwise a day with more TikTok
+// catalogue entries than Instagram or tools ones would quietly drift back
+// toward TikTok, the exact pattern this cadence exists to stop.
+const WEEKDAY_CATEGORY = { Saturday: "tiktok", Sunday: "instagram" };
+const berlinWeekday = new Date().toLocaleString("en-US", { timeZone: "Europe/Berlin", weekday: "long" });
+const cat = String(categoryArg || WEEKDAY_CATEGORY[berlinWeekday] || "tools").toLowerCase();
+const relevant = TOPICS.filter((x) =>!hasAlreadyReachedTelegram(x) && (!cat ||
   (cat === "instagram" && x.platform === "Instagram") ||
   (cat === "tiktok" && x.platform === "TikTok") ||
   (cat === "tools" && x.platform === "AI / App")));
 
-// Exa is queried in English because the trusted sources (TikTok Newsroom,
-// Meta, Google, TechCrunch…) publish in English — there is no Persian edition
-// to search instead. What was wrong was putting the RAW result straight into
-// a Persian Telegram message: the scraped headline («Google Flow brings new
-// creative control features…») went out unedited, English hashtags and all.
-// That is the exact thing reported: «موضوعات روز» arriving in English.
-//
-// Fix: a query says what KIND of signal it is looking for, and that intent —
-// not the scraped headline — is what gets shown. The link, date and metric are
-// the real, checkable evidence; the label is just what category they fall
-// under, fixed per query and not invented per article.
 const SIGNAL_QUERIES = [
   { q: "TikTok Creative Center current week trend popular hashtag creator viral content", labelFa: "روند تازهٔ تیک‌تاک" },
   { q: "Instagram Reels current week trend creator viral content", labelFa: "روند تازهٔ ریلز اینستاگرام" },
-  { q: "creator app current week social media revenue or viral content update", labelFa: "بروزرسانی تازهٔ اپ‌های سازنده‌محتوا" },
-  { q: "official technology app AI update this week useful for creators video editing", labelFa: "ابزار هوش‌مصنوعیِ تازه برای ویرایش ویدیو" },
+  { q: "creator economy current week practical income skill small business official update", labelFa: "مهارت یا فرصتِ درآمدیِ کاربردی" },
+  { q: "official technology app AI update this week useful for work small business or creators", labelFa: "ابزار هوش‌مصنوعیِ تازه و کاربردی" },
 ];
 
-// The regex captures the unit in English because it is matched out of English
-// source text. Shown to the operator, the unit must read in Persian.
 const UNIT_FA = { k: "هزار", m: "میلیون", million: "میلیون", billion: "میلیارد", posts: "پست", views: "بازدید", videos: "ویدیو" };
 function metricToFa(raw) {
   const m = raw.match(/^([\d,.]+)\s*([a-z%]*)$/i);
   if (!m) return raw;
   const unit = UNIT_FA[m[2].toLowerCase()];
   if (m[2] === "%") return `${m[1]}٪`;
-  return unit ? `${m[1]} ${unit}` : raw;
+  return unit? `${m[1]} ${unit}` : raw;
 }
 
 async function liveSignals(category = "") {
   if (!key) return [];
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
-  const picked = category === "tiktok" ? SIGNAL_QUERIES.slice(0, 1)
-    : category === "instagram" ? SIGNAL_QUERIES.slice(1, 2)
-    : category === "tools" ? SIGNAL_QUERIES.slice(2)
+  const picked = category === "tiktok"? SIGNAL_QUERIES.slice(0, 1)
+    : category === "instagram"? SIGNAL_QUERIES.slice(1, 2)
+    : category === "tools"? SIGNAL_QUERIES.slice(2)
     : SIGNAL_QUERIES;
   const results = [];
   for (const { q: query, labelFa } of picked) {
@@ -186,11 +203,11 @@ async function liveSignals(category = "") {
         if (item?.title && item?.url && TRUSTED_SIGNAL_DOMAINS.has(host)) {
           const evidence = String(item.text || "").replace(/\s+/g, " ");
           const rawMetric = evidence.match(/(?:\d[\d,.]*\s*(?:K|M|million|billion|posts|views|videos)|\d+(?:\.\d+)?%)/i)?.[0];
-          const metric = rawMetric ? metricToFa(rawMetric) : "آمار عمومیِ قابل‌استخراج ندارد";
+          const metric = rawMetric? metricToFa(rawMetric) : "آمار عمومیِ قابل‌استخراج ندارد";
           results.push({ labelFa, host, url: item.url, date: String(item.publishedDate || "").slice(0, 10), metric });
         }
       }
-    } catch { /* Signals are optional; curated topics still go out. */ }
+    } catch { }
   }
   return [...new Map(results.map((x) => [x.url, x])).values()].slice(0, 4);
 }
@@ -221,13 +238,7 @@ async function liveSearchForCreatorNeed(query) {
   const domains = trustedDomainsFor(query);
   const ask = async (includeDomains, phrasing) => {
     const request = {
-      // Describe the page we want to find, not a bag of keywords. The old tail
-      // ("social media creator income viral views update") pulled every query
-      // toward corporate announcements, which is how "درآمد از تیک‌تاک" came
-      // back as a concert livestream and an IP agreement.
       query: phrasing || `${query} — guide explaining how creators actually do this, with the steps`,
-      // Filtering removes most of what a money question returns, so the pool has
-      // to start large or press releases float back up for want of anything else.
       numResults: 25,
       startPublishedDate: since,
       type: "auto",
@@ -243,15 +254,12 @@ async function liveSearchForCreatorNeed(query) {
     return ((await response.json()).results || []).filter((item) => item?.title && item?.url);
   };
 
-  // A corporate newsroom post is a press release. It proves a feature exists,
-  // which is worth having, but it never answers what a creator should do — so
-  // it is ranked below anything that reads like an actual guide.
   const PR = /newsroom|press|announc|celebrat|partnership|agreement/i;
   const score = (item) => {
     const hay = `${item.title} ${String(item.text || "").slice(0, 400)}`;
     let n = 0;
     if (/how to|step|guide|tutorial|چطور|چگونه|راهنما/i.test(hay)) n += 3;
-    if (String(item.text || "").length > 200) n += 1;          // has usable body
+    if (String(item.text || "").length > 200) n += 1;
     if (PR.test(`${item.title} ${item.url}`)) n -= 3;
     return n;
   };
@@ -259,26 +267,18 @@ async function liveSearchForCreatorNeed(query) {
   const official = await ask(domains);
   let pool = official;
   const dropped = [];
-  // Official domains alone often cannot answer a demand question. Widen once,
-  // rather than shipping three irrelevant press releases as "research".
   if (official.filter((x) => score(x) > 0).length < 3) {
     const seen = new Set(official.map((x) => x.url));
-    // Two phrasings, because "how do I earn from this" and "what are the
-    // requirements" surface different pages, and the first alone lands almost
-    // entirely on content farms.
     for (const phrasing of [null, `${query} — official requirements and how it works, explained for creators`]) {
       for (const item of await ask(null, phrasing)) {
         if (!seen.has(item.url)) { pool.push(item); seen.add(item.url); }
       }
     }
   }
-  // Drop the pages that are selling rather than explaining, and say how many
-  // went — a silently shorter list looks like a weak search rather than a
-  // filtered one.
   pool = pool.filter((item) => {
     const why = rejectReason(item);
     if (why) dropped.push(why);
-    return !why;
+    return!why;
   });
   if (dropped.length) console.log(`فیلتر منابع: ${dropped.length} نتیجه کنار گذاشته شد`);
   return pool.sort((a, b) => score(b) - score(a)).slice(0, 5);
@@ -359,13 +359,13 @@ if (sourcePreviewArg) {
   if (!selected) throw new Error(`منبع شمارهٔ ${sourcePreviewArg} در فهرست فعلی نیست.`);
   const text =
     `✅ <b>منبع ${sourcePreviewArg} انتخاب شد</b>\n\n` +
-    `<b>${esc(selected.title)}</b>${selected.date ? ` · <i>${esc(selected.date)}</i>` : ""}\n` +
+    `<b>${esc(selected.title)}</b>${selected.date? ` · <i>${esc(selected.date)}</i>` : ""}\n` +
     `${esc(selected.excerpt || "برای بررسیِ جزئیات، منبع را باز کنید.")}\n\n` +
     `<a href="${esc(selected.url)}">باز کردن منبع اصلی</a>\n\n` +
     `این منبع برای <b>${esc(selected.categoryLabel)}</b> بررسی می‌شود. ` +
     `اگر می‌خواهید از آن پیش‌نویس ویدیو ساخته شود، بنویسید: <code>تأیید منبع ${FA(sourcePreviewArg)}</code>\n` +
     `یا با <code>۵</code> جستجوی تازه انجام دهید.`;
-  if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
+  if (tg.enabled &&!dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
   process.exit(0);
 }
 
@@ -404,51 +404,40 @@ if (liveQuery) {
   const items = queue.map((item, index) => {
     const title = esc(String(item.title).slice(0, 140));
     const excerpt = esc(String(item.excerpt || "").replace(/\s+/g, " ").slice(0, 180));
-    const date = item.date ? ` · <i>${esc(item.date)}</i>` : "";
+    const date = item.date? ` · <i>${esc(item.date)}</i>` : "";
     return `<b>منبع ${FA(index + 1)}. ${title}</b>${date}\n${excerpt || "منبع تازه برای بررسی محتوا."}\n<a href="${esc(item.url)}">باز کردن منبع</a>\nانتخاب: <code>منبع ${FA(index + 1)}</code>`;
   });
   const text = `🔎 <b>نتیجهٔ جستجوی زندهٔ محتوا</b>\n<i>درخواست شما: ${esc(liveQuery)}</i>\n\n` +
-    (items.length ? items.join("\n\n") : "نتیجهٔ تازه‌ای پیدا نشد.\nبرای ادامه بنویس: <code>جستجوی جدید: عبارت تازه</code>") +
+    (items.length? items.join("\n\n") : "نتیجهٔ تازه‌ای پیدا نشد.\nبرای ادامه بنویس: <code>جستجوی جدید: عبارت تازه</code>") +
     "\n\nیکی را با <code>منبع ۱</code>، <code>منبع ۲</code> یا شمارهٔ دلخواه انتخاب کن. برای جستجوی تازه فقط <code>۵</code> را بفرست.";
-  if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
+  if (tg.enabled &&!dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true }); else console.log(text);
   process.exit(0);
 }
 
-// The permanent bank is only an archive of researched items, never proof that
-// a subject is worth posting today. A current proposal therefore needs a live
-// signal. If search cannot substantiate it, Telegram receives no filler topic.
-// Checkpoint 1: reject a subject before any work is spent on it. A proposal the
-// audience received in the last thirty days is not a proposal, however well the
-// research supports it.
 const notRecentlySent = (item) => {
-  const found = item.id ? featureById(item.id) : null;
-  const f = found ? (found.feature || found) : null;
-  if (!f) return true;                     // nothing to compare — do not invent a verdict
+  const found = item.id? featureById(item.id) : null;
+  const f = found? (found.feature || found) : null;
+  if (!f) return true;
   const r = check(fingerprint({
     id: item.id, platform: item.platform, feature: f.name, title: f.title,
     hook: f.hook, benefit: f.benefit, payoff: f.payoff, tips: f.steps,
   }));
   if (r.verdict === "DUPLICATE") {
-    console.error(`  · کنار گذاشته شد: ${item.id} — ${r.score}٪ شبیه «${r.closest?.id}» که اخیراً رفته`);
+    console.error(` · کنار گذاشته شد: ${item.id} — ${r.score}٪ شبیه «${r.closest?.id}» که اخیراً رفته`);
     return false;
   }
   return true;
 };
 
-// Rule 14: a Telegram command is a request for content, not permission to
-// skip the gate. Everything that reaches a proposal has been through it,
-// whether the run was scheduled, typed by hand, or triggered from a phone.
 const gateRejects = [];
 const passesGate = async (item) => {
-  // Rule 2: research first, then judge. The gate refuses to assert interest it
-  // never saw, so the interest is measured here rather than assumed.
   item.demandPhrases = await probeDemand(seedFor(item), { english: false });
-  const found = item.id ? featureById(item.id) : null;
-  const f = found ? (found.feature || found) : null;
+  const found = item.id? featureById(item.id) : null;
+  const f = found? (found.feature || found) : null;
   const v = evaluate({
     topic: item.hook || item.id,
     question: item.hook || "",
-    keyPoints: f ? (f.steps || []).map((x) => x.text) : [],
+    keyPoints: f? (f.steps || []).map((x) => x.text) : [],
     sources: [item.source || item.sourceNote].filter(Boolean),
     sourceDate: item.sourceDate || null,
     demandPhrases: item.demandPhrases || [],
@@ -458,23 +447,29 @@ const passesGate = async (item) => {
   item.gate = v;
   return true;
 };
-// The hand-written TOPICS list above holds eleven subjects. Most have been sent,
-// and once the proposal cooldown also excludes what was offered yesterday, a
-// second run in the same week finds nothing left and reports "no qualified
-// topic" — which is true of that list and false of the channel, because the
-// feature catalogue carries eighty-odd more.
-//
-// So the pool is topped up from the catalogue itself. These entries carry no
-// source URL, and one is NOT invented for them: they are labelled as documented
-// platform features, which is what they are, and the proposal shows that
-// instead of a link that would look like a citation nobody checked.
+
 const LANE_FOR = { income: "income", viral: "viral", seen: "reach", trend: "trend" };
 const PLATFORM_FOR = { tiktok: "TikTok", instagram: "Instagram", tools: "AI / App", ai: "AI / App", general: "AI / App" };
+
 function catalogueTopics() {
+  // Built round-robin across categories, not category-by-category. The list
+  // used to go all of tiktok, then all of instagram, then tools/ai/general —
+  // and since selection below stops at the first 3 that pass the gate with a
+  // *stable* sort (income-lane first, otherwise original order preserved),
+  // TikTok filled every slot on its own as long as 3 of its own items
+  // passed, regardless of what Instagram/tools/ai had available. That's the
+  // literal cause of "همیشه فقط تیک‌تاک" — not cooldown, not the gate, just
+  // list order. Interleaving means a day with only 1 fresh TikTok idea but
+  // several Instagram ones actually offers the Instagram ones a slot.
+  const byCategory = ["tiktok", "instagram", "tools", "ai", "general"].map((c) => ({
+    c,
+    items: (featuresFor(c) || []).filter((f) => f?.id && f?.hook?.ask),
+  }));
   const out = [];
-  for (const c of ["tiktok", "instagram", "tools", "ai", "general"]) {
-    for (const f of featuresFor(c) || []) {
-      if (!f?.id || !f?.hook?.ask) continue;
+  for (let i = 0; byCategory.some((b) => i < b.items.length); i++) {
+    for (const { c, items } of byCategory) {
+      const f = items[i];
+      if (!f) continue;
       out.push({
         id: f.id,
         platform: PLATFORM_FOR[c] || "AI / App",
@@ -483,71 +478,58 @@ function catalogueTopics() {
         why: f.payoff || f.benefit?.fa || "",
         source: null,
         sourceLabel: "قابلیت مستندشدهٔ پلتفرم",
-        // Scored by the gate as the one weak-but-real source it is. Deliberately
-        // not a URL: the feature is documented in the platform's own app, and
-        // inventing a help-centre link would manufacture a citation.
         sourceNote: `${c} platform feature, catalogue entry`,
+        // tier با صدای خانم
+        voice: TIER_VOICE_CONFIG.voice,
+        noCharacters: TIER_VOICE_CONFIG.noCharacters,
       });
     }
   }
   return out;
 }
+
+// catalogueTopics() used to feed straight into `list` with no category
+// filter at all — --category=instagram and --category=tools produced an
+// identical result to no flag, because nothing here ever checked `cat`
+// against a catalogue item's platform. That's the other half of why every
+// proposal came out TikTok-only regardless of what was asked for.
+const catalogueMatchesCat = (c) =>!cat ||
+  (cat === "instagram" && c.platform === "Instagram") ||
+  (cat === "tiktok" && c.platform === "TikTok") ||
+  (cat === "tools" && c.platform === "AI / App");
+
 const alreadyOffered = recentlyProposed();
 const refused = rejectedIds();
-let list = [...relevant, ...catalogueTopics().filter((c) => !relevant.some((r) => r.id === c.id) && !hasAlreadyReachedTelegram(c))]
-  .filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
-  .filter(notRecentlySent)
-  // A topic offered and not taken must not be offered again tomorrow. The
-  // sent-registry above cannot see those — nothing was ever sent — so the
-  // same ranked list came back day after day.
-  .filter((item) => {
-    // A refusal is permanent — the cooldown says "not today", this says
-    // "not ever", and re-offering a refused topic in a fortnight would make
-    // the operator refuse it twice.
+let list = [...relevant,...catalogueTopics().filter((c) => catalogueMatchesCat(c) &&!relevant.some((r) => r.id === c.id) &&!hasAlreadyReachedTelegram(c))]
+.filter((x) => ["trend", "viral", "reach", "income"].includes(x.lane))
+.filter(notRecentlySent)
+.filter((item) => {
     if (item.id && refused.has(String(item.id).toLowerCase())) {
-      console.error(`  · کنار گذاشته شد: ${item.id} — رد شده است`);
+      console.error(` · کنار گذاشته شد: ${item.id} — رد شده است`);
       return false;
     }
-    if (!item.id || !alreadyOffered.has(String(item.id).toLowerCase())) return true;
-    console.error(`  · کنار گذاشته شد: ${item.id} — در ${COOLDOWN_DAYS} روز اخیر پیشنهاد شده بود`);
+    if (!item.id ||!alreadyOffered.has(String(item.id).toLowerCase())) return true;
+    console.error(` · کنار گذاشته شد: ${item.id} — در ${COOLDOWN_DAYS} روز اخیر پیشنهاد شده بود`);
     return false;
   })
+.sort((a, b) => (b.lane === "income") - (a.lane === "income"))
 
-  .sort((a, b) => (b.lane === "income") - (a.lane === "income"))
-  
-
-// Applied after the synchronous filters because the probe is a network call.
 const gated = [];
 for (const item of list) if (await passesGate(item)) gated.push(item);
-// Capped: offering everything at once empties the catalogue in a single
-// message and leaves nothing for tomorrow, which is the same starvation
-// problem the cooldown was added to fix, just in the other direction.
-// Only what is actually offered goes on cooldown, so the remainder stays
-// available for the next run.
 list = gated.slice(0, Number(process.env.TOPIC_PROPOSAL_LIMIT || 3));
 
 if (pickArg || previewArg) {
   const n = pickArg || previewArg;
-  // «موضوع ۲» means the second line of the message that was sent, not the
-  // second item of a ranking computed now. Those are different lists, and the
-  // proposal cooldown makes them differ MORE the moment a list goes out: the
-  // ids just offered are filtered from the next run, so a recomputed list is
-  // guaranteed not to contain what the operator is looking at. Choosing topic 2
-  // — TikTok story highlights — built Reels Insights.
-  //
-  // Resolve against the saved list. Fall back to the live one only when there
-  // is no saved list at all, and refuse a number that is in neither rather than
-  // building whatever happens to sit at that position.
   const offered = (() => {
     try {
       return existsSync(".topic-offered.json")
-        ? JSON.parse(readFileSync(".topic-offered.json", "utf8"))
+      ? JSON.parse(readFileSync(".topic-offered.json", "utf8"))
         : [];
     } catch { return []; }
   })();
   const fromOffer = offered.find((x) => x.n === n);
   const selected = fromOffer
-    ? (list.find((x) => x.id === fromOffer.id) || fromOffer)
+  ? (list.find((x) => x.id === fromOffer.id) || fromOffer)
     : list[n - 1];
   if (!selected?.id) throw new Error(`موضوع شمارهٔ ${n} در فهرستی که فرستاده شد نیست.`);
   if (previewArg) {
@@ -555,44 +537,40 @@ if (pickArg || previewArg) {
     execFileSync(process.execPath, ["content-draft.mjs", "--create", selected.id], { stdio: "inherit", env: process.env });
     process.exit(0);
   }
-  // The ids point at the feature bank, so this path renders a real, known
-  // tutorial instead of inventing a topic after approval.
   const { execFileSync } = await import("node:child_process");
   execFileSync(process.execPath, ["approve-feature.mjs", selected.id], { stdio: "inherit", env: process.env });
   process.exit(0);
 }
-const title = weekly ? "📅 برنامهٔ پیشنهادی هفته" : today ? "🗓️ موضوع‌های پیشنهادی امروز" : "🗓️ موضوع‌های پیشنهادی فردا";
+
+const title = weekly? "📅 برنامهٔ پیشنهادی هفته" : today? "🗓️ موضوع‌های پیشنهادی امروز" : "🗓️ موضوع‌های پیشنهادی فردا";
 const signals = await liveSignals(cat);
 const evidenceText = signals.length
-  ? signals.map((x, i) => `<b>${i + 1}. ${esc(x.labelFa)} — ${esc(x.host)}</b>${x.date ? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
+? signals.map((x, i) => `<b>${i + 1}. ${esc(x.labelFa)} — ${esc(x.host)}</b>${x.date? ` · <i>${esc(x.date)}</i>` : ""}\nسیگنال: ${esc(x.metric)}\n<a href="${x.url}">منبع و آمار</a>`).join("\n\n")
   : "سیگنال عددیِ تازه پیدا نشد؛ موضوع‌های زیر از منابع رسمیِ بررسی‌شده انتخاب شده‌اند و پیش از ساخت، متن کاملشان را می‌بینی.";
+
 let text = `${title}\n\n<b>🔎 سیگنال‌های زندهٔ بررسی‌شده</b>\n${evidenceText}`;
 const proposals = list.map((item, i) =>
-  `<b>موضوع ${FA(i + 1)} — ${esc(item.platform)}</b>\n${esc(item.hook)}\n${esc(item.why)}\n${item.source ? `<a href="${item.source}">منبع رسمی</a>` : esc(item.sourceLabel || "قابلیت مستندشدهٔ پلتفرم")}`
+  `<b>موضوع ${FA(i + 1)} — ${esc(item.platform)}</b>\n${esc(item.hook)}\n${esc(item.why)}\n${item.source? `<a href="${item.source}">منبع رسمی</a>` : esc(item.sourceLabel || "قابلیت مستندشدهٔ پلتفرم")}`
 ).join("\n\n");
+
 text += proposals
-  ? `\n\n<b>✅ موضوع‌های قابل انتخاب</b>\n${proposals}\n\nبرای دیدن پیش‌نویس و ویرایش آن فقط یکی را بفرست: ${list.map((_, i) => `<code>موضوع ${FA(i + 1)}</code>`).join("، ")}.`
+? `\n\n<b>✅ موضوع‌های قابل انتخاب</b>\n${proposals}\n\nبرای دیدن پیش‌نویس و ویرایش آن فقط یکی را بفرست: ${list.map((_, i) => `<code>موضوع ${FA(i + 1)}</code>`).join("، ")}.`
   : "\n\n<b>موضوع واجد شرایطی پیدا نشد.</b>\n" +
     (gateRejects.length
-      ? gateRejects.map((r) => "• " + esc(r.id) + " — " + esc(r.why)).join("\n")
+    ? gateRejects.map((r) => "• " + esc(r.id) + " — " + esc(r.why)).join("\n")
       : "همهٔ موضوع‌های بانک در ۳۰ روز اخیر رفته‌اند یا تکراری‌اند.") +
     "\n\nموضوع ضعیف نمی‌سازم. <code>۵</code> را بفرست و موضوع دلخواهت را جستجو کن.";
+
 text += " هیچ ویدیویی پیش از تأیید پیش‌نویس ساخته نمی‌شود.";
 
-// Recorded before sending, and only when the list has something in it: an
-// empty proposal is not an offer and must not put ids on cooldown.
-if (list.length && !dryRun) recordProposed(list.map((x) => x.id).filter(Boolean));
-// The same list, kept in the order it was numbered. «رد موضوع ۲» has to mean
-// the second line of the message the operator is looking at, not the second
-// item of a ranking recomputed later.
-if (list.length && !dryRun) {
+if (list.length &&!dryRun) recordProposed(list.map((x) => x.id).filter(Boolean));
+if (list.length &&!dryRun) {
   writeFileSync(".topic-offered.json", JSON.stringify(
     list.map((x, n) => ({ n: n + 1, id: x.id, platform: x.platform, hook: x.hook })), null, 2) + "\n");
 }
-if (tg.enabled && !dryRun && process.env.NO_TELEGRAM !== "1") await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
+if (tg.enabled &&!dryRun && process.env.NO_TELEGRAM!== "1") await sendMessage({ token: tg.token, chatId: tg.chatId, text, disablePreview: true });
 else console.log(text);
 
 function laneFa(lane) {
   return ({ trend: "ترند روز", viral: "ویو و وایرال", reach: "دیده‌شدن", income: "درآمد" })[lane] || lane;
 }
-

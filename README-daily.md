@@ -34,6 +34,8 @@ schtasks /Create /TN "AfghanFollower Daily Videos" /TR "node \"D:\ClaudeFile\Cre
 > نکته: زمان‌بند فقط وقتی کار می‌کند که کامپیوتر روشن باشد. برای اجرای ابری/همیشگی
 > باید در یک ترمینال تعاملی وارد HeyGen شوی یا از یک سرور استفاده کنی.
 
+هر اجرا سه موضوع مستقل می‌سازد: TikTok، Instagram و یک موضوع AI کاربردی. موضوع AI در دو خروجی بومی (`ai-tiktok` و `ai-instagram`) آماده می‌شود؛ بنابراین خروجی روزانه چهار فایل است، نه چهار ایدهٔ تکراری.
+
 ## افزودن/ویرایش محتوا
 
 - متن نکته‌ها در `lib/content.mjs` است — هر دسته یک «بانک» (`BANKS.tiktok`, `BANKS.instagram`, `BANKS.general`, `BANKS.ai`).

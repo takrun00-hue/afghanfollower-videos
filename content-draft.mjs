@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { packForFeature } from "./lib/content.mjs";
+import { reviewViralReadiness } from "./lib/viral-readiness.mjs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { replyOnFailure } from "./lib/fail-soft.mjs";
 
@@ -32,11 +33,21 @@ function baseFor(draft) {
 async function announce(draft) {
   const base = baseFor(draft);
   const steps = (draft.steps?.length ? draft.steps : base.tips.map((x) => x.head)).slice(0, 4);
+  const review = reviewViralReadiness({
+    hook: draft.hook || base.hook.ask,
+    tips: steps,
+    outroAsk: base.outroAsk,
+    source: base.source,
+  });
+  const state = review.status === "ready" ? "آمادهٔ بررسی" : review.status === "blocked" ? "نیازمند اصلاح" : "نیازمند بازبینی";
+  const reviewNotes = [...review.blockers, ...review.notes].slice(0, 2);
   const text =
     `🎬 <b>پیش‌نویس آموزشی</b>\n` +
     `<b>${esc(base.feature)}</b>\n\n` +
     `<b>قلاب:</b> ${esc(draft.hook || base.hook.ask)}\n\n` +
     steps.map((s, i) => `${i + 1}. ${esc(s)}`).join("\n") +
+    `\n\n<b>آمادگی محتوا:</b> ${review.score}/100 — ${state}` +
+    (reviewNotes.length ? `\n<i>${esc(reviewNotes.join(" "))}</i>` : "") +
     `\n\n✅ ساخت با صدا: <code>تأیید محتوا</code>` +
     `\n✏️ تغییر قلاب: <code>ادیت قلاب: متن تازه</code>` +
     `\n📝 تغییر اسلایدها: <code>ادیت متن: گام۱ | گام۲ | گام۳ | گام۴</code>` +
@@ -57,7 +68,9 @@ if (args[0] === "--create") {
   const draft = load();
   const hook = clean(arg("--edit-hook"), 180);
   if (!hook) throw new Error("متن قلاب خالی است.");
-  draft.hook = hook.endsWith("؟") || hook.endsWith(".") || hook.endsWith("!") ? hook : `${hook}؟`;
+  // A direct claim can outperform a question. Preserve the editor's chosen
+  // hook form instead of forcing every edit into a question.
+  draft.hook = hook;
   draft.updatedAt = new Date().toISOString(); save(draft); await announce(draft);
 } else if (args[0] === "--edit-steps") {
   const draft = load();
@@ -69,6 +82,15 @@ if (args[0] === "--create") {
 } else if (args[0] === "--build") {
   const draft = load();
   const base = baseFor(draft);
+  const readiness = reviewViralReadiness({
+    hook: draft.hook || base.hook.ask,
+    tips: draft.steps?.length ? draft.steps : base.tips,
+    outroAsk: base.outroAsk,
+    source: base.source,
+  });
+  if (readiness.status === "blocked") {
+    throw new Error(`پیش‌نویس برای ساخت آماده نیست: ${readiness.blockers.join(" ")}`);
+  }
   const customId = `draft-${createHash("sha256").update(JSON.stringify(draft)).digest("hex").slice(0, 12)}`;
   const override = draft.steps?.length ? draft.steps : null;
   const generated = {

@@ -57,6 +57,11 @@ not have. `music/make-voice.mjs` and `verify-voice.mjs` both do this.
 
 ## Corrections
 
+### English UI labels and bound spoken words — pending listening approval
+**Changed:** 2026-09-02. `Creator Search Insights`, `Content gap`, and `Search analytics` are UI labels, not Persian loanwords. Their spoken copy now remains Latin and is protected from an internal breath; TikTok remains a Persian-spoken brand name. Colloquial forms such as «می‌خواین» and «می‌تونین» are now one spoken word rather than being separated by a space.
+
+**Status: NEEDS LISTENING TEST.** This changes only the private TTS copy, not on-screen text or the locked voice settings. The next narrated render must be listened to before this reading is marked LOCKED.
+
 ### Settings drift — the approved reading was never shipped
 **Found:** 2026-08-30, by reading the code rather than by ear.
 `music/minimax-tts.mjs` carried its own defaults — `emotion=happy`, `pitch=1`,

@@ -13,7 +13,7 @@ import { existsSync } from "node:fs";
 import { buildHTML } from "./lib/build.mjs";
 import { buildInkHTML } from "./lib/build-ink.mjs";
 import { buildNeonHTML } from "./lib/build-neon.mjs";
-import { packsForDate, packForFeature, CATEGORIES } from "./lib/content.mjs";
+import { packsForDate, packForFeature, CATEGORIES, dailyDeliveriesForDate } from "./lib/content.mjs";
 import { sceneArtPlan } from "./lib/scene-art.mjs";
 import { creativeBriefFor } from "./lib/creative-brief.mjs";
 import { accentSpec } from "./music/mood.mjs";
@@ -47,6 +47,7 @@ const featIdx = args.indexOf("--feature");
 const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
 
 const sel = packsForDate(date);
+let deliveries = dailyDeliveriesForDate(date);
 let generated = null;
 if (featureId) {
   // One-off news and user-supplied tutorials live in generated files rather
@@ -64,6 +65,7 @@ if (featureId) {
     process.exit(1);
   }
   sel[p.platform] = p;
+  deliveries = [{ slot: p.platform, sourceCategory: p.platform, deliveryChannel: p.platform, role: "feature", mirrorOf: null, pack: p }];
 }
 // A news run is a separate channel: separate folder, separate filename, and a
 // separate manifest, so it can never overwrite the tutorials' record for the day.
@@ -74,11 +76,13 @@ const outDir = isNewsRun ? `renders/news/${iso}` : `renders/daily/${iso}`;
 mkdirSync(compDir, { recursive: true });
 mkdirSync(outDir, { recursive: true });
 
-const forcedCat = featureId ? sel[Object.keys(sel).find((k) => sel[k] && sel[k].id === featureId)]?.platform : null;
-const pick = only || forcedCat;
-const ALL_CATS = forcedCat && !CATEGORIES.includes(forcedCat) ? [...CATEGORIES, forcedCat] : CATEGORIES;
-const cats = pick ? ALL_CATS.filter((c) => c === pick) : CATEGORIES;
-if (pick && cats.length === 0) { console.error(`✗ unknown category "${pick}". Use one of: ${ALL_CATS.join(", ")}`); process.exit(1); }
+const pick = only || (featureId ? deliveries[0].slot : null);
+if (pick) deliveries = deliveries.filter((d) => d.slot === pick);
+if (!deliveries.length) {
+  const choices = featureId ? [packForFeature(featureId, date, generated)?.platform].filter(Boolean) : ["tiktok", "instagram", "ai-tiktok", "ai-instagram"];
+  console.error(`✗ unknown daily slot "${pick}". Use one of: ${choices.join(", ")}`);
+  process.exit(1);
+}
 
 const SENT_LOG = ".telegram-sent.json";
 // Unlike the short Telegram delete log, this file is committed by the cloud
@@ -114,8 +118,8 @@ function recordPublishedTopic(pack, entry) {
 const results = [];
 // rule 10: items in one run are compared against each other, not only history
 const batchPrints = [];
-for (const platform of cats) {
-  const pack = sel[platform];
+for (const delivery of deliveries) {
+  const { slot: platform, pack, mirrorOf } = delivery;
   // Generate the topic-specific creative contract before any sound, HTML or
   // render work. It is saved beside the composition for review and prevents a
   // generic visual decision from being made after the script is already built.
@@ -247,17 +251,25 @@ for (const platform of cats) {
   // earlier items — so the decision is made again here, against the registry
   // plus whatever this run has already queued.
   const print = fingerprint(pack);
-  const dup = check(print, { alsoAgainst: batchPrints });
+  // The second AI file is an intentional channel-specific package of the same
+  // approved subject. It must not be rejected as a duplicate of its TikTok
+  // counterpart, while the first package still checks published history.
+  const dup = mirrorOf
+    ? { verdict: "MIRROR", score: 0, checked: true, sameSubstance: true, mirrorOf }
+    : check(print, { alsoAgainst: batchPrints });
   if (dup.verdict === "DUPLICATE" && process.env.ALLOW_DUPLICATE !== "1") {
     console.error(`   ✗ تکراری (${dup.score}) — همان محتوای «${dup.closest?.id}» در ۳۰ روز اخیر رفته است. ارسال نشد.`);
-    results.push({ platform, final, sent: false, duplicate: dup });
+    // The MP4 exists locally even when the editorial duplicate gate prevents
+    // delivery. Keep the same `file` field as ordinary completed renders so
+    // the final summary never prints `undefined`.
+    results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: resolve(final), sent: false, duplicate: dup });
     continue;
   }
   if (dup.verdict === "PARTIALLY_OVERLAPPING") {
     console.warn(`   ⚠ هم‌پوشانی ${dup.score}٪ با «${dup.closest?.id}» — بررسی کن که چیز تازه‌ای می‌گوید`);
   }
   if (!dup.checked) console.warn("   ⚠ تاریخچه‌ای برای مقایسه نبود؛ یکتا بودن تأیید نشده است");
-  batchPrints.push(print);
+  if (!mirrorOf) batchPrints.push(print);
 
   if (tg.enabled) {
     try {
@@ -282,7 +294,7 @@ for (const platform of cats) {
   } else if (!noTelegram) {
     throw new Error("Telegram is not configured; refusing to mark a local-only render as delivered.");
   }
-  results.push({ platform, packId: pack.id, file: resolve(final), telegram: sent });
+  results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: resolve(final), telegram: sent });
 }
 
 writeFileSync(`${outDir}/${isNewsRun ? "news-manifest" : "manifest"}.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
