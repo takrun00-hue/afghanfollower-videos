@@ -16,6 +16,9 @@ process.chdir(dirname(fileURLToPath(import.meta.url)));
 const env = loadEnv();
 const tg = telegramConfig(env);
 const key = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
+// Translate non-Persian live-search cards before sending them to Telegram.
+// The source URL and product names stay in their original form for checking.
+const grokKey = process.env.GROK_API_KEY || process.env.XAI_API_KEY || env.GROK_API_KEY || env.XAI_API_KEY || "";
 const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const FA = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
 const categoryArg = (process.argv.find((x) => x.startsWith("--category=")) || "").slice(11);
@@ -288,8 +291,66 @@ function categoryForSearch(query) {
   return "tools";
 }
 
+function needsPersian(text) {
+  const letters = String(text || "").match(/[\p{L}]/gu) || [];
+  if (!letters.length) return false;
+  const persian = letters.filter((ch) => /[\u0600-\u06FF]/.test(ch)).length;
+  return persian / letters.length < 0.55;
+}
+
+const cleanTranslation = (value, max) => String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+
+async function translateSearchResults(items) {
+  const targets = items.map((item, index) => ({
+    index,
+    title: String(item.title || "").slice(0, 180),
+    excerpt: String(item.text || "").replace(/\s+/g, " ").slice(0, 520),
+  })).filter((item) => needsPersian(`${item.title} ${item.excerpt}`));
+  if (!targets.length) return items;
+  if (!grokKey) throw new Error("کلید GROK_API_KEY برای برگردان فارسیِ منابع تنظیم نشده است.");
+
+  const prompt = [
+    "Translate live research results for a Persian-language creator workflow.",
+    "Return ONLY a JSON array. Each item must be {index,title,excerpt}.",
+    "Translate faithfully into natural Persian (Farsi). Do not add claims, facts, prices, or advice.",
+    "Keep product, company, app, feature, and website names in their established English spelling.",
+    "Keep the title concise and the excerpt factual. Do not include markdown or URLs.",
+    "Results:", JSON.stringify(targets),
+  ].join("\n");
+  try {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${grokKey}` },
+      body: JSON.stringify({
+        model: "grok-4-1-fast-reasoning",
+        temperature: 0.1,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!response.ok) throw new Error("پاسخ ترجمهٔ Grok در دسترس نیست.");
+    const body = await response.json();
+    const raw = body?.choices?.[0]?.message?.content || "";
+    const json = raw.match(/\[[\s\S]*\]/)?.[0] || raw;
+    const translated = JSON.parse(json);
+    const byIndex = new Map(translated.map((item) => [Number(item.index), item]));
+    return items.map((item, index) => {
+      const fa = byIndex.get(index);
+      if (!fa) return item;
+      return {
+        ...item,
+        originalTitle: String(item.title || ""),
+        originalExcerpt: String(item.text || ""),
+        title: cleanTranslation(fa.title, 180) || item.title,
+        text: cleanTranslation(fa.excerpt, 520) || item.text,
+      };
+    });
+  } catch {
+    throw new Error("ترجمهٔ فارسیِ منبع انجام نشد؛ نتیجهٔ غیر فارسی ارسال نشد.");
+  }
+}
+
 function sourceQueue() {
-  try { return existsSync(SEARCH_QUEUE) ? JSON.parse(readFileSync(SEARCH_QUEUE, "utf8")) : []; }
+  try { return existsSync(SEARCH_QUEUE)? JSON.parse(readFileSync(SEARCH_QUEUE, "utf8")) : []; }
   catch { return []; }
 }
 
@@ -313,6 +374,14 @@ if (liveQuery) {
   try { results = await liveSearchForCreatorNeed(liveQuery); }
   catch (error) {
     const message = `⚠️ <b>جستجوی زنده انجام نشد</b>\n${esc(String(error.message).slice(0, 140))}`;
+    if (tg.enabled &&!dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text: message }); else console.log(message);
+    process.exit(0);
+  }
+  // Persist the Persian translation, not the original foreign-language card.
+  // This keeps the Telegram preview, the later draft, and the narration aligned.
+  try { results = await translateSearchResults(results); }
+  catch (error) {
+    const message = `⚠️ <b>جستجو انجام شد، اما برگردان فارسی آماده نشد.</b>\n${esc(String(error.message).slice(0, 140))}`;
     if (tg.enabled && !dryRun) await sendMessage({ token: tg.token, chatId: tg.chatId, text: message }); else console.log(message);
     process.exit(0);
   }
@@ -322,6 +391,8 @@ if (liveQuery) {
     n: index + 1,
     title: String(item.title).slice(0, 140),
     excerpt: String(item.text || "").replace(/\s+/g, " ").slice(0, 360),
+    originalTitle: String(item.originalTitle || item.title || "").slice(0, 180),
+    originalExcerpt: String(item.originalExcerpt || item.text || "").replace(/\s+/g, " ").slice(0, 520),
     url: item.url,
     date: String(item.publishedDate || "").slice(0, 10),
     category,
