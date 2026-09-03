@@ -9,9 +9,9 @@
 //   · hook|step               — the same separator, shorter
 //   · lead line + ۱./۲./… steps — the only structural cue that survives the
 //     newline flattening; this is what "خط‌به‌خط" actually has to mean now
-//   · a bare sentence         — genuinely unsupported (no content-drafting AI
-//     key exists anywhere in this project) and must fail with a specific,
-//     actionable message, not the old generic one, and must not write a draft
+//   · a bare sentence         — becomes a draft only when the workflow supplies
+//     its Grok key; without that key it must fail clearly and must not write a
+//     draft. This keeps the local/offline path deterministic and honest.
 //
 //   node test-custom-draft.mjs
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -68,18 +68,17 @@ const check = (label, cond, detail) => {
   check("بدون لید: گام اول قلاب هم می‌شود", r.draft?.generated?.hook?.ask === "یک نمونهٔ واقعی نشان بده" && r.draft?.generated?.tips?.length === 2);
 }
 
-// 5) the exact assignment topic, sent exactly as a real creator would type it
-// in Telegram — no pipes, no numbers. This has no structural boundary for a
-// hook vs. a step, and nothing in this project drafts one from free text.
+// 5) Offline/no-key fallback. Cloud execution supplies Grok for this shape;
+// local execution must not pretend it drafted a topic without the service.
 {
   const r = run("محتوا: چگونه با یک ویدیوی کوتاه، مشتری مناسب برای خدماتت جذب کنی؟".replace(/^محتوا:\s*/, ""));
   check("موضوع خام: هیچ پیش‌نویسی ساخته نمی‌شود", r.draft === null, r.draft ? "یک پیش‌نویس ساخته شد — این نادرست است" : "");
-  check("  و خطا مشخص و راهنماست، نه پیام عمومی", /هوش مصنوعی.*تنظیم نشده/.test(r.out) && /عنوان \| قلاب \| گام/.test(r.out) && /شماره‌گذاری‌شده/.test(r.out));
+  check("  و خطا مشخص و راهنماست، نه پیام عمومی", /پیش‌نویس خودکار.*دسترس نیست/.test(r.out) && /عنوان \| قلاب \| گام/.test(r.out) && /شماره‌گذاری‌شده/.test(r.out));
   check("  و فرآیند سالم خارج می‌شود (پیام رفت، نه کرش)", r.status === 0, `exit ${r.status}`);
 }
 
 if (saved !== null) writeFileSync(DRAFT, saved); else rmSync(DRAFT, { force: true });
 
 console.log("");
-console.log(bad === 0 ? "custom-draft.mjs handles all three real input shapes, and refuses a bare topic clearly" : `${bad} check(s) failed`);
+console.log(bad === 0 ? "custom-draft.mjs handles structured input and safely refuses a bare topic without the cloud drafting key" : `${bad} check(s) failed`);
 process.exit(bad === 0 ? 0 : 1);

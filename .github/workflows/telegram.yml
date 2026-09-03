@@ -234,6 +234,10 @@ jobs:
       - name: Analyse creator-supplied tutorial topic
         if: steps.cmd.outputs.ACTION == 'content-topic-preview'
         env:
+          # A raw creator topic is expanded into a reviewable draft only.  It
+          # never reaches the renderer until the separate content-approve action.
+          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}

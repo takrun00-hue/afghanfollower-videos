@@ -1,8 +1,8 @@
 // Creates an editable tutorial draft from a topic that the creator supplied in
 // Telegram. The Worker forwards the raw text; this file turns it into the
-// existing editorial-gate format — it does not generate the hook or steps
-// itself (no content-drafting AI key is configured anywhere in this project;
-// adding one is the creator's call, not something to add silently here).
+// existing editorial-gate format.  Explicit creator steps always win.  If the
+// creator sends only a topic, the already-configured Grok workflow expands it
+// into a *reviewable* draft — never a render or publication.
 //
 // Two input shapes are genuinely supported:
 //   1. "title|hook|step1|step2..." — full control, unchanged since this file
@@ -28,6 +28,7 @@ replyOnFailure();
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const clean = (value, max = 180) => String(value || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const raw = process.argv.slice(2).join(" ").trim();
+const grokKey = process.env.GROK_API_KEY || process.env.XAI_API_KEY || "";
 
 // Splits "متن قلاب ۱. اول ۲) دوم - سوم" into a lead line plus its numbered/
 // dashed segments. Matches a digit run (Persian or Latin) followed by one of
@@ -56,6 +57,36 @@ function numberedShape(text) {
 let parts = raw.split("|").map((x) => clean(x)).filter(Boolean);
 let title, hook, stepText;
 
+async function draftBareTopic(topic) {
+  if (!grokKey) return null;
+  const prompt = [
+    "You prepare a Persian (Farsi) short-video DRAFT for a human creator to review.",
+    "Return ONLY valid JSON: {title,hook,steps}.",
+    "The creator supplied only this topic: " + JSON.stringify(clean(topic, 300)),
+    "Write natural Persian. title: at most 12 words. hook: 7-17 words, spoken, curiosity-led.",
+    "The hook must not name the app, product, company, brand, or reveal the answer.",
+    "Give 2 to 4 short, practical steps. Do not invent statistics, prices, features, UI paths, or guarantees.",
+    "Do not promise views, virality, sales, followers, or income. Keep established product names in English only when essential.",
+  ].join("\n");
+  const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${grokKey}` },
+    body: JSON.stringify({ model: "grok-4-1-fast-reasoning", temperature: 0.25, messages: [{ role: "user", content: prompt }] }),
+  });
+  if (!response.ok) throw new Error("پیش‌نویس هوش مصنوعی آماده نشد؛ موضوع را با گام‌ها بفرستید یا دوباره تلاش کنید.");
+  const body = await response.json();
+  const answer = String(body?.choices?.[0]?.message?.content || "");
+  const json = answer.match(/\{[\s\S]*\}/)?.[0] || answer;
+  let drafted;
+  try { drafted = JSON.parse(json); }
+  catch { throw new Error("پاسخ پیش‌نویس قابل‌خواندن نبود؛ دوباره تلاش کنید."); }
+  const nextTitle = clean(drafted?.title || topic, 160);
+  const nextHook = clean(drafted?.hook, 180);
+  const nextSteps = Array.isArray(drafted?.steps) ? drafted.steps.map((item) => clean(item, 180)).filter(Boolean).slice(0, 4) : [];
+  if (!nextHook || nextSteps.length < 2) throw new Error("پیش‌نویس کامل نبود؛ دوباره تلاش کنید یا گام‌ها را خودتان بفرستید.");
+  return { title: nextTitle, hook: nextHook, steps: nextSteps };
+}
+
 if (parts.length >= 3) {
   [title, hook, ...stepText] = parts;
 } else {
@@ -66,16 +97,16 @@ if (parts.length >= 3) {
     // Exactly one "|" used: read as hook|step, no separate title.
     [hook, ...stepText] = parts; title = hook;
   } else {
-    // Neither shape matched: nothing to build from. Show both real formats
-    // with a live example built from what was actually sent, so the next
-    // attempt can succeed without guessing.
-    const topic = clean(raw, 120).replace(/[؟?]+$/, "") || "موضوع شما";
-    throw new Error(
-      "این متن ساختار قابل‌تشخیصی ندارد — این پروژه موضوعِ آزاد را با هوش مصنوعی به قلاب و گام تبدیل نمی‌کند (کلیدی برای این کار تنظیم نشده).\n\n" +
-      "یکی از این دو شکل را بفرست:\n" +
-      `۱) عنوان | قلاب | گام اول | گام دوم\nمثال: ${topic} | ${topic}؟ | یک نمونهٔ واقعی نشان بده | دعوت به کامنت بگذار\n\n` +
-      `۲) اول قلاب، بعد گام‌های شماره‌گذاری‌شده\nمثال: ${topic}؟ ۱. یک نمونهٔ واقعی نشان بده ۲. دعوت به کامنت بگذار`
-    );
+    const drafted = await draftBareTopic(raw);
+    if (!drafted) {
+      const topic = clean(raw, 120).replace(/[؟?]+$/, "") || "موضوع شما";
+      throw new Error(
+        "پیش‌نویس خودکار در دسترس نیست. یکی از این دو شکل را بفرست:\n" +
+        `۱) عنوان | قلاب | گام اول | گام دوم\nمثال: ${topic} | ${topic}؟ | یک نمونهٔ واقعی نشان بده | دعوت به کامنت بگذار\n\n` +
+        `۲) اول قلاب، بعد گام‌های شماره‌گذاری‌شده\nمثال: ${topic}؟ ۱. یک نمونهٔ واقعی نشان بده ۲. دعوت به کامنت بگذار`
+      );
+    }
+    ({ title, hook, steps: stepText } = drafted);
   }
 }
 const category = /(انستا|instagram|reels|ریلز|edits)/i.test(title) ? "instagram"

@@ -48,11 +48,7 @@ const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b
 const NUMBERED_ACTIONS = {
   "1": { action: "plan-tiktok" }, "2": { action: "plan-instagram" }, "3": { action: "plan-tools" },
   "4": { action: "plan-today" }, "5": { pending: "content-search-live", ask: "🔎 عبارت جستجوی محتوا را بفرستید؛ مثلاً: درآمد از تیک‌تاک" },
-  // Was: "اگر فقط موضوع بفرستید، خودش ساختار پیشنهاد می‌دهد" — false. Nothing in
-  // this project turns a bare sentence into a hook+steps draft (no content-
-  // drafting AI key is configured anywhere here); custom-draft.mjs only ever
-  // parses a lead line plus numbered steps, or the explicit "|" format.
-  "6": { pending: "content-topic-preview", ask: "📝 موضوع یا متن آموزشی را بفرستید — یکی از این دو شکل:\n\n۱. اول قلاب/عنوان، بعد گام‌ها را شماره‌گذاری‌کنید: «چطور X؟ ۱. گام اول ۲. گام دوم»\n۲. یا با | جدا کنید: عنوان | قلاب | گام ۱ | گام ۲" },
+  "6": { pending: "content-topic-preview", ask: "📝 موضوع یا متن آموزشی را بفرستید. فقط موضوع هم کافی است؛ بات پیش‌نویس قلاب و گام‌ها را می‌سازد تا پیش از ساخت ویدیو آن را تأیید یا ادیت کنید. اگر گام‌ها را خودتان نوشته‌اید، با شماره یا | بفرستید تا همان‌ها حفظ شوند." },
   "7": { pending: "content-edit-hook", ask: "✏️ متن تازهٔ قلاب آموزشی را بفرستید." },
   "8": { pending: "content-edit-steps", ask: "✏️ اسلایدهای تازه را با | جدا کنید: گام ۱ | گام ۲ | گام ۳" },
   "26": { pending: "demand-research", ask: "🔎 موضوع را بفرستید تا ببینم مردم واقعاً چه چیزی درباره‌اش سرچ می‌کنند." },
