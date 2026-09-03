@@ -220,9 +220,17 @@ jobs:
 
       - name: Verify content-search draft for cache
         if: steps.cmd.outputs.ACTION == 'search-topic-pick'
+        # A missing file here isn't always a real fault: content-search.mjs's
+        # own replyOnFailure() already sends the operator a clear Telegram
+        # message and exits 0 when the picked number was invalid/stale — that
+        # is a correct, graceful decline, not something this step should turn
+        # into a red X. A genuine crash still fails earlier steps normally.
         run: |
-          test -f .content-draft.json
-          echo "content-search draft will be retained by the Actions cache."
+          if [ -f .content-draft.json ]; then
+            echo "content-search draft will be retained by the Actions cache."
+          else
+            echo "::warning::No draft file — the previous step likely already explained why in Telegram."
+          fi
 
       - name: Build a requested tutorial
         if: contains(fromJSON('["approved-feature","content-approve","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","resend","custom-content"]'), steps.cmd.outputs.ACTION)
@@ -284,9 +292,16 @@ jobs:
 
       - name: Verify tutorial draft for cache
         if: contains(fromJSON('["topic-pick","content-edit-hook","content-edit-steps"]'), steps.cmd.outputs.ACTION)
+        # A missing file isn't always a real fault: content-draft.mjs's own
+        # replyOnFailure() sends a clear Telegram explanation and exits 0
+        # when the picked topic id is invalid/stale (e.g. an offer cached
+        # from an earlier run) — a correct decline, not a red X here.
         run: |
-          test -f .content-draft.json
-          echo "Tutorial draft will be retained by the Actions cache."
+          if [ -f .content-draft.json ]; then
+            echo "Tutorial draft will be retained by the Actions cache."
+          else
+            echo "::warning::No draft file — the previous step likely already explained why in Telegram."
+          fi
 
       # ---- real screenshot / broll approval --------------------------------
       # fetch-screens.mjs / fetch-broll.mjs only ever run ahead of time (local
@@ -338,10 +353,15 @@ jobs:
 
       - name: Verify news radar queue for cache
         if: steps.cmd.outputs.ACTION == 'news-radar'
+        # Missing files here aren't always a real fault: news-radar.mjs exits
+        # before writing either file when it genuinely finds nothing new —
+        # an expected, common outcome, not something to red-flag the job for.
         run: |
-          test -f .news-queue.json
-          test -f .news-seen.json
-          echo "News radar queue and duplicate guard will be retained by the Actions cache."
+          if [ -f .news-queue.json ] && [ -f .news-seen.json ]; then
+            echo "News radar queue and duplicate guard will be retained by the Actions cache."
+          else
+            echo "::warning::No queue/seen file — likely just no new stories this run."
+          fi
 
       - name: Send MiniMax voice IDs
         if: steps.cmd.outputs.ACTION == 'voice-list'
@@ -376,10 +396,15 @@ jobs:
 
       - name: Verify news queue for cache
         if: contains(fromJSON('["news-scan","news-search-live","amal-berlin","amal-hamburg","amal-frankfurt","amal-farsi"]'), steps.cmd.outputs.ACTION)
+        # Missing files here aren't always a real fault: news-scan.mjs exits
+        # before writing either file when it genuinely finds nothing new —
+        # an expected, common outcome, not something to red-flag the job for.
         run: |
-          test -f .news-queue.json
-          test -f .news-seen.json
-          echo "News queue and duplicate guard will be retained by the Actions cache."
+          if [ -f .news-queue.json ] && [ -f .news-seen.json ]; then
+            echo "News queue and duplicate guard will be retained by the Actions cache."
+          else
+            echo "::warning::No queue/seen file — likely just no new stories this run."
+          fi
 
       - name: List news
         if: contains(fromJSON('["news-germany","news-europe","news-today"]'), steps.cmd.outputs.ACTION)
@@ -466,9 +491,14 @@ jobs:
 
       - name: Verify news draft for cache
         if: contains(fromJSON('["news-breaking-preview","news-pick-preview","europe-pick-preview","news-text-preview","news-edit-hook","news-edit-text"]'), steps.cmd.outputs.ACTION)
+        # A missing file isn't always a real fault — the previous step may
+        # have already sent a clear Telegram explanation and exited 0.
         run: |
-          test -f .news-draft.json
-          echo "News draft will be retained by the Actions cache."
+          if [ -f .news-draft.json ]; then
+            echo "News draft will be retained by the Actions cache."
+          else
+            echo "::warning::No draft file — the previous step likely already explained why in Telegram."
+          fi
 
       # ---- deleting --------------------------------------------------------
       - name: Undo the last send
