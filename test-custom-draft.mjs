@@ -14,18 +14,33 @@
 //     draft. This keeps the local/offline path deterministic and honest.
 //
 //   node test-custom-draft.mjs
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync, renameSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const DRAFT = ".content-draft.json";
 const saved = existsSync(DRAFT) ? readFileSync(DRAFT, "utf8") : null;
 
-function run(text) {
+function run(text, { noGemini = false } = {}) {
   rmSync(DRAFT, { force: true });
-  const r = spawnSync(process.execPath, ["custom-draft.mjs", text], {
-    encoding: "utf8",
-    env: { ...process.env, NO_TELEGRAM: "1" },
-  });
+  // custom-draft.mjs's own loadEnv() reads .env straight off disk and lets it
+  // win over whatever this subprocess's env carries — a real key sitting in
+  // .env (correctly, for normal local use) can't be hidden by clearing
+  // GEMINI_API_KEY/GOOGLE_API_KEY from `env:` below. To genuinely exercise
+  // the no-key path, .env is moved aside for the duration of this one call.
+  const ENV_FILE = ".env", ENV_BAK = ".env.test-custom-draft.bak";
+  const hadEnv = noGemini && existsSync(ENV_FILE);
+  if (hadEnv) renameSync(ENV_FILE, ENV_BAK);
+  let r;
+  try {
+    r = spawnSync(process.execPath, ["custom-draft.mjs", text], {
+      encoding: "utf8",
+      env: noGemini
+        ? { ...process.env, NO_TELEGRAM: "1", GEMINI_API_KEY: "", GOOGLE_API_KEY: "" }
+        : { ...process.env, NO_TELEGRAM: "1" },
+    });
+  } finally {
+    if (hadEnv) renameSync(ENV_BAK, ENV_FILE);
+  }
   const draft = existsSync(DRAFT) ? JSON.parse(readFileSync(DRAFT, "utf8")) : null;
   return { status: r.status, out: (r.stdout || "") + (r.stderr || ""), draft };
 }
@@ -71,7 +86,7 @@ const check = (label, cond, detail) => {
 // 5) Offline/no-key fallback. Cloud execution supplies GEMINI_API_KEY for
 // this shape; local execution must not pretend it drafted a topic without it.
 {
-  const r = run("محتوا: چگونه با یک ویدیوی کوتاه، مشتری مناسب برای خدماتت جذب کنی؟".replace(/^محتوا:\s*/, ""));
+  const r = run("محتوا: چگونه با یک ویدیوی کوتاه، مشتری مناسب برای خدماتت جذب کنی؟".replace(/^محتوا:\s*/, ""), { noGemini: true });
   check("موضوع خام: هیچ پیش‌نویسی ساخته نمی‌شود", r.draft === null, r.draft ? "یک پیش‌نویس ساخته شد — این نادرست است" : "");
   // Names the actual missing secret (GEMINI_API_KEY), not just "try a
   // different format" — a creator can't fix a key nobody set, and the old

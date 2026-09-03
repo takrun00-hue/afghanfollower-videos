@@ -22,13 +22,20 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { replyOnFailure } from "./lib/fail-soft.mjs";
+import { loadEnv } from "./lib/telegram.mjs";
 
 replyOnFailure();
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const clean = (value, max = 180) => String(value || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const raw = process.argv.slice(2).join(" ").trim();
-const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+// GitHub Actions sets process.env directly from repo secrets, so this alone
+// was enough in the cloud — but every other script in this project also
+// falls back to a locally loaded .env (research.mjs, news-scan.mjs, demand.mjs,
+// bot.mjs, content-search.mjs, topic-plan.mjs). This one didn't, so a key
+// added only to .env for local testing was invisible to it.
+const env = loadEnv();
+const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "";
 
 // Splits "متن قلاب ۱. اول ۲) دوم - سوم" into a lead line plus its numbered/
 // dashed segments. Matches a digit run (Persian or Latin) followed by one of
@@ -68,12 +75,23 @@ async function draftBareTopic(topic) {
     "Give 2 to 4 short, practical steps. Do not invent statistics, prices, features, UI paths, or guarantees.",
     "Do not promise views, virality, sales, followers, or income. Keep established product names in English only when essential.",
   ].join("\n");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  // gemini-2.5-flash is retired for new users — confirmed live, 2026-09-03:
+  // the API's own 404 names gemini-3.6-flash as the replacement.
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  const call = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": geminiKey },
     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0.25, responseMimeType: "application/json" } }),
   });
+  // gemini-3.6-flash returns a plain 503 "high demand, try again later" on a
+  // real fraction of calls (confirmed live, 2026-09-03: 2 of 3 back-to-back
+  // attempts) — a genuinely transient condition, not a bad key or request,
+  // the same class of failure sendVideo() in lib/telegram.mjs already retries.
+  let response = await call();
+  for (let i = 0; !response.ok && (response.status === 503 || response.status === 429) && i < 2; i++) {
+    await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    response = await call();
+  }
   if (!response.ok) throw new Error("پیش‌نویس هوش مصنوعی آماده نشد؛ موضوع را با گام‌ها بفرستید یا دوباره تلاش کنید.");
   const body = await response.json();
   const answer = String(body?.candidates?.[0]?.content?.parts?.map((part) => part?.text || "").join("") || "");
