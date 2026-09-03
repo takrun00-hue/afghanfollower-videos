@@ -41,6 +41,23 @@ for (const item of batch) {
 const removedIds = new Set(batch.filter((b) => Date.now() - b.at <= DAY2).map((b) => b.messageId));
 writeFileSync(LOG, JSON.stringify(all.filter((x) => !removedIds.has(x.messageId)), null, 2));
 
+// A deleted video's dedupe fingerprint used to survive forever, in two
+// separate files with two separate real jobs — daily-render.mjs's send-time
+// duplicate gate (lib/dedupe.mjs's fingerprint check) reads
+// .content-registry.json specifically, not .content-history.json (that one
+// is topic-plan.mjs's own, simpler "already proposed" memory). Both matched
+// on this content and permanently refused to resend the same id, even for
+// content undone specifically *because* the first send was defective (e.g.
+// sent silent, no narration). Undoing a send has to undo both records.
+for (const FILE of [".content-history.json", ".content-registry.json"]) {
+  if (!removedIds.size || !existsSync(FILE)) continue;
+  try {
+    const stored = JSON.parse(readFileSync(FILE, "utf8"));
+    const kept = stored.filter((x) => !removedIds.has(x.messageId));
+    if (kept.length !== stored.length) writeFileSync(FILE, JSON.stringify(kept, null, 2));
+  } catch { /* a missing/unreadable dedupe file is not this script's job to fix */ }
+}
+
 const lines = [`🗑 ${removed} ویدیو حذف شد.`];
 if (tooOld) lines.push(`${tooOld} تا قدیمی‌تر از ۴۸ ساعت بود و تلگرام اجازهٔ حذفش را نمی‌دهد — دستی پاکشان کن.`);
 if (failed.length) lines.push("خطا: " + failed.join(" · "));
