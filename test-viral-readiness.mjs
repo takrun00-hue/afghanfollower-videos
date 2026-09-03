@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { reviewViralReadiness } from "./lib/viral-readiness.mjs";
+import { evaluate } from "./lib/selection-gate.mjs";
 
 const strong = reviewViralReadiness({
   hook: "مخاطب در ثانیهٔ اول می‌رود؛ نقطهٔ افت را پیدا کن",
@@ -26,4 +27,21 @@ const inventedRetention = reviewViralReadiness({
 assert.equal(inventedRetention.status, "blocked");
 assert.ok(inventedRetention.blockers.some((item) => item.includes("Retention")));
 
-console.log("viral-readiness review handles truthful hooks and blocks guarantees");
+const publicFeature = {
+  topic: "راه عملی برای بهتر دیده‌شدن محتوا",
+  question: "چطور مخاطب تازه پیدا کنی؟",
+  keyPoints: ["مسیر واقعی را باز کن", "نتیجه را بررسی کن"],
+  demandPhrases: [{ text: "چطور مخاطب تازه پیدا کنم" }],
+  sourceDate: new Date().toISOString(),
+  sources: ["https://support.tiktok.com/example"],
+};
+assert.equal(evaluate(publicFeature).decision, "APPROVE");
+const inviteOnly = evaluate({
+  ...publicFeature,
+  topic: "Instagram Bonuses فقط با دعوت فعال می‌شود",
+  keyPoints: [...publicFeature.keyPoints, "Invite-only"],
+});
+assert.equal(inviteOnly.decision, "REJECT");
+assert.ok(inviteOnly.failures.includes("قابلیت برای بیشتر مخاطبان قابل‌استفاده نیست"));
+
+console.log("viral-readiness review blocks guarantees and unavailable tutorial topics");
