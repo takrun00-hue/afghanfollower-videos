@@ -53,7 +53,7 @@ globalThis.fetch = async (url) => {
 };
 try {
   const translated = await translateToPersian([{ title: "English title", text: "English source text" }], { geminiKey: "test-gemini" });
-  assert.match(calls[0], /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-3\.6-flash:generateContent$/);
+  assert.match(calls[0], /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-flash-lite-latest:generateContent$/);
   assert.equal(translated[0].title, "عنوان فارسی");
 } finally {
   globalThis.fetch = realFetch;

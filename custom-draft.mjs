@@ -75,18 +75,27 @@ async function draftBareTopic(topic) {
     "Give 2 to 4 short, practical steps. Do not invent statistics, prices, features, UI paths, or guarantees.",
     "Do not promise views, virality, sales, followers, or income. Keep established product names in English only when essential.",
   ].join("\n");
-  // gemini-2.5-flash is retired for new users — confirmed live, 2026-09-03:
-  // the API's own 404 names gemini-3.6-flash as the replacement.
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  // gemini-2.5-flash is retired for new users (confirmed live, 2026-09-03:
+  // 404 names gemini-3.6-flash as the nominal replacement). gemini-3.6-flash
+  // itself turned out to be a poor fit for this project's call volume: it's a
+  // "thinking" model that burns real output-token budget on internal
+  // reasoning (confirmed: 541-789 tokens per call before the actual answer),
+  // and its free tier caps at 20 requests/DAY — exhausted mid-session just
+  // testing this fix. gemini-flash-lite-latest handles the same prompts with
+  // no thinking overhead and a "-latest" alias, which avoids the sudden
+  // retirement gemini-2.5-flash just hit.
+  const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
   const call = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": geminiKey },
     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0.25, responseMimeType: "application/json" } }),
   });
-  // gemini-3.6-flash returns a plain 503 "high demand, try again later" on a
-  // real fraction of calls (confirmed live, 2026-09-03: 2 of 3 back-to-back
-  // attempts) — a genuinely transient condition, not a bad key or request,
-  // the same class of failure sendVideo() in lib/telegram.mjs already retries.
+  // Gemini's own "thinking" flash models returned a plain 503 "high demand"
+  // on a real fraction of calls (confirmed live, 2026-09-03: 2 of 3
+  // back-to-back attempts against gemini-3.6-flash) — a genuinely transient
+  // condition, not a bad key or request, the same class of failure
+  // sendVideo() in lib/telegram.mjs already retries. Kept here even after
+  // switching to gemini-flash-lite-latest as cheap insurance.
   let response = await call();
   for (let i = 0; !response.ok && (response.status === 503 || response.status === 429) && i < 2; i++) {
     await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
