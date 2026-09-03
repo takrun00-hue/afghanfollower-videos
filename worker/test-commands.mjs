@@ -2,7 +2,7 @@
 // local-PC bot test: the phone uses worker/src/index.js, so it needs its own
 // regression test for the exact commands the creator actually types.
 import assert from "node:assert/strict";
-import { menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick } from "./src/index.js";
+import { NUMBERED_ACTIONS, menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick } from "./src/index.js";
 
 assert.equal(videoAction("تیک تاک بساز").action, "plan-tiktok");
 assert.equal(videoAction("انستا بساز").action, "plan-instagram");
@@ -10,6 +10,17 @@ assert.equal(videoAction("بساز").action, "plan-today");
 assert.equal(videoAction("تأیید محتوا").action, "content-approve");
 assert.equal(videoAction("تأیید خبر").action, "news-approve-draft");
 assert.equal(videoAction("محتوا: یک موضوع واقعی با سه گام کامل برای ویدیوی آموزشی").action, "content-topic-preview");
+assert.equal(menuCode("۱"), "1");
+assert.equal(NUMBERED_ACTIONS["1"].action, "content-search");
+assert.equal(NUMBERED_ACTIONS["2"].pending, "content-search-live");
+assert.equal(NUMBERED_ACTIONS["3"].pending, "content-topic-preview");
+assert.equal(NUMBERED_ACTIONS["4"].action, "content-preview");
+assert.equal(NUMBERED_ACTIONS["5"].pending, "content-edit-hook");
+assert.equal(NUMBERED_ACTIONS["6"].pending, "content-edit-steps");
+assert.equal(NUMBERED_ACTIONS["7"].action, "content-approve");
+assert.equal(NUMBERED_ACTIONS["8"].action, "content-radar");
+assert.equal(NUMBERED_ACTIONS["9"].pending, "demand-research");
+assert.equal(NUMBERED_ACTIONS["10"].action, "voice-list");
 assert.equal(menuCode("۶"), "6");
 assert.equal(commandFromPending({ action: "content-edit-hook" }, "قلاب تازه و روشن").action, "content-edit-hook");
 assert.match(acknowledgementFor({ action: "plan-tiktok" }), /هنوز ساخته نمی‌شود/);
