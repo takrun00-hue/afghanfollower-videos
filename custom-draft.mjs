@@ -23,6 +23,7 @@ import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { replyOnFailure } from "./lib/fail-soft.mjs";
 import { loadEnv } from "./lib/telegram.mjs";
+import { stripChineseText } from "./lib/translate-fa.mjs";
 
 replyOnFailure();
 
@@ -108,9 +109,16 @@ async function draftBareTopic(topic) {
   let drafted;
   try { drafted = JSON.parse(json); }
   catch { throw new Error("پاسخ پیش‌نویس قابل‌خواندن نبود؛ دوباره تلاش کنید."); }
-  const nextTitle = clean(drafted?.title || topic, 160);
-  const nextHook = clean(drafted?.hook, 180);
-  const nextSteps = Array.isArray(drafted?.steps) ? drafted.steps.map((item) => clean(item, 180)).filter(Boolean).slice(0, 4) : [];
+  // gemini-flash-lite-latest is the same class of distilled model reported
+  // (2026-09-03) to leak stray Chinese characters into Persian output — a
+  // deterministic strip here guarantees it can never reach the draft,
+  // regardless of what the model does, the same guard translateToPersian()
+  // in lib/translate-fa.mjs applies to search-result translation.
+  const nextTitle = stripChineseText(clean(drafted?.title || topic, 160));
+  const nextHook = stripChineseText(clean(drafted?.hook, 180));
+  const nextSteps = Array.isArray(drafted?.steps)
+    ? drafted.steps.map((item) => stripChineseText(clean(item, 180))).filter(Boolean).slice(0, 4)
+    : [];
   if (!nextHook || nextSteps.length < 2) throw new Error("پیش‌نویس کامل نبود؛ دوباره تلاش کنید یا گام‌ها را خودتان بفرستید.");
   return { title: nextTitle, hook: nextHook, steps: nextSteps };
 }
