@@ -49,18 +49,14 @@ const realFetch = globalThis.fetch;
 const calls = [];
 globalThis.fetch = async (url) => {
   calls.push(String(url));
-  return {
-    ok: true,
-    status: 200,
-    json: async () => ({ choices: [{ message: { content: '[{"index":0,"title":"عنوان فارسی","excerpt":"متن فارسی"}]' } }] }),
-  };
+  return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: '[{"index":0,"title":"عنوان فارسی","excerpt":"متن فارسی"}]' }] } }] }) };
 };
 try {
-  const translated = await translateToPersian([{ title: "English title", text: "English source text" }], { openRouterKey: "test-openrouter" });
-  assert.equal(calls[0], "https://openrouter.ai/api/v1/chat/completions");
+  const translated = await translateToPersian([{ title: "English title", text: "English source text" }], { geminiKey: "test-gemini" });
+  assert.match(calls[0], /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-2\.5-flash:generateContent$/);
   assert.equal(translated[0].title, "عنوان فارسی");
 } finally {
   globalThis.fetch = realFetch;
 }
 
-console.log("viral-readiness blocks guarantees/unavailable topics; OpenRouter Persian translation resolves");
+console.log("viral-readiness blocks guarantees/unavailable topics; Gemini Persian translation resolves");

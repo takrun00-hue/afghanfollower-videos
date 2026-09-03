@@ -149,10 +149,10 @@ async function buildCandidates(items, laneHint) {
 }
 
 async function enrich(candidates) {
-  const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || env.OPENROUTER_API_KEY || env.OPEN_ROUTER_API_KEY || "";
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "";
   let translated = candidates;
   try {
-    translated = await translateToPersian(candidates.map((c) => ({ title: c.title, text: c.text })), { openRouterKey });
+    translated = await translateToPersian(candidates.map((c) => ({ title: c.title, text: c.text })), { geminiKey });
   } catch (error) {
     throw new Error(`ترجمهٔ فارسیِ منابع آماده نشد: ${error.message}`);
   }

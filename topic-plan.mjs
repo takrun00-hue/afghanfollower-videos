@@ -321,7 +321,7 @@ if (liveQuery) {
   // This keeps the Telegram preview, the later draft, and the narration aligned.
   try {
     results = await translateToPersian(results, {
-      openRouterKey: process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || env.OPENROUTER_API_KEY || env.OPEN_ROUTER_API_KEY || "",
+      geminiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "",
     });
   }
   catch (error) {
