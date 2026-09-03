@@ -46,6 +46,7 @@ const WANTED = {
   "auto-translate": { q: "TikTok auto translation captions creators", domains: TIKTOK },
   "add-yours": { q: "Instagram Add Yours sticker", domains: META },
   "collab": { q: "Instagram collab posts co-author", domains: META },
+  "ig-bonuses-photos": { q: "Instagram Bonuses reels photos performance payout creators dashboard", domains: META },
 };
 
 if (!KEY) { console.error("EXA_API_KEY تنظیم نشده است"); process.exit(1); }
