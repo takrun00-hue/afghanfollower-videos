@@ -10,7 +10,7 @@
 //   راهنما          → this list
 import { execSync, execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage, getUpdates } from "./lib/telegram.mjs";
 import { parseCommand, normalize, HELP_TEXT } from "./lib/commands.mjs";
@@ -41,7 +41,7 @@ function build(args, label) {
   }
 }
 
-async function handle(text) {
+export async function handle(text) {
   const c = norm(text);
 
   if (has(c, "راهنما", "help", "start", "شروع")) return say(HELP);
@@ -220,21 +220,31 @@ async function handle(text) {
   }
 }
 
-console.log("bot: listening for", tg.chatId);
-say("🤖 ربات آنلاین شد. «راهنما» را بفرست تا دستورها را ببینی.");
+// Only start long-polling when this file is run directly (`node bot.mjs`),
+// not when test-bot-dispatch.mjs imports `handle` to exercise real dispatch
+// in-process. Telegram refuses getUpdates with a 409 while a webhook is set
+// (the Cloudflare Worker owns that today), so importing this file must never
+// have the side effect of polling.
+// pathToFileURL handles drive letters, backslashes and space-encoding
+// correctly on Windows — a hand-built "file://" + argv[1] string does not.
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  console.log("bot: listening for", tg.chatId);
+  say("🤖 ربات آنلاین شد. «راهنما» را بفرست تا دستورها را ببینی.");
 
-let offset = 0;
-for (;;) {
-  try {
-    for (const u of await getUpdates({ token: tg.token, offset, timeout: 50 })) {
-      offset = u.update_id + 1;
-      const msg = u.message || u.channel_post;
-      if (!msg || String(msg.chat.id) !== String(tg.chatId)) continue;  // owner only
-      if (msg.text) await handle(msg.text);
+  let offset = 0;
+  for (;;) {
+    try {
+      for (const u of await getUpdates({ token: tg.token, offset, timeout: 50 })) {
+        offset = u.update_id + 1;
+        const msg = u.message || u.channel_post;
+        if (!msg || String(msg.chat.id) !== String(tg.chatId)) continue;  // owner only
+        if (msg.text) await handle(msg.text);
+      }
+    } catch (e) {
+      console.error("poll error:", e.message);
+      await new Promise((r) => setTimeout(r, 3000));
     }
-  } catch (e) {
-    console.error("poll error:", e.message);
-    await new Promise((r) => setTimeout(r, 3000));
   }
 }
 
