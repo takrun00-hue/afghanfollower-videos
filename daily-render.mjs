@@ -16,6 +16,7 @@ import { buildNeonHTML } from "./lib/build-neon.mjs";
 import { packsForDate, packForFeature, CATEGORIES, dailyDeliveriesForDate } from "./lib/content.mjs";
 import { sceneArtPlan } from "./lib/scene-art.mjs";
 import { creativeBriefFor } from "./lib/creative-brief.mjs";
+import { assertVisualProof } from "./lib/visual-proof.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo } from "./lib/telegram.mjs";
 import { fingerprint, check, register, hasHistory } from "./lib/dedupe.mjs";
@@ -120,6 +121,9 @@ const results = [];
 const batchPrints = [];
 for (const delivery of deliveries) {
   const { slot: platform, pack, mirrorOf } = delivery;
+  // Do this before HTML/audio/render work. A missing real visual is a research
+  // failure, not a reason to ship a generic illustration.
+  assertVisualProof(pack);
   // Generate the topic-specific creative contract before any sound, HTML or
   // render work. It is saved beside the composition for review and prevents a
   // generic visual decision from being made after the script is already built.
