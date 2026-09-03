@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test-locked-rules.mjs && node test-viral-readiness.mjs && node test-motion-contract.mjs && node test-pronunciation.mjs && node test-hear.mjs && node test-daily-program.mjs && node test-english-path.mjs && node test-telegram-paths.mjs && node test-telegram-commands.mjs && node test-bot-commands.mjs && node test-pick-resolves.mjs && node test-news-text.mjs",
+    "test": "node test-locked-rules.mjs && node test-viral-readiness.mjs && node test-motion-contract.mjs && node test-pronunciation.mjs && node test-hear.mjs && node test-daily-program.mjs && node test-english-path.mjs && node test-telegram-paths.mjs && node test-telegram-commands.mjs && node test-bot-commands.mjs && node test-pick-resolves.mjs && node test-news-text.mjs && node test-custom-draft.mjs",
     "dev": "npx --yes hyperframes@0.8.16 preview",
     "check": "npx --yes hyperframes@0.8.16 check",
     "render": "npx --yes hyperframes@0.8.16 render",
