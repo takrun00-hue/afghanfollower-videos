@@ -16,10 +16,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
-import { FEATURES } from "./lib/features.mjs";
-import { EXTRA } from "./lib/features-extra.mjs";
-import { FRESH } from "./lib/features-fresh.mjs";
-import { Y2026 } from "./lib/features-2026.mjs";
+import { alreadyCovered, isFeatureKnown } from "./lib/features.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -67,29 +64,8 @@ const QUERIES = [
 ];
 
 // Everything the bank already teaches, so the digest only reports what is new.
-function covered() {
-  const out = new Set();
-  for (const bank of [Y2026, FRESH, FEATURES, EXTRA]) {
-    for (const cat of Object.keys(bank || {})) {
-      for (const f of bank[cat] || []) {
-        out.add(String(f.id).toLowerCase());
-        out.add(String(f.name).toLowerCase());
-      }
-    }
-  }
-  return out;
-}
-const HAVE = covered();
-
-// A result is "already known" when the bank has a feature whose name appears in
-// the headline — crude, but it is only deciding whether to mention something.
-function isKnown(title) {
-  const t = String(title).toLowerCase();
-  for (const name of HAVE) {
-    if (name.length >= 5 && t.includes(name)) return true;
-  }
-  return false;
-}
+const HAVE = alreadyCovered();
+const isKnown = (title) => isFeatureKnown(title, HAVE);
 
 async function search(q) {
   const res = await fetch("https://api.exa.ai/search", {

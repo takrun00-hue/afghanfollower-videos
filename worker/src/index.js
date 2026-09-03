@@ -33,6 +33,10 @@ const HELP = `🤖 <b>منوی شماره‌دار GapMedia و German Insider</b
 <b>۲۴</b> خبرهای امل فرانکفورت
 <b>۲۵</b> خبرهای امل فارسی
 
+🔎 <b>رادار روزانه — رتبه‌بندی‌شده به معیار</b>
+<b>۲۷</b> رادار محتوا (گپ‌مدیا)
+<b>۲۸</b> رادار خبر (German Insider)
+
 ⚙️ <b>مدیریت</b>
 <b>۱۹</b> وضعیت
 <b>۲۰</b> حذف ۳ ویدیوی آموزشی آخر
@@ -58,6 +62,7 @@ const NUMBERED_ACTIONS = {
   "20": { action: "undo" }, "21": { action: "undo-news" },
   "22": { action: "amal-berlin" }, "23": { action: "amal-hamburg" },
   "24": { action: "amal-frankfurt" }, "25": { action: "amal-farsi" },
+  "27": { action: "content-radar" }, "28": { action: "news-radar" },
 };
 
 function normalize(value = "") {
@@ -137,6 +142,12 @@ function videoAction(text) {
   }
   if (any("جستجوی محتوا", "جستجو محتوا", "ایده محتوا", "ترند محتوا", "موضوع بیشتر")) return { action: "content-search" };
   if (any("تحقیق", "اپدیت", "آپدیت", "قابلیت تازه", "research")) return { action: "research" };
+  // The scored daily shortlist — a distinct question from "research" (what
+  // shipped) and from "content-search" (search on a topic I already typed):
+  // "of what's out there, which candidate actually clears the bar". "رادار"
+  // is a new word specifically so it never collides with either of those.
+  if (any("رادار محتوا", "رادار موضوع", "content radar")) return { action: "content-radar" };
+  if (any("رادار خبر", "news radar")) return { action: "news-radar" };
   if (any("امل برلین", "امال برلین", "amal berlin")) return { action: "amal-berlin" };
   if (any("امل هامبورگ", "امال هامبورگ", "amal hamburg")) return { action: "amal-hamburg" };
   if (any("امل فرانکفورت", "امال فرانکفورت", "amal frankfurt")) return { action: "amal-frankfurt" };

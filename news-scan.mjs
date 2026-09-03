@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
-import { SOURCES, DE_DOMAINS, SCOPES, inScope } from "./lib/news-templates.mjs";
+import { SOURCES, DE_DOMAINS, SCOPES, inScope, keyOf, sameStory } from "./lib/news-templates.mjs";
 import { amalPersian, amalSocial } from "./lib/amal.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
@@ -187,41 +187,9 @@ if (!target) {
 
 // Nothing that has already been offered, whatever the outcome was. A URL match
 // only catches the same page twice — the same deportation flight written up by
-// Amal, DW and BBC is three different URLs and would arrive as three "new"
-// stories, so headlines are compared on their content words too.
-const STOP = new Set(["از", "به", "در", "را", "که", "با", "این", "برای", "است", "شد",
-  "شده", "های", "یک", "بر", "تا", "هم", "و", "بود", "کرد", "می", "خود", "بین", "دو"]);
-
-// "گروه دیگری" and "گروهی دیگر" are the same story told twice, so the plural and
-// possessive endings come off before comparing — without a light stem the two
-// share too few exact words and both get sent.
-const stem = (w) => w.replace(/(های|ها|ان|ی)$/, "") || w;
-
-const keyOf = (title) =>
-  // "…اخراج شدند - اطلاعات روز" — the outlet's own name at the end is noise that
-  // pushes two reports of one event below the similarity threshold.
-  String(title).replace(/\s*[-–|]\s*[^-–|]{1,30}$/, "")
-    .replace(/[‌‏]/g, " ")
-    .replace(/[يى]/g, "ی").replace(/ك/g, "ک")
-    .replace(/[،؛؟«»ـً-ٟٔ]/g, " ")
-    .replace(/[^؀-ۿ\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP.has(w))
-    .map(stem)
-    .filter((w) => w.length > 2)
-    .sort();
-
-// "افغان" and "افغانستان" are the same subject, and one stem rule cannot flatten
-// both, so words also count as shared when one is a prefix of the other.
-const akin = (x, y) =>
-  x === y || (x.length >= 3 && y.startsWith(x)) || (y.length >= 3 && x.startsWith(y));
-
-const sameStory = (a, b) => {
-  if (!a.length || !b.length) return false;
-  const shared = a.filter((w) => b.some((v) => akin(w, v))).length;
-  return shared / Math.min(a.length, b.length) >= 0.55;
-};
-
+// Amal, DW and BBC is three different URLs, so headlines are compared on their
+// content words too (keyOf/sameStory, shared with news-radar.mjs in
+// lib/news-templates.mjs).
 const store = readJSON(SEEN, []);
 // older files held a bare array of URLs; keep reading those
 const past = store.map((x) => (typeof x === "string" ? { url: x, key: [] } : x));

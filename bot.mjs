@@ -124,6 +124,18 @@ async function handle(text) {
     catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
     return;
   }
+  if (cmd && cmd.action === "content-radar") {
+    await say("📡 در حال رتبه‌بندی نامزدهای محتوا…");
+    try { execSync("node content-radar.mjs", { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
+  if (cmd && cmd.action === "news-radar") {
+    await say("📡 در حال رتبه‌بندی خبرها به میزان خبرساز بودن…");
+    try { execSync("node news-radar.mjs", { stdio: "inherit" }); }
+    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;
+  }
 
   if (cmd && (cmd.action === "news-scan" || cmd.action === "news-search-live")) {
     const query = cmd.action === "news-search-live"
