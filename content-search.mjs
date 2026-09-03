@@ -29,6 +29,7 @@ import { evaluate, detectAccessStatus, categorizeLane } from "./lib/selection-ga
 import { probeDemand } from "./lib/demand-probe.mjs";
 import { recentlyProposed, recordProposed, rejectedIds, COOLDOWN_DAYS } from "./lib/proposed.mjs";
 import { translateToPersian } from "./lib/translate-fa.mjs";
+import { replyOnFailure } from "./lib/fail-soft.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
@@ -383,7 +384,12 @@ function imageNeedFor(c) {
 async function pick(n) {
   const offered = loadOffered();
   const c = offered.find((x) => x.n === n);
-  if (!c) { await say(`❌ موضوع شمارهٔ ${n} در آخرین فهرست نیست. ابتدا «جستجوی محتوا» را بفرست.`); process.exit(1); }
+  // exit(0), not exit(1): the operator was just told exactly what happened
+  // and what to do about it. Every other "explained, nothing more to do"
+  // branch in this file already exits 0 — this one exiting 1 was the only
+  // outlier, and the only reason a stale/invalid pick number ever showed up
+  // as a red CI failure instead of a normal Telegram reply.
+  if (!c) { await say(`❌ موضوع شمارهٔ ${n} در آخرین فهرست نیست. ابتدا «جستجوی محتوا» را بفرست.`); process.exit(0); }
 
   if ((c.keyPoints || []).length < 2) {
     await say(
@@ -426,6 +432,12 @@ async function pick(n) {
 // without triggering a live search or a Telegram send as a side effect.
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
+  // Registered only for real CLI runs, not when test-content-search.mjs
+  // imports the pure functions above — an uncaught bug here used to fail
+  // the CI step red with nothing sent to Telegram, leaving the chat silent
+  // (the exact failure mode custom-draft.mjs/content-draft.mjs already
+  // guard against with this same helper).
+  replyOnFailure();
   if (pickArg) await pick(pickArg);
   else await discover();
 }
