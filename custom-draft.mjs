@@ -101,6 +101,23 @@ if (parts.length >= 3) {
     const drafted = await draftBareTopic(raw);
     if (!drafted) {
       const topic = clean(raw, 120).replace(/[؟?]+$/, "") || "موضوع شما";
+      // Two genuinely different problems were sharing one message. draftBareTopic
+      // only ever returns null (rather than throwing) when geminiKey is empty —
+      // every other failure (bad key, wrong model, unreadable response) throws
+      // its own specific error instead. So reaching here means the repo secret
+      // is missing, not that the creator's message was malformed — telling a
+      // creator to reformat their topic can't fix a key nobody set, and hid the
+      // real cause from the one person (the owner) who could actually fix it.
+      if (!geminiKey) {
+        throw new Error(
+          "🔑 پیش‌نویس خودکار برای موضوعات آزاد نیاز به کلید هوش مصنوعی دارد که هنوز تنظیم نشده.\n\n" +
+          "برای فعال شدنش: Settings → Secrets and variables → Actions → New repository secret\n" +
+          "نام: GEMINI_API_KEY\nمقدار: کلیدی که از aistudio.google.com/apikey می‌گیری (رایگان)\n\n" +
+          "تا آن‌وقت، یکی از این دو شکل را بفرست:\n" +
+          `۱) عنوان | قلاب | گام اول | گام دوم\nمثال: ${topic} | ${topic}؟ | یک نمونهٔ واقعی نشان بده | دعوت به کامنت بگذار\n\n` +
+          `۲) اول قلاب، بعد گام‌های شماره‌گذاری‌شده\nمثال: ${topic}؟ ۱. یک نمونهٔ واقعی نشان بده ۲. دعوت به کامنت بگذار`
+        );
+      }
       throw new Error(
         "پیش‌نویس خودکار در دسترس نیست. یکی از این دو شکل را بفرست:\n" +
         `۱) عنوان | قلاب | گام اول | گام دوم\nمثال: ${topic} | ${topic}؟ | یک نمونهٔ واقعی نشان بده | دعوت به کامنت بگذار\n\n` +

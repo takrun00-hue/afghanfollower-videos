@@ -68,12 +68,15 @@ const check = (label, cond, detail) => {
   check("بدون لید: گام اول قلاب هم می‌شود", r.draft?.generated?.hook?.ask === "یک نمونهٔ واقعی نشان بده" && r.draft?.generated?.tips?.length === 2);
 }
 
-// 5) Offline/no-key fallback. Cloud execution supplies Grok for this shape;
-// local execution must not pretend it drafted a topic without the service.
+// 5) Offline/no-key fallback. Cloud execution supplies GEMINI_API_KEY for
+// this shape; local execution must not pretend it drafted a topic without it.
 {
   const r = run("محتوا: چگونه با یک ویدیوی کوتاه، مشتری مناسب برای خدماتت جذب کنی؟".replace(/^محتوا:\s*/, ""));
   check("موضوع خام: هیچ پیش‌نویسی ساخته نمی‌شود", r.draft === null, r.draft ? "یک پیش‌نویس ساخته شد — این نادرست است" : "");
-  check("  و خطا مشخص و راهنماست، نه پیام عمومی", /پیش‌نویس خودکار.*دسترس نیست/.test(r.out) && /عنوان \| قلاب \| گام/.test(r.out) && /شماره‌گذاری‌شده/.test(r.out));
+  // Names the actual missing secret (GEMINI_API_KEY), not just "try a
+  // different format" — a creator can't fix a key nobody set, and the old
+  // wording hid that from the one person who could (the owner).
+  check("  و خطا مشخص و راهنماست، نه پیام عمومی", /GEMINI_API_KEY/.test(r.out) && /عنوان \| قلاب \| گام/.test(r.out) && /شماره‌گذاری‌شده/.test(r.out));
   check("  و فرآیند سالم خارج می‌شود (پیام رفت، نه کرش)", r.status === 0, `exit ${r.status}`);
 }
 
