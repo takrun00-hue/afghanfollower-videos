@@ -41,11 +41,28 @@ async function announce(draft) {
   });
   const state = review.status === "ready" ? "آمادهٔ بررسی" : review.status === "blocked" ? "نیازمند اصلاح" : "نیازمند بازبینی";
   const reviewNotes = [...review.blockers, ...review.notes].slice(0, 2);
+  // Present only when a caller (content-search.mjs, for its rule-8 draft)
+  // actually set them — an old catalogue-feature draft has none of these and
+  // the message renders exactly as it always did.
+  const extra = [];
+  if (Array.isArray(draft.hookOptions) && draft.hookOptions.length > 1) {
+    extra.push(
+      `<b>سه گزینهٔ قلاب:</b>\n` +
+      draft.hookOptions.map((h, i) => `${i + 1}. ${esc(h)}${h === (draft.hook || base.hook.ask) ? " ✅" : ""}`).join("\n") +
+      (draft.hookReason ? `\n<i>دلیل انتخاب: ${esc(draft.hookReason)}</i>` : "")
+    );
+  }
+  if (draft.teaser) extra.push(`<b>زیرِ قلاب:</b> ${esc(draft.teaser)}`);
+  if (draft.graphicPlan) extra.push(`<b>طرح گرافیک/موشن:</b> ${esc(draft.graphicPlan)}`);
+  if (draft.imageNeed) extra.push(`<b>تصویر لازم:</b> ${esc(draft.imageNeed)}`);
+  if (draft.musicPlan) extra.push(`<b>ریتم/موسیقی:</b> ${esc(draft.musicPlan)}`);
+  if (draft.sourceUrl) extra.push(`<b>منبع رسمی:</b> <a href="${esc(draft.sourceUrl)}">${esc(draft.sourceDate || "باز کردن منبع")}</a>`);
   const text =
     `🎬 <b>پیش‌نویس آموزشی</b>\n` +
     `<b>${esc(base.feature)}</b>\n\n` +
     `<b>قلاب:</b> ${esc(draft.hook || base.hook.ask)}\n\n` +
     steps.map((s, i) => `${i + 1}. ${esc(s)}`).join("\n") +
+    (extra.length ? `\n\n${extra.join("\n\n")}` : "") +
     `\n\n<b>آمادگی محتوا:</b> ${review.score}/100 — ${state}` +
     (reviewNotes.length ? `\n<i>${esc(reviewNotes.join(" "))}</i>` : "") +
     `\n\n✅ ساخت با صدا: <code>تأیید محتوا</code>` +

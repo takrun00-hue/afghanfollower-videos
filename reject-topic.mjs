@@ -9,10 +9,10 @@
 //   node reject-topic.mjs saved-replies     # by id
 //   node reject-topic.mjs --undo photopea
 //   node reject-topic.mjs --list
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { rejectTopic, unrejectTopic, rejectedList } from "./lib/proposed.mjs";
+import { rejectTopic, unrejectTopic, rejectedList, recordProposed } from "./lib/proposed.mjs";
 import { featureById } from "./lib/features.mjs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 
@@ -20,6 +20,7 @@ process.chdir(dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
 const env = loadEnv();
 const tg = telegramConfig(env);
+const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const say = async (t) => {
   if (tg.enabled && process.env.NO_TELEGRAM !== "1") {
     await sendMessage({ token: tg.token, chatId: tg.chatId, text: t });
@@ -41,6 +42,27 @@ const nameOf = (id) => {
   return hit ? (hit.feature?.name || hit.feature?.id || id) : id;
 };
 
+// Rule 12: rejecting a content-search topic proposes one replacement right
+// away rather than leaving a hole in the list. Only content-search's own
+// offers carry a backlog of already-gated spares (id "search-…"); catalogue
+// topics from topic-plan.mjs have no such reserve and get none.
+const SEARCH_OFFERED = ".content-search-offered.json";
+const BACKLOG = ".content-search-backlog.json";
+const readJSON = (p, d) => { try { return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : d; } catch { return d; } };
+
+function proposeReplacement(position) {
+  const offered = readJSON(SEARCH_OFFERED, []);
+  const backlog = readJSON(BACKLOG, []);
+  if (!offered.length || !backlog.length) return null;
+  const next = backlog.shift();
+  const updated = offered.map((c) => (c.n === position ? { ...next, n: position } : c));
+  writeFileSync(SEARCH_OFFERED, JSON.stringify(updated, null, 2) + "\n");
+  writeFileSync(BACKLOG, JSON.stringify(backlog, null, 2) + "\n");
+  writeFileSync(OFFERED, JSON.stringify(updated.map((c) => ({ n: c.n, id: c.id, platform: c.host, hook: c.title })), null, 2) + "\n");
+  recordProposed([next.id]);
+  return next;
+}
+
 if (args.includes("--list")) {
   const rows = rejectedList();
   await say(rows.length
@@ -61,6 +83,7 @@ if (!raw) {
 const digits = String(raw).replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
 const asNumber = Number(digits);
 let id = raw;
+let position = null;
 if (Number.isFinite(asNumber) && asNumber > 0 && /^[۰-۹0-9]{1,2}$/.test(String(raw).trim())) {
   const offered = lastOffer();
   const hit = offered[asNumber - 1];
@@ -69,6 +92,7 @@ if (Number.isFinite(asNumber) && asNumber > 0 && /^[۰-۹0-9]{1,2}$/.test(String
     process.exit(1);
   }
   id = hit.id;
+  position = asNumber;
 }
 
 if (undo) {
@@ -78,6 +102,16 @@ if (undo) {
   process.exit(0);
 }
 
-await say(rejectTopic(id)
-  ? `🚫 <b>${nameOf(id)}</b> رد شد و دیگر پیشنهاد نمی‌شود.\n<code>${id}</code>\n\nبرای برگرداندن: <code>برگردان ${id}</code>`
-  : `این موضوع از قبل رد شده بود: <code>${id}</code>`);
+const removed = rejectTopic(id);
+if (!removed) {
+  await say(`این موضوع از قبل رد شده بود: <code>${id}</code>`);
+  process.exit(0);
+}
+
+const replacement = position && String(id).startsWith("search-") ? proposeReplacement(position) : null;
+await say(
+  `🚫 <b>${nameOf(id)}</b> رد شد و دیگر پیشنهاد نمی‌شود.\n<code>${id}</code>\n\nبرای برگرداندن: <code>برگردان ${id}</code>` +
+  (replacement
+    ? `\n\n<b>جایگزین موضوع ${position}:</b>\n📌 ${esc(replacement.title)}\n<a href="${esc(replacement.url)}">منبع</a>\nبرای انتخاب: <code>${position}</code>`
+    : position ? "\n\nجایگزینی برای این جایگاه در دسترس نیست؛ برای موضوع تازه: <code>جستجوی محتوا</code>" : "")
+);

@@ -112,6 +112,8 @@ jobs:
             .topic-proposals.json
             .topic-rejected.json
             .topic-offered.json
+            .content-search-offered.json
+            .content-search-backlog.json
             .content-registry.json
             .news-draft.json
             .news-queue.json
@@ -141,7 +143,7 @@ jobs:
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
-              approved-feature|approved-screen|topic-pick|topic-reject|topic-unreject|topic-rejected-list|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-radar|news-radar|demand-research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
+              approved-feature|approved-screen|topic-pick|topic-reject|topic-unreject|topic-rejected-list|search-topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|content-radar|news-radar|demand-research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
               *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
             esac
             safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
@@ -164,15 +166,15 @@ jobs:
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
 
       # ---- tutorials -------------------------------------------------------
-      - name: Send tutorial topics for approval
-        if: contains(fromJSON('["plan-today","plan-tomorrow","plan-week","plan-tiktok","plan-instagram","plan-tools","content-search","content-search-live"]'), steps.cmd.outputs.ACTION)
+      - name: Send the fixed daily/weekly schedule for approval
+        if: contains(fromJSON('["plan-today","plan-tomorrow","plan-week","plan-tiktok","plan-instagram","plan-tools"]'), steps.cmd.outputs.ACTION)
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
         run: |
           case "${{ steps.cmd.outputs.ACTION }}" in
             plan-today)     node topic-plan.mjs --today ;;
@@ -180,10 +182,47 @@ jobs:
             plan-tiktok)    node topic-plan.mjs --tomorrow --category=tiktok ;;
             plan-instagram) node topic-plan.mjs --tomorrow --category=instagram ;;
             plan-tools)     node topic-plan.mjs --tomorrow --category=tools ;;
-            content-search) node topic-plan.mjs --tomorrow ;;
-            content-search-live) node topic-plan.mjs --query "$PAYLOAD" ;;
             *)              node topic-plan.mjs --tomorrow ;;
           esac
+
+      # «جستجوی محتوا» (bare) and «جستجوی جدید: X» — the live-search-first
+      # discovery engine from the 2026-09-03 content-search rules. Deliberately
+      # a separate script from topic-plan.mjs above: that one proposes from the
+      # fixed catalogue for the daily/weekly schedule, this one searches live,
+      # scores three lanes (income/reach/trend) and reports 5+ real, dated,
+      # gated topics every time.
+      - name: Live content-search discovery
+        if: contains(fromJSON('["content-search","content-search-live"]'), steps.cmd.outputs.ACTION)
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+        run: |
+          case "${{ steps.cmd.outputs.ACTION }}" in
+            content-search-live) node content-search.mjs --query "$PAYLOAD" ;;
+            *)                   node content-search.mjs ;;
+          esac
+
+      # A bare "۱".."۵" after content-search — routed here by the Worker's own
+      # selection-kind check (worker/src/index.js bareTopicPick), not by any
+      # allowlist gymnastics here. Builds ONLY a draft (rule 8), never a video.
+      - name: Build a draft from a picked content-search topic
+        if: steps.cmd.outputs.ACTION == 'search-topic-pick'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PICK: ${{ steps.cmd.outputs.PICK }}
+        run: node content-search.mjs --pick "${PICK:-1}"
+
+      - name: Verify content-search draft for cache
+        if: steps.cmd.outputs.ACTION == 'search-topic-pick'
+        run: |
+          test -f .content-draft.json
+          echo "content-search draft will be retained by the Actions cache."
 
       - name: Build a requested tutorial
         if: contains(fromJSON('["approved-feature","content-approve","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","resend","custom-content"]'), steps.cmd.outputs.ACTION)

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { reviewViralReadiness } from "./lib/viral-readiness.mjs";
 import { evaluate } from "./lib/selection-gate.mjs";
+import { translateToPersian } from "./lib/translate-fa.mjs";
 
 const strong = reviewViralReadiness({
   hook: "مخاطب در ثانیهٔ اول می‌رود؛ نقطهٔ افت را پیدا کن",
@@ -44,4 +45,22 @@ const inviteOnly = evaluate({
 assert.equal(inviteOnly.decision, "REJECT");
 assert.ok(inviteOnly.failures.includes("قابلیت برای بیشتر مخاطبان قابل‌استفاده نیست"));
 
-console.log("viral-readiness review blocks guarantees and unavailable tutorial topics");
+const realFetch = globalThis.fetch;
+const calls = [];
+globalThis.fetch = async (url) => {
+  calls.push(String(url));
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ choices: [{ message: { content: '[{"index":0,"title":"عنوان فارسی","excerpt":"متن فارسی"}]' } }] }),
+  };
+};
+try {
+  const translated = await translateToPersian([{ title: "English title", text: "English source text" }], { openRouterKey: "test-openrouter" });
+  assert.equal(calls[0], "https://openrouter.ai/api/v1/chat/completions");
+  assert.equal(translated[0].title, "عنوان فارسی");
+} finally {
+  globalThis.fetch = realFetch;
+}
+
+console.log("viral-readiness blocks guarantees/unavailable topics; OpenRouter Persian translation resolves");

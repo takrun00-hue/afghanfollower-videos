@@ -97,7 +97,7 @@ function videoAction(text) {
   if (/^(?:ادیت|ویرایش)\s*(?:متن|محتوا|اسلاید)\s*[:：]/i.test(c)) return { action: "content-edit-steps", payload: cleanEdit(text, "(?:متن|محتوا|اسلاید)") };
   if (/^(?:تأیید|تایید)\s*(?:محتوا|ویدیو|پیش\s*نویس)$/i.test(c)) return withAudio("content-approve");
   if (/^(?:پیش\s*نویس|نمایش محتوا|دیدن محتوا)$/i.test(c)) return { action: "content-preview" };
-  if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]/i.test(c)) {
+  if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content|موضوع)\s*[:：]/i.test(c)) {
     const payload = cleanContent(text);
     // A supplied tutorial is an editorial draft, not permission to publish.
     // Sending it straight to custom-content.mjs built a video before the
@@ -179,6 +179,19 @@ function videoAction(text) {
   return null;
 }
 
+// A bare "۱".."۵" is ambiguous on its own: NUMBERED_ACTIONS reads it as the
+// fixed menu (plan-tiktok etc.), but rule 12 also wants it to mean "pick one
+// of the five topics content-search.mjs just offered". The KV selection
+// state (set right after content-search/content-search-live dispatch, see
+// setSelection below) is what tells them apart — a menu digit and a topic
+// pick would otherwise be textually identical. Checked BEFORE menuCode() in
+// fetch() so an active topic list always wins over the fixed menu.
+function bareTopicPick(text, selectionKind) {
+  const digits = String(text || "").trim().replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+  if (selectionKind !== "search" || !/^[1-5]$/.test(digits)) return null;
+  return { action: "search-topic-pick", pick: digits, ...audioFor(text) };
+}
+
 function digits(text) {
   const value = String(text).replace(/[^0-9۰-۹]/g, "").replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
   return String(Math.max(1, Math.min(9, Number(value) || 1)));
@@ -189,7 +202,7 @@ function cleanNews(text) {
 }
 
 function cleanContent(text) {
-  return stripLinks(String(text).replace(/^\s*(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]\s*/i, ""))
+  return stripLinks(String(text).replace(/^\s*(?:محتوا|ویدیو|ساخت محتوا|custom content|موضوع)\s*[:：]\s*/i, ""))
     .replace(/[\r\n]+/g, " ").trim().slice(0, 5000);
 }
 
@@ -233,7 +246,7 @@ async function dispatchWorkflow(env, command) {
 // they were merely saved or silently ignored.
 function acknowledgementFor(command) {
   const action = command?.action || "";
-  if (["plan-today", "plan-tomorrow", "plan-week", "plan-tiktok", "plan-instagram", "plan-tools", "content-search", "content-search-live", "content-topic-preview", "content-source-pick"].includes(action)) {
+  if (["plan-today", "plan-tomorrow", "plan-week", "plan-tiktok", "plan-instagram", "plan-tools", "content-search", "content-search-live", "content-topic-preview", "content-source-pick", "search-topic-pick"].includes(action)) {
     return "✅ جستجو و پیش‌نویس شروع شد؛ ویدیویی هنوز ساخته نمی‌شود. پس از دیدن قلاب و اسلایدها، «تأیید محتوا» یا «تأیید شناسه» را بفرستید.";
   }
   if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi", "news-germany", "news-europe", "news-today", "news-breaking-preview", "news-pick-preview", "europe-pick-preview", "news-text-preview"].includes(action)) {
@@ -436,9 +449,18 @@ export default {
     const chatId = String(message.chat.id);
     if (env.ALLOWED_CHAT_ID && chatId !== String(env.ALLOWED_CHAT_ID)) return new Response("ok");
     try {
-      // A standalone number always belongs to the numbered menu.  For options
-      // that need copy, KV keeps the selected operation for 15 minutes and the
-      // next message becomes its payload instead of a vague AI chat reply.
+      // A standalone number picks a just-offered content-search topic when
+      // one is active (rule 12); otherwise it belongs to the fixed numbered
+      // menu below. For menu options that need copy, KV keeps the selected
+      // operation for 15 minutes and the next message becomes its payload
+      // instead of a vague AI chat reply.
+      const selection = await selectionFor(env, chatId);
+      const topicPick = bareTopicPick(message.text, selection?.kind);
+      if (topicPick) {
+        await dispatchWorkflow(env, topicPick);
+        await reply(env, chatId, acknowledgementFor(topicPick));
+        return new Response("ok");
+      }
       const code = menuCode(message.text);
       if (code === "0") {
         await clearPending(env, chatId);
@@ -497,7 +519,11 @@ export default {
           if (command.action === "content-topic-preview" || command.action === "custom-content") {
             command.payload = prepareTopicLocally(command.payload);
           }
-          if (command.action === "content-search-live") await setSelection(env, chatId, "content");
+          // content-search.mjs offers its five topics by plain number
+          // («۱».."۵", rule 12) rather than the older «منبع N» phrasing, so a
+          // bare digit after either action must resolve to picking one of
+          // ITS topics, not the fixed menu — see bareTopicPick() below.
+          if (["content-search", "content-search-live"].includes(command.action)) await setSelection(env, chatId, "search");
           if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi"].includes(command.action)) {
             await setSelection(env, chatId, "news");
           }
@@ -516,4 +542,4 @@ export default {
 };
 
 // Kept outside the HTTP handler solely for deterministic local command tests.
-export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally, prepareTopicLocally, acknowledgementFor };
+export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally, prepareTopicLocally, acknowledgementFor, bareTopicPick };
