@@ -115,6 +115,12 @@ function videoAction(text) {
   if (/^(?:برگردان|بازگردان)\s+[a-z0-9-]+$/i.test(c)) return { action: "topic-unreject", payload: c.replace(/^(?:برگردان|بازگردان)\s+/i, "").trim() };
   if (/^(?:رد‌شده|رد شده|فهرست رد|موضوع.?های رد)/i.test(c)) return { action: "topic-rejected-list" };
   if (/^(?:انتخاب|موضوع|تأیید موضوع|تاييد موضوع)\s*[۰-۹0-9]+(?:\s|$)/i.test(c)) return { action: "topic-pick", pick: digits(c), ...audio };
+  // "تأیید تصویر <id> <شماره>" — approves one real screenshot fetch-screens.mjs
+  // sent as a candidate. Must come before the bare approved-feature pattern
+  // below: it wouldn't match anyway (that one is a single a-z0-9- token, this
+  // one has a Persian word and a space in it), but specific-before-generic is
+  // the rule this whole function follows.
+  if (/^(تایید|تأیید|approve)\s+تصویر\s+[a-z0-9-]+\s+[۰-۹0-9]+$/i.test(c)) return { action: "approved-screen", payload: c };
   if (/^(تایید|تأیید|approve)\s+(?=[a-z0-9-]*[a-z])[a-z0-9-]+$/i.test(c)) return { action: "approved-feature", payload: c };
   if (/^(بساز|تایید|تأیید|ok|build)\s*[۰-۹0-9]+$/.test(c)) return { action: "news-approve", pick: digits(c) };
   if (any("تغییر موضوع امروز", "موضوع امروز تغییر", "ایده تازه امروز")) return { action: "plan-today" };

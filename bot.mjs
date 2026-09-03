@@ -114,6 +114,11 @@ async function handle(text) {
     try { execFileSync("node", ["approve-feature.mjs", text], { stdio: "inherit" }); return say("✅ ساخته و فرستاده شد."); }
     catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
   }
+  if (cmd && cmd.action === "approved-screen") {
+    try { execFileSync("node", ["approve-screen.mjs", text], { stdio: "inherit" }); }
+    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    return;   // approve-screen.mjs reports the result itself
+  }
   if (cmd && cmd.action === "voice-list") {
     try { execSync("node music/minimax-voices.mjs", { stdio: "inherit" }); }
     catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }

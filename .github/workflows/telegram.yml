@@ -48,6 +48,9 @@ concurrency:
   group: telegram-listen
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   manual-news:
     if: inputs.run_news_now == true
@@ -137,7 +140,7 @@ jobs:
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
-              approved-feature|topic-pick|topic-reject|topic-unreject|topic-rejected-list|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|demand-research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
+              approved-feature|approved-screen|topic-pick|topic-reject|topic-unreject|topic-rejected-list|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|resend|research|demand-research|content-search|content-search-live|custom-content|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
               *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
             esac
             safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
@@ -240,6 +243,30 @@ jobs:
         run: |
           test -f .content-draft.json
           echo "Tutorial draft will be retained by the Actions cache."
+
+      # ---- real screenshot / broll approval --------------------------------
+      # fetch-screens.mjs / fetch-broll.mjs only ever run ahead of time (local
+      # or a manual dispatch), never as part of a render — "a person looks" is
+      # this step: approve-screen.mjs marks one candidate verified on
+      # "تأیید تصویر <id> <شماره>" from Telegram, and content.mjs's
+      # verifiedScreenFor() picks it up automatically on the next render.
+      # candidates.json is real git-tracked data (not ephemeral state), so the
+      # change is committed back the same way news-scan.yml commits its queue
+      # — the Actions cache above is for short-lived editorial state only.
+      - name: Approve a real screenshot candidate
+        if: steps.cmd.outputs.ACTION == 'approved-screen'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+        run: |
+          node approve-screen.mjs "$PAYLOAD"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f public/screens/candidates.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "screens: approve candidate from Telegram"
+          git pull --rebase --autostash || true
+          git push || true
 
       - name: Research digest
         if: steps.cmd.outputs.ACTION == 'research'

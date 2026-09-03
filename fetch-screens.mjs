@@ -16,7 +16,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { loadEnv } from "./lib/telegram.mjs";
+import { loadEnv, telegramConfig, sendPhoto } from "./lib/telegram.mjs";
 import { imageType } from "./lib/media-guard.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
@@ -25,6 +25,7 @@ const DIR = "public/screens";
 const MANIFEST = `${DIR}/candidates.json`;
 const env = loadEnv();
 const KEY = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
+const tg = telegramConfig(env);
 const only = process.argv[2];
 
 const TIKTOK = ["newsroom.tiktok.com", "support.tiktok.com", "business.tiktok.com"];
@@ -103,6 +104,25 @@ for (const id of ids) {
       verified: false,
     });
     n++;
+    const num = manifest[id].length;
+    // "A person looks, and only then is one wired into a step" used to mean
+    // someone at this keyboard opening public/screens/*.jpg by hand. Send
+    // the same candidate to Telegram instead — approve-screen.mjs marks it
+    // verified on "تأیید تصویر <id> <num>", and packForFeature() picks up
+    // any verified candidate automatically, so approving here is enough to
+    // reach the next render (local or cloud) with no source edit.
+    if (tg.enabled) {
+      try {
+        await sendPhoto({
+          token: tg.token, chatId: tg.chatId, file: named,
+          caption: `🖼 نامزد تصویر برای <b>${id}</b> — شمارهٔ ${num}\n` +
+            `منبع: ${String(hit.title || "").slice(0, 100)}\n${hit.url}\n\n` +
+            `اگر این واقعاً همان قابلیت را نشان می‌دهد: <code>تأیید تصویر ${id} ${num}</code>`,
+        });
+      } catch (e) {
+        console.log(`   (ارسال تلگرام ناموفق برای ${id}-${num}: ${e.message})`);
+      }
+    }
   }
   console.log(`${n ? "✓" : "—"}  ${id}: ${n} نامزد`);
   await new Promise((r) => setTimeout(r, 500));
