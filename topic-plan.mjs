@@ -322,7 +322,6 @@ if (liveQuery) {
   try {
     results = await translateToPersian(results, {
       openRouterKey: process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || env.OPENROUTER_API_KEY || env.OPEN_ROUTER_API_KEY || "",
-      grokKey: process.env.GROK_API_KEY || process.env.XAI_API_KEY || env.GROK_API_KEY || env.XAI_API_KEY || "",
     });
   }
   catch (error) {

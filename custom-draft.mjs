@@ -28,7 +28,7 @@ replyOnFailure();
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const clean = (value, max = 180) => String(value || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const raw = process.argv.slice(2).join(" ").trim();
-const grokKey = process.env.GROK_API_KEY || process.env.XAI_API_KEY || "";
+const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || "";
 
 // Splits "متن قلاب ۱. اول ۲) دوم - سوم" into a lead line plus its numbered/
 // dashed segments. Matches a digit run (Persian or Latin) followed by one of
@@ -58,7 +58,7 @@ let parts = raw.split("|").map((x) => clean(x)).filter(Boolean);
 let title, hook, stepText;
 
 async function draftBareTopic(topic) {
-  if (!grokKey) return null;
+  if (!openRouterKey) return null;
   const prompt = [
     "You prepare a Persian (Farsi) short-video DRAFT for a human creator to review.",
     "Return ONLY valid JSON: {title,hook,steps}.",
@@ -68,10 +68,10 @@ async function draftBareTopic(topic) {
     "Give 2 to 4 short, practical steps. Do not invent statistics, prices, features, UI paths, or guarantees.",
     "Do not promise views, virality, sales, followers, or income. Keep established product names in English only when essential.",
   ].join("\n");
-  const response = await fetch("https://api.x.ai/v1/chat/completions", {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${grokKey}` },
-    body: JSON.stringify({ model: "grok-4-1-fast-reasoning", temperature: 0.25, messages: [{ role: "user", content: prompt }] }),
+    headers: { "content-type": "application/json", authorization: `Bearer ${openRouterKey}`, "x-title": "GapMedia Content Draft" },
+    body: JSON.stringify({ model: process.env.OPENROUTER_MODEL || "openrouter/free", temperature: 0.25, messages: [{ role: "user", content: prompt }] }),
   });
   if (!response.ok) throw new Error("پیش‌نویس هوش مصنوعی آماده نشد؛ موضوع را با گام‌ها بفرستید یا دوباره تلاش کنید.");
   const body = await response.json();

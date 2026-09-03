@@ -171,8 +171,6 @@ jobs:
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -196,8 +194,6 @@ jobs:
         env:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
@@ -275,8 +271,7 @@ jobs:
         env:
           # A raw creator topic is expanded into a reviewable draft only.  It
           # never reaches the renderer until the separate content-approve action.
-          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
