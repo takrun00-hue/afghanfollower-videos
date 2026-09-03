@@ -99,10 +99,12 @@ function videoAction(text) {
   if (/^(?:پیش\s*نویس|نمایش محتوا|دیدن محتوا)$/i.test(c)) return { action: "content-preview" };
   if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content)\s*[:：]/i.test(c)) {
     const payload = cleanContent(text);
-    // Free-form text is separated below, the same way «موضوع آماده» is, so only
-    // a message with nothing in it to make a step from still asks for the form.
+    // A supplied tutorial is an editorial draft, not permission to publish.
+    // Sending it straight to custom-content.mjs built a video before the
+    // creator could check its hook, facts, voice and slides — contrary to the
+    // approval-first workflow used by every other tutorial command.
     return payload.trim().length >= 25
-      ? { action: "custom-content", payload, ...audio }
+      ? { action: "content-topic-preview", payload, ...audio }
       : { action: "custom-help" };
   }
   if (/^(?:تقاضا|سرچ مردم|دیماند)\s*[:：]/i.test(c)) {
@@ -171,7 +173,9 @@ function videoAction(text) {
   if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
   if (/^(فردا|برای فردا|فردا بساز)$/.test(c)) return { action: "build-tomorrow" };
   if (/^(بفرست|ارسال کن|send)$/.test(c)) return { action: "resend" };
-  if (/^(بساز|ساخت همه|هر سه|make|build)(?:\s|$)/.test(c)) return { action: "plan-tomorrow" };
+  // «بساز» starts today's editorial proposal. It used to return tomorrow's
+  // list, which made a same-day request appear to be ignored.
+  if (/^(بساز|ساخت همه|هر سه|make|build)(?:\s|$)/.test(c)) return { action: "plan-today" };
   return null;
 }
 
@@ -222,6 +226,23 @@ async function dispatchWorkflow(env, command) {
     body: JSON.stringify({ ref: "main", inputs: { action: command.action, pick: command.pick || "1", payload: command.payload || "", voice_id: command.voiceId || "", voice_mode: command.voiceMode || "on" } }),
   });
   if (!response.ok) throw new Error(`GitHub dispatch failed: ${response.status}`);
+}
+
+// Telegram must tell the creator exactly what has started. A proposal is not a
+// render, and describing it as one was the main reason commands looked like
+// they were merely saved or silently ignored.
+function acknowledgementFor(command) {
+  const action = command?.action || "";
+  if (["plan-today", "plan-tomorrow", "plan-week", "plan-tiktok", "plan-instagram", "plan-tools", "content-search", "content-search-live", "content-topic-preview", "content-source-pick"].includes(action)) {
+    return "✅ جستجو و پیش‌نویس شروع شد؛ ویدیویی هنوز ساخته نمی‌شود. پس از دیدن قلاب و اسلایدها، «تأیید محتوا» یا «تأیید شناسه» را بفرستید.";
+  }
+  if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi", "news-germany", "news-europe", "news-today", "news-breaking-preview", "news-pick-preview", "europe-pick-preview", "news-text-preview"].includes(action)) {
+    return "✅ خبرها یا پیش‌نویس خبر در حال آماده‌شدن است؛ تا تأیید شما، هیچ ویدیویی ساخته نمی‌شود.";
+  }
+  if (["content-approve", "approved-feature", "custom-content", "build-tiktok", "build-instagram", "build-tools", "build-all", "build-tomorrow", "resend", "news-approve", "news-approve-draft", "news-text", "news-pick", "europe-pick"].includes(action)) {
+    return "✅ ساخت واقعی با صدا در فضای ابری شروع شد؛ ویدیوی نهایی پس از موفق‌شدن رندر همین‌جا فرستاده می‌شود.";
+  }
+  return "✅ دستور دریافت شد و در فضای ابری اجرا می‌شود؛ نتیجه همین‌جا ارسال خواهد شد.";
 }
 
 async function history(env, chatId) {
@@ -481,10 +502,7 @@ export default {
             await setSelection(env, chatId, "news");
           }
           await dispatchWorkflow(env, command);
-          const confirmedNews = command.action === "news-approve-draft";
-          await reply(env, chatId, confirmedNews
-            ? "✅ خبر تأیید شد. ویدیوی کوتاه با صدا در فضای ابری ساخته می‌شود و همین‌جا فرستاده خواهد شد."
-            : "✅ دستور دریافت شد. ساخت یا بررسی در فضای ابری شروع شد؛ نتیجه را همین‌جا می‌فرستم.");
+          await reply(env, chatId, acknowledgementFor(command));
         }
       } else {
         await reply(env, chatId, await chat(env, chatId, message.text));
@@ -498,5 +516,4 @@ export default {
 };
 
 // Kept outside the HTTP handler solely for deterministic local command tests.
-export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally, prepareTopicLocally };
-
+export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally, prepareTopicLocally, acknowledgementFor };

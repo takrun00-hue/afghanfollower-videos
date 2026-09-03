@@ -202,7 +202,7 @@ jobs:
             content-approve)  node content-draft.mjs --build ;;
             custom-content)   node custom-content.mjs "$PAYLOAD" ;;
             build-instagram)  node daily-render.mjs --only instagram ;;
-            build-tools)      node daily-render.mjs --only tools ;;
+            build-tools)      node daily-render.mjs --only ai-tiktok ;;
             build-all|resend) node daily-render.mjs ;;
             build-tomorrow)   TZ=Europe/Berlin node daily-render.mjs "$(TZ=Europe/Berlin date -d tomorrow +%F)" ;;
             *)                node daily-render.mjs --only tiktok ;;

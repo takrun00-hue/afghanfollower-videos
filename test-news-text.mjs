@@ -110,11 +110,11 @@ const CASES = [
     },
   },
   {
-    name: "«محتوا:» متن آزاد را می‌پذیرد",
+    name: "«محتوا:» متن آزاد را برای پیش‌نویس می‌فرستد",
     raw: "محتوا: راه پیدا کردن موضوع ترند در تیک‌تاک ۱. Search را باز کن ۲. Content gap را بزن",
     check() {
       const a = videoAction("محتوا: راه پیدا کردن موضوع ترند در تیک‌تاک ۱. Search را باز کن ۲. Content gap را بزن");
-      return a?.action === "custom-content" ? null : `routed to ${a?.action} instead of custom-content`;
+      return a?.action === "content-topic-preview" ? null : `routed to ${a?.action} instead of content-topic-preview`;
     },
   },
 ];
