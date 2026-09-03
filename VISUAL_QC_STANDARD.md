@@ -22,7 +22,9 @@ Every slide must have one `visualEvidence` record before HTML is written:
 
 No evidence record means no render. A generic microphone, glowing AI orb,
 cartoon mascot, random hand, generic chart, or platform-coloured decoration is
-**not** evidence.
+**not** evidence. The main visual must occupy at least 34% of the vertical
+frame, have a usable source resolution (long edge at least 1080px and at least
+700,000 pixels), and remain readable on a phone without zooming.
 
 ## 2. Source hierarchy
 
@@ -95,3 +97,21 @@ every line with YES:
 
 Any NO blocks delivery. Record the failed slide and replace its evidence; never
 hide the failure by recolouring or adding another icon.
+
+## 8. Release score and automatic publishing
+
+Score every proposed video before rendering: audience demand and practical
+benefit 25, source accuracy 20, hook 15, real visual evidence 15, readable
+motion 10, narration 10, and novelty 5. Minimum score is 90/100. A failed
+source, visual-evidence, narration, or duplicate check is an automatic fail
+regardless of score. A pass renders and sends automatically; a fail reports the
+specific missing evidence or weak criterion instead of asking for approval.
+
+## 9. Performance learning loop
+
+Once per day, review each public TikTok/Instagram URL that can be read without
+login: views, likes, comments, shares/saves only when publicly visible, hook
+clarity, cover, and comments. Record observed facts, date and URL; never infer
+income from views. Revenue, retention, saves, shares and reach require official
+Insights/Analytics supplied by the owner or authorised API access. Use the
+comparison only to choose the next hypothesis; do not copy a previous layout.
