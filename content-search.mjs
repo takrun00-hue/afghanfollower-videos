@@ -150,9 +150,14 @@ async function buildCandidates(items, laneHint) {
 
 async function enrich(candidates) {
   const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "";
+  // Passed explicitly, same as geminiKey — translateToPersian()'s own default
+  // reads process.env at import time, before this file's loadEnv() call has
+  // populated it from .env, so a key sitting only in .env would otherwise be
+  // invisible here (the same gap custom-draft.mjs had).
+  const groqKey = process.env.GROQ_API_KEY || env.GROQ_API_KEY || "";
   let translated = candidates;
   try {
-    translated = await translateToPersian(candidates.map((c) => ({ title: c.title, text: c.text })), { geminiKey });
+    translated = await translateToPersian(candidates.map((c) => ({ title: c.title, text: c.text })), { geminiKey, groqKey });
   } catch (error) {
     throw new Error(`ترجمهٔ فارسیِ منابع آماده نشد: ${error.message}`);
   }

@@ -322,6 +322,10 @@ if (liveQuery) {
   try {
     results = await translateToPersian(results, {
       geminiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "",
+      // Same reason as geminiKey above: translateToPersian()'s own default
+      // reads process.env at import time, before this file's loadEnv() call
+      // runs, so a key sitting only in .env would be invisible without this.
+      groqKey: process.env.GROQ_API_KEY || env.GROQ_API_KEY || "",
     });
   }
   catch (error) {
