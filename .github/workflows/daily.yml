@@ -1,41 +1,63 @@
-name: Daily topic approval
+name: Daily GapMedia video delivery
 
-# Runs in GitHub's cloud — your PC does not need to be on.
+# Runs in GitHub's cloud. The computer may be off. GitHub cron is UTC-only,
+# therefore both CET and CEST candidates run and the Berlin-time gate below
+# keeps only the correct local slot.
 on:
-  # GitHub cron is UTC only and has no daylight-saving awareness, so 08:00 in
-  # Germany is 06:00 UTC in summer (CEST) and 07:00 UTC in winter (CET). We fire
-  # at BOTH and let the first step drop the run that is not actually 08:00 Berlin.
   schedule:
-    - cron: "0 6 * * *"    # 08:00 Europe/Berlin while CEST is in effect
-    - cron: "0 7 * * *"    # 08:00 Europe/Berlin while CET is in effect
+    # 08:30 Europe/Berlin: 06:30 UTC in CEST, 07:30 UTC in CET
+    - cron: "30 6 * * *"
+    - cron: "30 7 * * *"
+    # 17:00 Europe/Berlin: 15:00 UTC in CEST, 16:00 UTC in CET
+    - cron: "0 15 * * *"
+    - cron: "0 16 * * *"
   workflow_dispatch:
     inputs:
-      weekly:
-        description: "Send the weekly topic plan instead of tomorrow's shortlist."
-        required: false
-        default: "false"
+      batch:
+        description: "Which scheduled pair to produce"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - morning
+          - evening
+          - all
 
+# Do not cancel a morning render just because the evening trigger begins.
 concurrency:
-  group: render
+  group: gapmedia-scheduled-production
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
-      # Only one of the two cron slots is the real 08:00 in Berlin on any given
-      # day; the other must exit quietly. Manual runs always proceed.
-      - name: Is it 08:00 in Germany?
+      - name: Check the Berlin delivery window
         id: gate
+        shell: bash
         run: |
-          HOUR=$(TZ=Europe/Berlin date +%H)
-          echo "Berlin local time: $(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
-          if [ "${{ github.event_name }}" != "schedule" ] || [ "$HOUR" = "08" ]; then
+          local_time="$(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
+          hour="$(TZ=Europe/Berlin date +%H)"
+          echo "Berlin local time: $local_time"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=${{ inputs.batch }}" >> "$GITHUB_OUTPUT"
+          elif [ "$hour" = "08" ]; then
+            # GitHub can start a cron job a few minutes late, so gate on the
+            # Berlin hour rather than an exact minute match.
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=morning" >> "$GITHUB_OUTPUT"
+          elif [ "$hour" = "17" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=evening" >> "$GITHUB_OUTPUT"
           else
             echo "go=no" >> "$GITHUB_OUTPUT"
-            echo "Not the 08:00 Berlin slot — skipping."
+            echo "Not an 08:30 or 17:00 Berlin delivery window — skipping."
           fi
 
       - uses: actions/checkout@v4
@@ -46,17 +68,58 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Send researched topics for approval
+      # Keep delivery and editorial memory between cloud runs to prevent a
+      # successfully sent topic being treated as unseen later.
+      - name: Restore delivery memory
+        if: steps.gate.outputs.go == 'yes'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .telegram-sent.json
+            .content-history.json
+            .content-registry.json
+          key: scheduled-delivery-${{ github.run_id }}
+          restore-keys: scheduled-delivery-
+
+      - name: System packages for video rendering
+        if: steps.gate.outputs.go == 'yes'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
+
+      - name: Produce and send the scheduled pair
         if: steps.gate.outputs.go == 'yes'
         env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
+          VOICE: "on"
+          REQUIRE_VOICE: "on"
+        shell: bash
         run: |
-          if [ "${{ github.event.inputs.weekly }}" = "true" ]; then
-            node topic-plan.mjs --week
-          elif [ "$(TZ=Europe/Berlin date +%u)" = "1" ]; then
-            node topic-plan.mjs --tomorrow --week
-          else
-            node topic-plan.mjs --tomorrow
-          fi
+          case "${{ steps.gate.outputs.batch }}" in
+            morning)
+              # Two platform-native tutorials: TikTok and Instagram.
+              node daily-render.mjs --only tiktok
+              node daily-render.mjs --only instagram
+              ;;
+            evening)
+              # One researched AI/app topic, adapted as two native formats.
+              node daily-render.mjs --only ai-tiktok
+              node daily-render.mjs --only ai-instagram
+              ;;
+            all)
+              node daily-render.mjs --only tiktok
+              node daily-render.mjs --only instagram
+              node daily-render.mjs --only ai-tiktok
+              node daily-render.mjs --only ai-instagram
+              ;;
+            *)
+              echo "Unknown batch: ${{ steps.gate.outputs.batch }}" >&2
+              exit 1
+              ;;
+          esac
