@@ -17,6 +17,7 @@ const HELP = `🤖 <b>منوی GapMedia — اول جستجو، بعد ساخت<
 <b>۸</b> رادار ترندهای بررسی‌شده
 <b>۹</b> تقاضای واقعی مردم برای یک موضوع
 <b>۱۰</b> فهرست صداها
+<b>۲۶</b> ساخت مستقیم از متن و عکس
 
 <i>روش کار: ۱ یا ۲ ← انتخاب شمارهٔ موضوع ← پیش‌نویس ← ۵ یا ۶ برای ادیت ← ۷ برای ساخت.</i>
 
@@ -44,7 +45,7 @@ const HELP = `🤖 <b>منوی GapMedia — اول جستجو، بعد ساخت<
 <b>۲۱</b> حذف آخرین ویدیوی خبری
 <b>۰</b> نمایش دوبارهٔ این منو
 
-فقط شماره را بفرستید. در گزینه‌های ۲، ۳، ۵، ۶، ۹، ۱۴، ۱۵، ۱۶ و ۱۷، بات در پیام بعد متن لازم را می‌پرسد.`;
+برای گزینهٔ ۲۶، عکس را همراه کپشن بفرستید: <code>ویدیو مستقیم: موضوع | گام یک | گام دو | گام سه</code> — بدون تأیید دوباره ساخته می‌شود.`;
 
 const NUMBERED_ACTIONS = {
   "1": { action: "content-search" },
@@ -57,6 +58,7 @@ const NUMBERED_ACTIONS = {
   "8": { action: "content-radar" },
   "9": { pending: "demand-research", ask: "🔎 موضوع را بفرستید تا تقاضای واقعی و سؤال‌های مردم درباره‌اش بررسی شود." },
   "10": { action: "voice-list" },
+  "26": { pending: "direct-media-help", ask: "📷 عکس را همراه کپشن بفرستید: ویدیو مستقیم: موضوع | گام یک | گام دو | گام سه\nویدیو پس از گیت کیفیت، بدون تأیید دوباره ساخته می‌شود." },
   "11": { action: "news-scan" }, "12": { action: "news-germany" }, "13": { action: "news-europe" },
   "14": { pending: "news-search-live", ask: "🔎 عبارت جستجوی خبر را بفرستید؛ مثلاً: قوانین اقامت آلمان" },
   "15": { pending: "news-text-preview", ask: "📝 متن خبر را بفرستید — همان‌طور که هست، با پاراگراف. بات خودش تیتر و جمله‌ها را جدا می‌کند.\nاگر خواستید خودتان جدا کنید: تیتر | جمله ۱ | جمله ۲" },
@@ -101,6 +103,10 @@ function videoAction(text) {
   if (/^(?:ادیت|ویرایش)\s*(?:متن|محتوا|اسلاید)\s*[:：]/i.test(c)) return { action: "content-edit-steps", payload: cleanEdit(text, "(?:متن|محتوا|اسلاید)") };
   if (/^(?:تأیید|تایید)\s*(?:محتوا|ویدیو|پیش\s*نویس)$/i.test(c)) return withAudio("content-approve");
   if (/^(?:پیش\s*نویس|نمایش محتوا|دیدن محتوا)$/i.test(c)) return { action: "content-preview" };
+  if (/^(?:ویدیو مستقیم|ساخت مستقیم|direct video)\s*[:：]/i.test(c)) {
+    const payload = cleanContent(String(text).replace(/^\s*(?:ویدیو مستقیم|ساخت مستقیم|direct video)\s*[:：]\s*/i, ""));
+    return payload.trim().length >= 25 ? { action: "custom-content-media", payload, ...audio } : { action: "custom-help" };
+  }
   if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content|موضوع)\s*[:：]/i.test(c)) {
     const payload = cleanContent(text);
     // A supplied tutorial is an editorial draft, not permission to publish.
@@ -256,7 +262,7 @@ function acknowledgementFor(command) {
   if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi", "news-germany", "news-europe", "news-today", "news-breaking-preview", "news-pick-preview", "europe-pick-preview", "news-text-preview"].includes(action)) {
     return "✅ خبرها یا پیش‌نویس خبر در حال آماده‌شدن است؛ تا تأیید شما، هیچ ویدیویی ساخته نمی‌شود.";
   }
-  if (["content-approve", "approved-feature", "custom-content", "build-tiktok", "build-instagram", "build-tools", "build-all", "build-tomorrow", "resend", "news-approve", "news-approve-draft", "news-text", "news-pick", "europe-pick"].includes(action)) {
+  if (["content-approve", "approved-feature", "custom-content", "custom-content-media", "build-tiktok", "build-instagram", "build-tools", "build-all", "build-tomorrow", "resend", "news-approve", "news-approve-draft", "news-text", "news-pick", "europe-pick"].includes(action)) {
     return "✅ ساخت واقعی با صدا در فضای ابری شروع شد؛ ویدیوی نهایی پس از موفق‌شدن رندر همین‌جا فرستاده می‌شود.";
   }
   return "✅ دستور دریافت شد و در فضای ابری اجرا می‌شود؛ نتیجه همین‌جا ارسال خواهد شد.";
@@ -449,7 +455,8 @@ export default {
     if (env.TELEGRAM_WEBHOOK_SECRET && request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.TELEGRAM_WEBHOOK_SECRET) return new Response("Unauthorized", { status: 401 });
     const update = await request.json().catch(() => null);
     const message = update?.message;
-    if (!message?.text || !message?.chat?.id) return new Response("ok");
+    const input = message?.text || message?.caption || "";
+    if (!input || !message?.chat?.id) return new Response("ok");
     const chatId = String(message.chat.id);
     if (env.ALLOWED_CHAT_ID && chatId !== String(env.ALLOWED_CHAT_ID)) return new Response("ok");
     try {
@@ -459,13 +466,13 @@ export default {
       // operation for 15 minutes and the next message becomes its payload
       // instead of a vague AI chat reply.
       const selection = await selectionFor(env, chatId);
-      const topicPick = bareTopicPick(message.text, selection?.kind);
+      const topicPick = bareTopicPick(input, selection?.kind);
       if (topicPick) {
         await dispatchWorkflow(env, topicPick);
         await reply(env, chatId, acknowledgementFor(topicPick));
         return new Response("ok");
       }
-      const code = menuCode(message.text);
+      const code = menuCode(input);
       if (code === "0") {
         await clearPending(env, chatId);
         await reply(env, chatId, HELP);
@@ -481,7 +488,7 @@ export default {
       if (!command) {
         const pending = await pendingFor(env, chatId);
         if (pending) {
-          const next = commandFromPending(pending, message.text);
+          const next = commandFromPending(pending, input);
           if (next?.error) {
             await reply(env, chatId, `⚠️ ${next.error}`);
             return new Response("ok");
@@ -495,7 +502,7 @@ export default {
       // A search result is always picked by its visible source number.  This
       // makes the flow identical for tutorial research and German Insider.
       if (!command) {
-        const sourceMatch = normalize(message.text).match(/^(?:منبع|source)\s*([۰-۹0-9]+)$/i);
+        const sourceMatch = normalize(input).match(/^(?:منبع|source)\s*([۰-۹0-9]+)$/i);
         if (sourceMatch) {
           const selected = await selectionFor(env, chatId);
           const pick = digits(sourceMatch[1]);
@@ -507,7 +514,7 @@ export default {
           }
         }
       }
-      if (!command) command = videoAction(message.text);
+      if (!command) command = videoAction(input);
       if (command) {
         if (command.action === "help") {
           await reply(env, chatId, HELP);
@@ -523,6 +530,14 @@ export default {
           if (command.action === "content-topic-preview" || command.action === "custom-content") {
             command.payload = prepareTopicLocally(command.payload);
           }
+          if (command.action === "custom-content-media") {
+            const fileId = message.photo?.at(-1)?.file_id;
+            if (!fileId) {
+              await reply(env, chatId, "⚠️ برای ساخت مستقیم، یک عکس را همراه همان کپشن بفرستید.");
+              return new Response("ok");
+            }
+            command.payload = JSON.stringify({ text: prepareTopicLocally(command.payload), photoFileId: fileId });
+          }
           // content-search.mjs offers its five topics by plain number
           // («۱».."۵", rule 12) rather than the older «منبع N» phrasing, so a
           // bare digit after either action must resolve to picking one of
@@ -535,7 +550,7 @@ export default {
           await reply(env, chatId, acknowledgementFor(command));
         }
       } else {
-        await reply(env, chatId, await chat(env, chatId, message.text));
+        await reply(env, chatId, await chat(env, chatId, input));
       }
     } catch (error) {
       console.error(error);

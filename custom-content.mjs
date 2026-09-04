@@ -12,7 +12,10 @@ replyOnFailure();
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 
-const raw = process.argv.slice(2).join(" ").replace(/[\r\n]+/g, " ").trim();
+const input = process.argv.slice(2).join(" ").replace(/[\r\n]+/g, " ").trim();
+let supplied = null;
+try { supplied = JSON.parse(input); } catch {}
+const raw = String(supplied?.text || input).trim();
 const parts = raw.split("|").map((x) => x.trim()).filter(Boolean).slice(0, 5);
 if (parts.length < 2) {
   throw new Error("برای ساخت محتوای سفارشی، موضوع و دست‌کم یک نکته را با | جدا کنید.");
@@ -22,21 +25,38 @@ const topic = parts[0].slice(0, 150);
 const category = /(اینستا|انستا|instagram|reels|ریلز|edits)/i.test(topic) ? "instagram"
   : /(تیک\s*تاک|tiktok|tik\s*tok)/i.test(topic) ? "tiktok" : "tools";
 const id = `custom-${createHash("sha256").update(raw).digest("hex").slice(0, 10)}`;
+let suppliedPhoto = null;
+if (supplied?.photoFileId) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("توکن تلگرام برای دریافت عکس ارسال‌شده موجود نیست.");
+  const info = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(supplied.photoFileId)}`).then((r) => r.json());
+  if (!info?.ok || !info?.result?.file_path) throw new Error("دریافت عکس تلگرام ناموفق بود.");
+  const bytes = Buffer.from(await fetch(`https://api.telegram.org/file/bot${token}/${info.result.file_path}`).then((r) => r.arrayBuffer()));
+  mkdirSync("public/user-media", { recursive: true });
+  suppliedPhoto = `public/user-media/${id}.jpg`;
+  writeFileSync(suppliedPhoto, bytes);
+}
 const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*صدا/i.test(topic)
   ? { name: "Instagram Edits", photo: "public/sources/edits-sound-separation-ui.webp", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
   : /google\s*vids|گوگل\s*ویدز/i.test(topic)
     ? { name: "Google Vids", hookPhoto: "public/sources/product-sneakers-stock.webp", photo: "public/sources/google-vids-ui.webp", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
     : null;
+const primaryPhoto = suppliedPhoto || visualPreset?.photo || null;
+const photoFocuses = ["subject-wide", "subject-detail", "subject-action", "subject-result"];
+const evidenceFor = (text, i) => primaryPhoto ? ({
+  sourceUrl: suppliedPhoto ? `telegram:file/${supplied.photoFileId}` : "official-feature-source",
+  whatItProves: text.slice(0, 140), motionAction: "focus and reveal", coverage: 0.55,
+}) : undefined;
 const provided = parts.slice(1).map((text, i) => ({
   text: text.slice(0, 180),
   icon: ["target", "play", "chart", "pen"][i] || "target",
-  ...(visualPreset ? { photo: visualPreset.photo, photoAlt: visualPreset.alt, photoFocus: visualPreset.focus[i] } : {}),
+  ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[i] : visualPreset.focus[i], visualEvidence: evidenceFor(text, i) } : {}),
 }));
 const steps = provided.length >= 4 ? provided.slice(0, 4) : [
   ...provided,
   ...Array.from({ length: 4 - provided.length }, (_, i) => ({
     text: i === 0 ? "یک نمونهٔ واقعی از نتیجه را در ویدیو نشان بده" : "نکتهٔ بعدی را کوتاه و روشن نشان بده",
-    icon: "play",
+    icon: "play", ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[provided.length + i] : visualPreset.focus[provided.length + i], visualEvidence: evidenceFor("نمونهٔ واقعی", provided.length + i) } : {}),
   })),
 ];
 
@@ -61,7 +81,8 @@ const pack = {
   category,
   name: appName,
   kicker: appName,
-  hookPhoto: visualPreset?.hookPhoto || null,
+  hookPhoto: suppliedPhoto || visualPreset?.hookPhoto || null,
+  source: suppliedPhoto ? `telegram:file/${supplied.photoFileId}` : (visualPreset ? "official-feature-source" : "creator-supplied-text"),
   title: topic,
   benefit: { key: "custom", fa: topic },
   hook: {
