@@ -18,7 +18,7 @@ import { sceneArtPlan } from "./lib/scene-art.mjs";
 import { creativeBriefFor } from "./lib/creative-brief.mjs";
 import { assertVisualProof } from "./lib/visual-proof.mjs";
 import { accentSpec } from "./music/mood.mjs";
-import { loadEnv, telegramConfig, sendVideo } from "./lib/telegram.mjs";
+import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.mjs";
 import { fingerprint, check, register, hasHistory } from "./lib/dedupe.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -122,8 +122,27 @@ const batchPrints = [];
 for (const delivery of deliveries) {
   const { slot: platform, pack, mirrorOf } = delivery;
   // Do this before HTML/audio/render work. A missing real visual is a research
-  // failure, not a reason to ship a generic illustration.
-  assertVisualProof(pack);
+  // failure, not a reason to ship a generic illustration. Most of the older
+  // rotation banks predate this gate and were never fitted with a real
+  // per-slide screenshot, so this fails often and predictably — a content gap,
+  // not a code bug. It must never crash the whole run: a bad feature blocks
+  // only its own slot, and a human hears why in Telegram instead of finding a
+  // bare GitHub Actions failure with no explanation.
+  try {
+    assertVisualProof(pack);
+  } catch (e) {
+    console.error(`   ✗ Visual QC رد شد — ${platform} (${pack.id}) ساخته نشد: ${e.message}`);
+    if (tg.enabled) {
+      try {
+        await sendMessage({
+          token: tg.token, chatId: tg.chatId,
+          text: `⚠ ویدیوی ${platform} برای «${pack.id}» ساخته نشد.\n\nعلت: ${e.message}\n\nاین قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد؛ باید اول با اسکرین‌شات واقعی تجهیز شود.`,
+        });
+      } catch {}
+    }
+    results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: null, sent: false, visualQcFailed: e.message });
+    continue;
+  }
   // Generate the topic-specific creative contract before any sound, HTML or
   // render work. It is saved beside the composition for review and prevents a
   // generic visual decision from being made after the script is already built.
