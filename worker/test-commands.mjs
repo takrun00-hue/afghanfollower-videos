@@ -22,9 +22,11 @@ assert.equal(NUMBERED_ACTIONS["7"].action, "content-approve");
 assert.equal(NUMBERED_ACTIONS["8"].action, "content-radar");
 assert.equal(NUMBERED_ACTIONS["9"].pending, "demand-research");
 assert.equal(NUMBERED_ACTIONS["10"].action, "voice-list");
-assert.equal(NUMBERED_ACTIONS["26"].pending, "direct-media-help");
+assert.equal(NUMBERED_ACTIONS["26"].pending, "custom-content-media");
 assert.equal(menuCode("۶"), "6");
 assert.equal(commandFromPending({ action: "content-edit-hook" }, "قلاب تازه و روشن").action, "content-edit-hook");
+assert.equal(commandFromPending({ action: "custom-content-media" }, "یک موضوع کامل | گام یک | گام دو").action, "custom-content-media");
+assert.match(commandFromPending({ action: "custom-content-media" }, "خیلی کوتاه").error, /خیلی کوتاه/);
 assert.match(acknowledgementFor({ action: "plan-tiktok" }), /هنوز ساخته نمی‌شود/);
 assert.match(acknowledgementFor({ action: "content-approve" }), /ساخت واقعی/);
 

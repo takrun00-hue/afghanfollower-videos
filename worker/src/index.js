@@ -58,7 +58,10 @@ const NUMBERED_ACTIONS = {
   "8": { action: "content-radar" },
   "9": { pending: "demand-research", ask: "🔎 موضوع را بفرستید تا تقاضای واقعی و سؤال‌های مردم درباره‌اش بررسی شود." },
   "10": { action: "voice-list" },
-  "26": { pending: "direct-media-help", ask: "📷 عکس را همراه کپشن بفرستید: ویدیو مستقیم: موضوع | گام یک | گام دو | گام سه\nویدیو پس از گیت کیفیت، بدون تأیید دوباره ساخته می‌شود." },
+  // This must set the build action itself as pending.  The former
+  // `direct-media-help` value was only a label, not a workflow action, so a
+  // photo sent after choosing ۲۶ was acknowledged but never built.
+  "26": { pending: "custom-content-media", ask: "📷 عکس را همراه کپشن بفرستید: موضوع | گام یک | گام دو | گام سه\nویدیو پس از گیت کیفیت، بدون تأیید دوباره ساخته می‌شود." },
   "11": { action: "news-scan" }, "12": { action: "news-germany" }, "13": { action: "news-europe" },
   "14": { pending: "news-search-live", ask: "🔎 عبارت جستجوی خبر را بفرستید؛ مثلاً: قوانین اقامت آلمان" },
   "15": { pending: "news-text-preview", ask: "📝 متن خبر را بفرستید — همان‌طور که هست، با پاراگراف. بات خودش تیتر و جمله‌ها را جدا می‌کند.\nاگر خواستید خودتان جدا کنید: تیتر | جمله ۱ | جمله ۲" },
@@ -308,6 +311,10 @@ async function setSelection(env, chatId, kind) {
   if (env.BOT_STATE) await env.BOT_STATE.put(`selection:${chatId}`, JSON.stringify({ kind }), { expirationTtl: 20 * 60 });
 }
 
+async function clearSelection(env, chatId) {
+  if (env.BOT_STATE) await env.BOT_STATE.delete(`selection:${chatId}`);
+}
+
 function commandFromPending(pending, text) {
   // Newlines collapse because the payload travels as one workflow input. The
   // splitters downstream read sentence punctuation, not layout, so nothing is
@@ -324,7 +331,7 @@ function commandFromPending(pending, text) {
   if (pending.action === "news-text-preview" && payload.replace(/\|/g, " ").trim().length < 40) {
     return { error: "متن خبر خیلی کوتاه است. یک تیتر و دست‌کم یک جمله بفرستید." };
   }
-  if (pending.action === "custom-content" && payload.replace(/\|/g, " ").trim().length < 25) {
+  if (["custom-content", "custom-content-media"].includes(pending.action) && payload.replace(/\|/g, " ").trim().length < 25) {
     return { error: "متن آموزشی خیلی کوتاه است. موضوع و دست‌کم یک گام بفرستید." };
   }
   return { action: pending.action, payload, voiceMode: "on" };
@@ -468,6 +475,9 @@ export default {
       const selection = await selectionFor(env, chatId);
       const topicPick = bareTopicPick(input, selection?.kind);
       if (topicPick) {
+        // A topic is picked once.  Leaving this marker alive made a later
+        // menu digit (for example «۱» for a new search) reopen an old result.
+        await clearSelection(env, chatId);
         await dispatchWorkflow(env, topicPick);
         await reply(env, chatId, acknowledgementFor(topicPick));
         return new Response("ok");
@@ -512,6 +522,7 @@ export default {
             await reply(env, chatId, "ابتدا یک جستجو انجام دهید، سپس مثلاً <code>منبع ۲</code> را بفرستید.");
             return new Response("ok");
           }
+          if (command) await clearSelection(env, chatId);
         }
       }
       if (!command) command = videoAction(input);
