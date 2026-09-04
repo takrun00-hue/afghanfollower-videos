@@ -11,6 +11,12 @@ on:
   push:
     paths:
       - ".video-request.json"
+  # No Cloudflare Worker is deployed for this bot right now, so nothing else
+  # reads new Telegram messages. This polls instead: every 5 minutes it asks
+  # Telegram for updates since the last run (cloud-listen.mjs, the same path
+  # workflow_dispatch falls back to below) and acts on the newest command.
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       run_news_now:
