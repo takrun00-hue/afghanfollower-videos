@@ -103,12 +103,14 @@ jobs:
         run: |
           case "${{ steps.gate.outputs.batch }}" in
             morning)
-              # Two platform-native tutorials: TikTok and Instagram.
+              # Two native delivery formats. The research topic itself is not
+              # restricted to TikTok or Instagram.
               node daily-render.mjs --only tiktok
               node daily-render.mjs --only instagram
               ;;
             evening)
-              # One researched AI/app topic, adapted as two native formats.
+              # A second independently researched topic, adapted as two native
+              # delivery formats; it may be any useful app, service or trend.
               node daily-render.mjs --only ai-tiktok
               node daily-render.mjs --only ai-instagram
               ;;
