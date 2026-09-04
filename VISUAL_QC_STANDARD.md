@@ -26,6 +26,13 @@ cartoon mascot, random hand, generic chart, or platform-coloured decoration is
 frame, have a usable source resolution (long edge at least 1080px and at least
 700,000 pixels), and remain readable on a phone without zooming.
 
+The record must also name the exact slide claim, one source type
+(`official-ui`, `official-asset`, `owner-supplied`, or `labelled-explainer`),
+and all three motion layers: `motionAction`, `secondaryMotion`, and
+`ambientMotion`. Missing any one is a hard render failure. A phone outline,
+device mockup, platform-coloured background, or logo does not make a guessed
+screen real.
+
 ## 2. Source hierarchy
 
 Use the highest available item in this order:
@@ -115,3 +122,20 @@ clarity, cover, and comments. Record observed facts, date and URL; never infer
 income from views. Revenue, retention, saves, shares and reach require official
 Insights/Analytics supplied by the owner or authorised API access. Use the
 comparison only to choose the next hypothesis; do not copy a previous layout.
+
+## 10. Permanent rejection patterns
+
+These defects have already reached a review and are permanently rejected:
+
+- a lock, toolbox, circle, microphone, camera, or graph standing in for a
+  different action named in the copy;
+- the same illustration or a recoloured version repeated across slides;
+- two tiny app screens in one slide, or an unreadable guessed phone interface;
+- a hook that shows the product name, logo, or UI before its curiosity promise;
+- an empty frame filled with decorative lines instead of a relevant visual;
+- an Instagram storyboard reused for TikTok with only colours changed; and
+- motion that merely moves a card instead of showing the named action.
+
+For every release, inspect frame zero, the action moment, and the final settled
+frame of each slide. If the text is hidden, a reviewer must still identify the
+action and the real subject. If not, reject the scene.

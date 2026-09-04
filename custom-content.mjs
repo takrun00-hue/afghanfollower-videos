@@ -37,15 +37,22 @@ if (supplied?.photoFileId) {
   writeFileSync(suppliedPhoto, bytes);
 }
 const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*صدا/i.test(topic)
-  ? { name: "Instagram Edits", photo: "public/sources/edits-sound-separation-ui.webp", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
+  ? { name: "Instagram Edits", photo: "public/sources/edits-sound-separation-ui.webp", sourceUrl: "https://about.fb.com/news/2025/04/introducing-edits-a-video-creation-app/", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
   : /google\s*vids|گوگل\s*ویدز/i.test(topic)
-    ? { name: "Google Vids", hookPhoto: "public/sources/product-sneakers-stock.webp", photo: "public/sources/google-vids-ui.webp", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
+    ? { name: "Google Vids", hookPhoto: "public/sources/product-sneakers-stock.webp", photo: "public/sources/google-vids-ui.webp", sourceUrl: "https://workspace.google.com/products/vids/", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
     : null;
 const primaryPhoto = suppliedPhoto || visualPreset?.photo || null;
 const photoFocuses = ["subject-wide", "subject-detail", "subject-action", "subject-result"];
 const evidenceFor = (text, i) => primaryPhoto ? ({
-  sourceUrl: suppliedPhoto ? `telegram:file/${supplied.photoFileId}` : "official-feature-source",
-  whatItProves: text.slice(0, 140), motionAction: "focus and reveal", coverage: 0.55,
+  sourceUrl: suppliedPhoto ? `telegram:file/${supplied.photoFileId}` : visualPreset.sourceUrl,
+  sourceType: suppliedPhoto ? "owner-supplied" : "official-ui",
+  claim: text.slice(0, 140),
+  mainVisual: primaryPhoto,
+  whatItProves: suppliedPhoto ? "تصویر واقعیِ ارسال‌شده توسط صاحب محتوا" : visualPreset.alt,
+  motionAction: "عمل مربوط به همین گام روی تصویر با تمرکز و آشکارسازی نشان داده می‌شود",
+  secondaryMotion: "واکنش کنترل یا بخش مرتبط پس از حرکت اصلی",
+  ambientMotion: "تغییر نور و عمق بسیار آرام، بدون حواس‌پرتی",
+  coverage: 0.55,
 }) : undefined;
 const provided = parts.slice(1).map((text, i) => ({
   text: text.slice(0, 180),
