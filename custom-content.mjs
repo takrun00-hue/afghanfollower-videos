@@ -2,7 +2,7 @@
 // a platform claim or scrape an unverified source: every spoken/onscreen point
 // comes from the Telegram payload.
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -26,15 +26,27 @@ const category = /(اینستا|انستا|instagram|reels|ریلز|edits)/i.tes
   : /(تیک\s*تاک|tiktok|tik\s*tok)/i.test(topic) ? "tiktok" : "tools";
 const id = `custom-${createHash("sha256").update(raw).digest("hex").slice(0, 10)}`;
 let suppliedPhoto = null;
-if (supplied?.photoFileId) {
+let suppliedVideo = null;
+async function downloadTelegramFile(fileId, destination) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("توکن تلگرام برای دریافت عکس ارسال‌شده موجود نیست.");
-  const info = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(supplied.photoFileId)}`).then((r) => r.json());
-  if (!info?.ok || !info?.result?.file_path) throw new Error("دریافت عکس تلگرام ناموفق بود.");
+  const info = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`).then((r) => r.json());
+  if (!info?.ok || !info?.result?.file_path) throw new Error("دریافت رسانهٔ تلگرام ناموفق بود.");
   const bytes = Buffer.from(await fetch(`https://api.telegram.org/file/bot${token}/${info.result.file_path}`).then((r) => r.arrayBuffer()));
   mkdirSync("public/user-media", { recursive: true });
+  writeFileSync(destination, bytes);
+}
+if (supplied?.photoFileId) {
   suppliedPhoto = `public/user-media/${id}.jpg`;
-  writeFileSync(suppliedPhoto, bytes);
+  await downloadTelegramFile(supplied.photoFileId, suppliedPhoto);
+} else if (supplied?.videoFileId) {
+  suppliedVideo = `public/user-media/${id}.mp4`;
+  suppliedPhoto = `public/user-media/${id}-poster.jpg`;
+  await downloadTelegramFile(supplied.videoFileId, suppliedVideo);
+  const frame = spawnSync("ffmpeg", ["-y", "-ss", "0.5", "-i", suppliedVideo, "-frames:v", "1", "-vf", "scale=1080:-2", suppliedPhoto], { stdio: "pipe" });
+  if (frame.status !== 0 || !existsSync(suppliedPhoto)) {
+    throw new Error("از ویدیوی ارسالی یک فریم قابل‌استفاده ساخته نشد.");
+  }
 }
 const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*صدا/i.test(topic)
   ? { name: "Instagram Edits", photo: "public/sources/edits-sound-separation-ui.webp", sourceUrl: "https://about.fb.com/news/2025/04/introducing-edits-a-video-creation-app/", alt: "Instagram Edits — Sound separation", focus: ["edits-project", "edits-preview", "edits-tracks", "edits-export"] }
@@ -44,7 +56,7 @@ const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*ص
 const primaryPhoto = suppliedPhoto || visualPreset?.photo || null;
 const photoFocuses = ["subject-wide", "subject-detail", "subject-action", "subject-result"];
 const evidenceFor = (text, i) => primaryPhoto ? ({
-  sourceUrl: suppliedPhoto ? `telegram:file/${supplied.photoFileId}` : visualPreset.sourceUrl,
+  sourceUrl: suppliedPhoto ? `telegram:file/${supplied.photoFileId || supplied.videoFileId}` : visualPreset.sourceUrl,
   sourceType: suppliedPhoto ? "owner-supplied" : "official-ui",
   claim: text.slice(0, 140),
   mainVisual: primaryPhoto,
@@ -57,13 +69,13 @@ const evidenceFor = (text, i) => primaryPhoto ? ({
 const provided = parts.slice(1).map((text, i) => ({
   text: text.slice(0, 180),
   icon: ["target", "play", "chart", "pen"][i] || "target",
-  ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[i] : visualPreset.focus[i], visualEvidence: evidenceFor(text, i) } : {}),
+  ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedVideo ? "Creator-supplied video frame" : suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[i] : visualPreset.focus[i], visualEvidence: evidenceFor(text, i), ...(suppliedVideo ? { video: suppliedVideo, videoStart: i * 0.5 } : {}) } : {}),
 }));
 const steps = provided.length >= 4 ? provided.slice(0, 4) : [
   ...provided,
   ...Array.from({ length: 4 - provided.length }, (_, i) => ({
     text: i === 0 ? "یک نمونهٔ واقعی از نتیجه را در ویدیو نشان بده" : "نکتهٔ بعدی را کوتاه و روشن نشان بده",
-    icon: "play", ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[provided.length + i] : visualPreset.focus[provided.length + i], visualEvidence: evidenceFor("نمونهٔ واقعی", provided.length + i) } : {}),
+    icon: "play", ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedVideo ? "Creator-supplied video frame" : suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[provided.length + i] : visualPreset.focus[provided.length + i], visualEvidence: evidenceFor("نمونهٔ واقعی", provided.length + i), ...(suppliedVideo ? { video: suppliedVideo, videoStart: (provided.length + i) * 0.5 } : {}) } : {}),
   })),
 ];
 
@@ -89,7 +101,7 @@ const pack = {
   name: appName,
   kicker: appName,
   hookPhoto: suppliedPhoto || visualPreset?.hookPhoto || null,
-  source: suppliedPhoto ? `telegram:file/${supplied.photoFileId}` : (visualPreset ? "official-feature-source" : "creator-supplied-text"),
+  source: suppliedPhoto ? `telegram:file/${supplied.photoFileId || supplied.videoFileId}` : (visualPreset ? "official-feature-source" : "creator-supplied-text"),
   title: topic,
   benefit: { key: "custom", fa: topic },
   hook: {

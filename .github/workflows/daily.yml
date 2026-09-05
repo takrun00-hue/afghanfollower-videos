@@ -1,8 +1,9 @@
 name: Daily GapMedia video delivery
 
 # Runs in GitHub's cloud. The computer may be off. GitHub cron is UTC-only,
-# therefore both CET and CEST candidates run and the Berlin-time gate below
-# keeps only the correct local slot.
+# therefore both CET and CEST candidates run. GitHub may begin a scheduled run
+# late, so the gate keys off the scheduled cron expression rather than the
+# runner's current hour.
 on:
   schedule:
     # 08:30 Europe/Berlin: 06:30 UTC in CEST, 07:30 UTC in CET
@@ -41,23 +42,31 @@ jobs:
         shell: bash
         run: |
           local_time="$(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
-          hour="$(TZ=Europe/Berlin date +%H)"
+          offset="$(TZ=Europe/Berlin date +%z)"
+          schedule="${{ github.event.schedule }}"
           echo "Berlin local time: $local_time"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=${{ inputs.batch }}" >> "$GITHUB_OUTPUT"
-          elif [ "$hour" = "08" ]; then
-            # GitHub can start a cron job a few minutes late, so gate on the
-            # Berlin hour rather than an exact minute match.
+          # GitHub's event carries the cron that caused this run even when the
+          # runner starts late. Match it against the current Berlin offset so
+          # exactly one of each CET/CEST pair renders.
+          elif [ "$schedule" = "30 6 * * *" ] && [ "$offset" = "+0200" ]; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=morning" >> "$GITHUB_OUTPUT"
-          elif [ "$hour" = "17" ]; then
+          elif [ "$schedule" = "30 7 * * *" ] && [ "$offset" = "+0100" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=morning" >> "$GITHUB_OUTPUT"
+          elif [ "$schedule" = "0 15 * * *" ] && [ "$offset" = "+0200" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=evening" >> "$GITHUB_OUTPUT"
+          elif [ "$schedule" = "0 16 * * *" ] && [ "$offset" = "+0100" ]; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=evening" >> "$GITHUB_OUTPUT"
           else
             echo "go=no" >> "$GITHUB_OUTPUT"
-            echo "Not an 08:30 or 17:00 Berlin delivery window — skipping."
+            echo "This cron does not match the current Berlin daylight-saving offset — skipping."
           fi
 
       - uses: actions/checkout@v4

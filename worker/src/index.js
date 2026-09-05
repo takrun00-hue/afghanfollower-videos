@@ -458,6 +458,25 @@ async function chat(env, chatId, userText) {
 
 export default {
   async fetch(request, env) {
+    // Non-sensitive operational health check.  It never returns a token,
+    // username, chat id, or Telegram error body; it only lets us distinguish
+    // an invalid token from a missing/mispointed webhook.
+    if (request.method === "GET" && new URL(request.url).pathname === "/health") {
+      let tokenValid = false;
+      let webhookConfigured = false;
+      try {
+        const [me, hook] = await Promise.all([
+          fetch(`${TG}/bot${env.TELEGRAM_BOT_TOKEN}/getMe`),
+          fetch(`${TG}/bot${env.TELEGRAM_BOT_TOKEN}/getWebhookInfo`),
+        ]);
+        tokenValid = me.ok;
+        if (hook.ok) {
+          const data = await hook.json();
+          webhookConfigured = Boolean(data?.result?.url);
+        }
+      } catch { /* report the safe false values below */ }
+      return Response.json({ worker: true, telegramTokenValid: tokenValid, webhookConfigured });
+    }
     if (request.method !== "POST") return new Response("GapMedia + German Insider Telegram worker", { status: 200 });
     if (env.TELEGRAM_WEBHOOK_SECRET && request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.TELEGRAM_WEBHOOK_SECRET) return new Response("Unauthorized", { status: 401 });
     const update = await request.json().catch(() => null);
@@ -525,6 +544,13 @@ export default {
           if (command) await clearSelection(env, chatId);
         }
       }
+      // A creator-supplied photo or video plus its caption is an explicit
+      // request to make that media into a video.  Do not route it through the
+      // generic chat or make the creator repeat «ویدیو مستقیم». The media is
+      // still checked for quality by the render-time visual gate.
+      if (!command && (message.photo?.length || message.video || message.animation || (message.document?.mime_type || "").startsWith("video/")) && input.trim().length >= 25) {
+        command = { action: "custom-content-media", payload: input, ...audioFor(input) };
+      }
       if (!command) command = videoAction(input);
       if (command) {
         if (command.action === "help") {
@@ -542,12 +568,16 @@ export default {
             command.payload = prepareTopicLocally(command.payload);
           }
           if (command.action === "custom-content-media") {
-            const fileId = message.photo?.at(-1)?.file_id;
+            const video = message.video || message.animation || ((message.document?.mime_type || "").startsWith("video/") ? message.document : null);
+            const fileId = message.photo?.at(-1)?.file_id || video?.file_id;
             if (!fileId) {
-              await reply(env, chatId, "⚠️ برای ساخت مستقیم، یک عکس را همراه همان کپشن بفرستید.");
+              await reply(env, chatId, "⚠️ برای ساخت مستقیم، عکس یا ویدیو را همراه همان متن بفرستید.");
               return new Response("ok");
             }
-            command.payload = JSON.stringify({ text: prepareTopicLocally(command.payload), photoFileId: fileId });
+            command.payload = JSON.stringify({
+              text: prepareTopicLocally(command.payload),
+              ...(video ? { videoFileId: fileId } : { photoFileId: fileId }),
+            });
           }
           // content-search.mjs offers its five topics by plain number
           // («۱».."۵", rule 12) rather than the older «منبع N» phrasing, so a

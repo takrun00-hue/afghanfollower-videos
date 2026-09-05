@@ -2,7 +2,7 @@
 // local-PC bot test: the phone uses worker/src/index.js, so it needs its own
 // regression test for the exact commands the creator actually types.
 import assert from "node:assert/strict";
-import { NUMBERED_ACTIONS, menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick } from "./src/index.js";
+import worker, { NUMBERED_ACTIONS, menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick } from "./src/index.js";
 
 assert.equal(videoAction("تیک تاک بساز").action, "plan-tiktok");
 assert.equal(videoAction("انستا بساز").action, "plan-instagram");
@@ -48,5 +48,31 @@ assert.equal(bareTopicPick("3", null), null);
 assert.equal(bareTopicPick("3", "news"), null);
 assert.equal(bareTopicPick("6", "search"), null); // only 1-5 are offered topics
 assert.match(acknowledgementFor({ action: "search-topic-pick" }), /هنوز ساخته نمی‌شود/);
+
+// A captioned Telegram video must use the same direct-build path as a photo.
+// This is an in-memory Worker request: no message or workflow is sent outside
+// the test process.
+const savedFetch = globalThis.fetch;
+const calls = [];
+globalThis.fetch = async (url, init = {}) => {
+  calls.push({ url: String(url), init });
+  if (String(url).includes("api.github.com/")) return new Response(null, { status: 204 });
+  return new Response(JSON.stringify({ ok: true }), { status: 200 });
+};
+const response = await worker.fetch(new Request("https://worker.test/", {
+  method: "POST",
+  body: JSON.stringify({ message: {
+    chat: { id: 7 },
+    caption: "یک موضوع واقعی | گام یک | گام دو | گام سه",
+    video: { file_id: "telegram-video-id" },
+  } }),
+}), { ALLOWED_CHAT_ID: "7", TELEGRAM_BOT_TOKEN: "test", GITHUB_TOKEN: "test" });
+globalThis.fetch = savedFetch;
+assert.equal(response.status, 200);
+const dispatch = calls.find((c) => c.url.includes("api.github.com/"));
+assert.ok(dispatch, `captioned video dispatches the workflow; observed ${calls.map((c) => c.url).join(", ")}`);
+const inputs = JSON.parse(dispatch.init.body).inputs;
+assert.equal(inputs.action, "custom-content-media");
+assert.equal(JSON.parse(inputs.payload).videoFileId, "telegram-video-id");
 
 console.log("cloud Telegram command contract holds");
