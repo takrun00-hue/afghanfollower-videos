@@ -34,6 +34,13 @@ function verifiedScreenFor(featureId) {
   } catch { return null; }
 }
 
+function screenCandidateCount(featureId) {
+  try {
+    const candidates = JSON.parse(readFileSync(SCREEN_MANIFEST, "utf8"));
+    return (candidates[featureId] || []).filter((x) => existsSync(x.file)).length;
+  } catch { return 0; }
+}
+
 function attachVerifiedScreen(base, featureId) {
   const image = verifiedScreenFor(featureId);
   if (!image) return base;
@@ -105,9 +112,10 @@ async function announce(draft) {
   if (draft.musicPlan) extra.push(`<b>ریتم/موسیقی:</b> ${esc(draft.musicPlan)}`);
   if (draft.sourceUrl) extra.push(`<b>منبع رسمی:</b> <a href="${esc(draft.sourceUrl)}">${esc(draft.sourceDate || "باز کردن منبع")}</a>`);
   if (visualIssue) {
-    extra.push(
-      `<b>تصویر واقعی:</b> هنوز تأیید نشده است. نامزدِ تصویر از منبع ارسال می‌شود؛ ` +
-      `پس از دیدن آن فقط «تأیید تصویر ${esc(draft.featureId)} شماره» را بفرستید. تا آن زمان ویدیویی ساخته نمی‌شود.`
+    const candidates = screenCandidateCount(draft.featureId);
+    extra.push(candidates
+      ? `<b>تصویر واقعی:</b> ${candidates} نامزد از منبع ارسال شد. پس از دیدن آن فقط «تأیید تصویر ${esc(draft.featureId)} شماره» را بفرستید. تا آن زمان ویدیویی ساخته نمی‌شود.`
+      : `<b>تصویر واقعی:</b> از منبع، تصویر قابل‌استفاده پیدا نشد. یک اسکرین‌شات واقعی از همان قابلیت همراه متن بفرستید یا موضوع دیگری را انتخاب کنید؛ تا آن زمان ویدیویی ساخته نمی‌شود.`
     );
   } else {
     extra.push(`<b>تصویر واقعی:</b> تأیید شد و برای هر اسلاید با برش متفاوت استفاده می‌شود.`);
