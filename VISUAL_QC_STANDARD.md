@@ -1,5 +1,8 @@
 # Visual Truth Gate — GapMedia
 
+> **Canonical policy:** [`PROJECT_RULES.md`](PROJECT_RULES.md), sections ۳، ۶، ۷
+> and ۱۳. This document supplies implementation detail and cannot override it.
+
 This gate is mandatory for every tutorial, app, update, and news video. It
 exists to prevent generic AI illustrations, unrelated icons, and repeated card
 layouts from reaching a render.

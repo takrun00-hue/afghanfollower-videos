@@ -50,7 +50,7 @@ const HELP = `🤖 <b>منوی GapMedia — اول جستجو، بعد ساخت<
 const NUMBERED_ACTIONS = {
   "1": { action: "content-search" },
   "2": { pending: "content-search-live", ask: "🔎 عبارت جستجوی محتوا را بفرستید؛ مثلاً: راه‌های درآمد از اینستاگرام" },
-  "3": { pending: "content-topic-preview", ask: "📝 موضوع یا متن آماده را بفرستید. بات فقط پیش‌نویسِ قابل ادیت می‌سازد؛ تا تأیید شما ویدیویی ساخته نمی‌شود." },
+  "3": { pending: "custom-content-media", ask: "📝 موضوع یا متن آماده را بفرستید. اگر منبع، محتوا و رسانهٔ واقعی گیت کیفیت را پاس کند، بدون تأیید دوباره ساخته می‌شود." },
   "4": { action: "content-preview" },
   "5": { pending: "content-edit-hook", ask: "✏️ قلاب تازه را بفرستید. نام اپ یا جوابِ اصلی را در قلاب نیاورید." },
   "6": { pending: "content-edit-steps", ask: "✏️ متن اسلایدها را با | جدا کنید: اسلاید ۱ | اسلاید ۲ | اسلاید ۳" },
@@ -120,12 +120,8 @@ function videoAction(text) {
   }
   if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content|موضوع)\s*[:：]/i.test(c)) {
     const payload = cleanContent(text);
-    // A supplied tutorial is an editorial draft, not permission to publish.
-    // Sending it straight to custom-content.mjs built a video before the
-    // creator could check its hook, facts, voice and slides — contrary to the
-    // approval-first workflow used by every other tutorial command.
     return payload.trim().length >= 25
-      ? { action: "content-topic-preview", payload, ...audio }
+      ? { action: "custom-content", payload, ...audio }
       : { action: "custom-help" };
   }
   if (/^(?:تقاضا|سرچ مردم|دیماند)\s*[:：]/i.test(c)) {
@@ -134,7 +130,7 @@ function videoAction(text) {
   }
   if (/^(?:موضوع آماده|ایده آماده|ایده)\s*[:：]/i.test(c)) {
     const payload = stripLinks(String(text).replace(/^\s*(?:موضوع آماده|ایده آماده|ایده)\s*[:：]\s*/i, "")).replace(/[\r\n]+/g, " ").trim().slice(0, 5000);
-    return payload ? { action: "content-topic-preview", payload, ...audio } : null;
+    return payload ? { action: "custom-content", payload, ...audio } : null;
   }
   // Refusing a topic, before the rule that selects one — «رد موضوع ۲» would
   // otherwise be read as «موضوع ۲» and build the thing the operator rejected.
@@ -187,16 +183,12 @@ function videoAction(text) {
   if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tiktok" };
   if (any("انستا", "اینستا", "instagram", "insta") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-instagram" };
   if (any("ابزار", "هوش مصنوعی", " ai", "tool") && !any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
-  // «بساز» is now an editorial request, not an immediate publish. The bot
-  // first sends hook and slide copy so the creator can edit or approve it.
-  if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tiktok" };
-  if (any("انستا", "اینستا", "instagram", "insta") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-instagram" };
-  if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return { action: "plan-tools" };
+  if (any("تیک تاک", "تیکتاک", "tiktok", "tik tok") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withAudio("build-tiktok");
+  if (any("انستا", "اینستا", "instagram", "insta") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withAudio("build-instagram");
+  if (any("ابزار", "هوش مصنوعی", " ai", "tool") && any("بساز", "ساخت", "ویدیو", "make", "build")) return withAudio("build-tools");
   if (/^(فردا|برای فردا|فردا بساز)$/.test(c)) return { action: "build-tomorrow" };
   if (/^(بفرست|ارسال کن|send)$/.test(c)) return { action: "resend" };
-  // «بساز» starts today's editorial proposal. It used to return tomorrow's
-  // list, which made a same-day request appear to be ignored.
-  if (/^(بساز|ساخت همه|هر سه|make|build)(?:\s|$)/.test(c)) return { action: "plan-today" };
+  if (/^(بساز|ساخت همه|هر سه|make|build)(?:\s|$)/.test(c)) return withAudio("build-all");
   return null;
 }
 
@@ -268,10 +260,10 @@ async function dispatchWorkflow(env, command) {
 function acknowledgementFor(command) {
   const action = command?.action || "";
   if (["plan-today", "plan-tomorrow", "plan-week", "plan-tiktok", "plan-instagram", "plan-tools", "content-search", "content-search-live", "content-topic-preview", "content-source-pick", "search-topic-pick"].includes(action)) {
-    return "✅ جستجو و پیش‌نویس شروع شد؛ ویدیویی هنوز ساخته نمی‌شود. پس از دیدن قلاب و اسلایدها، «تأیید محتوا» یا «تأیید شناسه» را بفرستید.";
+    return "✅ جستجو و ارزیابی کیفیت شروع شد. فقط اگر منبع، منفعت، رسانهٔ واقعی و نریشن گیت انتشار را پاس کنند، ویدیو خودکار ساخته و ارسال می‌شود.";
   }
   if (["news-scan", "news-search-live", "amal-berlin", "amal-hamburg", "amal-frankfurt", "amal-farsi", "news-germany", "news-europe", "news-today", "news-breaking-preview", "news-pick-preview", "europe-pick-preview", "news-text-preview"].includes(action)) {
-    return "✅ خبرها یا پیش‌نویس خبر در حال آماده‌شدن است؛ تا تأیید شما، هیچ ویدیویی ساخته نمی‌شود.";
+    return "✅ جستجوی خبر شروع شد. فقط خبرِ تازه با منبع و رسانهٔ واقعیِ پاس‌شده خودکار ساخته و ارسال می‌شود.";
   }
   if (["content-approve", "approved-feature", "custom-content", "custom-content-media", "build-tiktok", "build-instagram", "build-tools", "build-all", "build-tomorrow", "resend", "news-approve", "news-approve-draft", "news-text", "news-pick", "europe-pick"].includes(action)) {
     return "✅ ساخت واقعی با صدا در فضای ابری شروع شد؛ ویدیوی نهایی پس از موفق‌شدن رندر همین‌جا فرستاده می‌شود.";
@@ -422,7 +414,7 @@ function prepareTopicLocally(raw) {
   return [topic, ...(steps.length ? steps : TOPIC_SCAFFOLD)].join(" | ");
 }
 
-const SYSTEM = `تو دستیار فارسی/دری برند GapMedia هستی. کوتاه، صمیمی و دقیق جواب بده. درباره ویدیوهای آموزشی تیک‌تاک، اینستاگرام و اپ‌های هوش مصنوعی، و کانال خبری German Insider کمک کن. هیچ وعدهٔ درآمد، ویو یا وایرال‌شدن نده و چیزی را که واقعاً اجرا نشده «انجام شد» نگو. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، بگو نمونه: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و از توضیحِ فرایند فکرکردن خودداری کن.`;
+const SYSTEM = `تو دستیار فارسی/دری GapMedia و German Insider هستی. قانون‌نامهٔ واحد پروژه الزام‌آور است: فقط موضوعِ منبع‌دار و مفید؛ هیچ تضمین درآمد، ویو یا وایرال‌شدن؛ هیچ ادعای ساخت یا ارسال پیش از تأیید واقعی سیستم؛ خبر جدا و بی‌طرف؛ و تصویر/ویدیو فقط پس از گیت کیفیت واقعی، مرتبط و کافی. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، نمونه بده: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و فرایند فکرکردن را توضیح نده.`;
 
 function textFromWorkersAI(data) {
   // Workers AI models have used both native `response` and OpenAI-compatible

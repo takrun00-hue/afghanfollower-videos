@@ -1,5 +1,12 @@
 # HyperFrames Composition Project
 
+## Canonical project policy
+
+For GapMedia tutorials and German Insider news, [`PROJECT_RULES.md`](PROJECT_RULES.md)
+is the mandatory policy. It overrides legacy briefs, old daily-readme files, copied
+rules and comments. Never implement a command, render, source choice, visual, voice
+or delivery flow that conflicts with it.
+
 ## Skills — USE THESE FIRST
 
 **Always invoke the relevant skill before writing or modifying compositions.** Skills encode framework-specific patterns (e.g., `window.__timelines` registration, `data-*` attribute semantics, shader-compatible CSS rules) that are NOT in generic web docs. Skipping them produces broken compositions.

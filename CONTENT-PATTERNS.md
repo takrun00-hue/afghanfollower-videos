@@ -1,5 +1,7 @@
 # What the followed channels actually do
 
+> **Status: archival research only.** It may inspire analysis but cannot override [`PROJECT_RULES.md`](PROJECT_RULES.md), live evidence, or the final quality gate.
+
 Taken from five videos the user sent on 2026-08-30 as examples of content people
 follow. All five are Persian/Dari creators speaking to an Afghan and Iranian
 audience. They are transcribed and measured, not summarised from memory, and the

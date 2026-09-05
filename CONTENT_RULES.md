@@ -1,5 +1,8 @@
 # Editorial rules — GapMedia
 
+> **Canonical policy:** [`PROJECT_RULES.md`](PROJECT_RULES.md) is authoritative.
+> This file is a compact editorial index and cannot override it.
+
 These rules are binding for every new tutorial video and topic suggestion.
 
 1. Research before proposing. Every candidate must be grounded in one of: a current platform trend/update, a proven reach/viral need, or a realistic creator-income use case. Research signals and official sources are checked first.

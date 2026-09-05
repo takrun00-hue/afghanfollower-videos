@@ -1,5 +1,8 @@
 # معیار اجرایی نریشن فارسی — GapMedia
 
+> **Canonical policy:** [`PROJECT_RULES.md`](PROJECT_RULES.md), sections ۸، ۹
+> and ۱۳. This document supplies implementation detail and cannot override it.
+
 این سند برای تمام ویدیوهای آموزشی و خبری الزامی است. متن روی تصویر می‌تواند
 نوشتاری باشد؛ متن ارسالی به موتور صدا باید همان مفهوم را به فارسی گفتاری، روان
 و طبیعی برساند. هدف، صدای یک فارسی‌زبان واقعی است، نه خواندن کلمه‌به‌کلمه.

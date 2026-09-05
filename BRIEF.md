@@ -1,3 +1,5 @@
+> **وضعیت: بریف آرشیوی.** این فایل نمونهٔ قدیمی است و نباید برای انتخاب موضوع، برند یا طراحی استفاده شود. مرجع لازم‌الاجرا: [`PROJECT_RULES.md`](PROJECT_RULES.md).
+
 ---
 workflow: faceless-explainer
 flow: autonomous
