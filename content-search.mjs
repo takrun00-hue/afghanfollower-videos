@@ -423,6 +423,14 @@ async function pick(n) {
     updatedAt: new Date().toISOString(),
   };
   writeFileSync(".content-draft.json", JSON.stringify(draft, null, 2) + "\n");
+  // A fresh research result has no local UI screenshot yet.  Fetch only the
+  // source page's own image as a candidate and send it to Telegram for visual
+  // approval.  It is deliberately not wired into the draft until «تأیید
+  // تصویر …» arrives; an unverified preview must never become a fake UI.
+  const screenResult = spawnSync(process.execPath, ["fetch-screens.mjs", "--id", generated.id, "--source", c.url], { stdio: "inherit", env: process.env });
+  if (screenResult.status && screenResult.status !== 0) {
+    console.error(`تصویر نامزد برای ${generated.id} دریافت نشد؛ پیش‌نویس بدون تصویر باقی ماند.`);
+  }
   const result = spawnSync(process.execPath, ["content-draft.mjs", "--preview"], { stdio: "inherit", env: process.env });
   process.exit(result.status ?? 1);
 }

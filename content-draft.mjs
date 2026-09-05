@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { packForFeature } from "./lib/content.mjs";
 import { reviewViralReadiness } from "./lib/viral-readiness.mjs";
+import { assertVisualProof } from "./lib/visual-proof.mjs";
 import { loadEnv, telegramConfig, sendMessage } from "./lib/telegram.mjs";
 import { replyOnFailure } from "./lib/fail-soft.mjs";
 
@@ -14,6 +15,7 @@ replyOnFailure();
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const DRAFT = ".content-draft.json";
+const SCREEN_MANIFEST = "public/screens/candidates.json";
 const args = process.argv.slice(2);
 const arg = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : ""; };
 const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -24,11 +26,55 @@ function load() {
   return JSON.parse(readFileSync(DRAFT, "utf8"));
 }
 function save(draft) { writeFileSync(DRAFT, JSON.stringify(draft, null, 2) + "\n"); }
+function verifiedScreenFor(featureId) {
+  try {
+    const candidates = JSON.parse(readFileSync(SCREEN_MANIFEST, "utf8"));
+    const item = (candidates[featureId] || []).find((x) => x.verified && existsSync(x.file));
+    return item || null;
+  } catch { return null; }
+}
+
+function attachVerifiedScreen(base, featureId) {
+  const image = verifiedScreenFor(featureId);
+  if (!image) return base;
+  const focuses = ["wide", "control", "action", "result"];
+  return {
+    ...base,
+    source: base.source || image.page,
+    tips: (base.tips || []).map((tip, i) => tip.photo ? tip : ({
+      ...tip,
+      photo: image.file,
+      photoAlt: image.pageTitle || "تصویر واقعیِ تأییدشده",
+      photoFocus: focuses[i] || `step-${i + 1}`,
+      visualEvidence: {
+        sourceUrl: image.page,
+        sourceType: "official-asset",
+        claim: tip.head || tip.text || "گام آموزشی",
+        mainVisual: image.file,
+        whatItProves: "تصویر واقعیِ منبع که برای همین پیش‌نویس تأیید شده است",
+        motionAction: "روی بخش مرتبط با همین گام زوم می‌شود",
+        secondaryMotion: "کنترل یا نتیجهٔ مرتبط برجسته می‌شود",
+        ambientMotion: "حرکت نور بسیار آرام برای حفظ عمق",
+        coverage: 0.55,
+      },
+    })),
+  };
+}
+
 function baseFor(draft) {
-  if (draft.generated && Array.isArray(draft.generated.tips)) return draft.generated;
+  if (draft.generated && Array.isArray(draft.generated.tips)) return attachVerifiedScreen(draft.generated, draft.featureId);
   const pack = packForFeature(draft.featureId, new Date());
   if (!pack) throw new Error("موضوع پیش‌نویس دیگر در بانک محتوا نیست.");
-  return pack;
+  return attachVerifiedScreen(pack, draft.featureId);
+}
+
+function visualBlocker(base, id) {
+  try {
+    assertVisualProof({ ...base, id, tips: base.tips || [] });
+    return "";
+  } catch (error) {
+    return String(error.message || error);
+  }
 }
 async function announce(draft) {
   const base = baseFor(draft);
@@ -41,6 +87,7 @@ async function announce(draft) {
   });
   const state = review.status === "ready" ? "آمادهٔ بررسی" : review.status === "blocked" ? "نیازمند اصلاح" : "نیازمند بازبینی";
   const reviewNotes = [...review.blockers, ...review.notes].slice(0, 2);
+  const visualIssue = visualBlocker(base, draft.featureId);
   // Present only when a caller (content-search.mjs, for its rule-8 draft)
   // actually set them — an old catalogue-feature draft has none of these and
   // the message renders exactly as it always did.
@@ -57,6 +104,14 @@ async function announce(draft) {
   if (draft.imageNeed) extra.push(`<b>تصویر لازم:</b> ${esc(draft.imageNeed)}`);
   if (draft.musicPlan) extra.push(`<b>ریتم/موسیقی:</b> ${esc(draft.musicPlan)}`);
   if (draft.sourceUrl) extra.push(`<b>منبع رسمی:</b> <a href="${esc(draft.sourceUrl)}">${esc(draft.sourceDate || "باز کردن منبع")}</a>`);
+  if (visualIssue) {
+    extra.push(
+      `<b>تصویر واقعی:</b> هنوز تأیید نشده است. نامزدِ تصویر از منبع ارسال می‌شود؛ ` +
+      `پس از دیدن آن فقط «تأیید تصویر ${esc(draft.featureId)} شماره» را بفرستید. تا آن زمان ویدیویی ساخته نمی‌شود.`
+    );
+  } else {
+    extra.push(`<b>تصویر واقعی:</b> تأیید شد و برای هر اسلاید با برش متفاوت استفاده می‌شود.`);
+  }
   const text =
     `🎬 <b>پیش‌نویس آموزشی</b>\n` +
     `<b>${esc(base.feature)}</b>\n\n` +
@@ -65,7 +120,7 @@ async function announce(draft) {
     (extra.length ? `\n\n${extra.join("\n\n")}` : "") +
     `\n\n<b>آمادگی محتوا:</b> ${review.score}/100 — ${state}` +
     (reviewNotes.length ? `\n<i>${esc(reviewNotes.join(" "))}</i>` : "") +
-    `\n\n✅ ساخت با صدا: <code>تأیید محتوا</code>` +
+    (visualIssue ? "" : `\n\n✅ ساخت با صدا: <code>تأیید محتوا</code>`) +
     `\n✏️ تغییر قلاب: <code>ادیت قلاب: متن تازه</code>` +
     `\n📝 تغییر اسلایدها: <code>ادیت متن: گام۱ | گام۲ | گام۳ | گام۴</code>` +
     `\n🔎 پیشنهاد تازه: <code>جستجوی محتوا</code>`;
@@ -108,6 +163,15 @@ if (args[0] === "--create") {
   if (readiness.status === "blocked") {
     throw new Error(`پیش‌نویس برای ساخت آماده نیست: ${readiness.blockers.join(" ")}`);
   }
+  const issue = visualBlocker(base, draft.featureId);
+  if (issue) {
+    const env = loadEnv(), tg = telegramConfig(env);
+    const text = `🖼 <b>ساخت شروع نشد</b>\n\n${esc(issue)}\n\n` +
+      `این پیش‌نویس اول به تصویر واقعیِ تأییدشده نیاز دارد. نامزدِ تصویر را ببینید و «تأیید تصویر ${esc(draft.featureId)} شماره» را بفرستید.`;
+    if (tg.enabled && process.env.NO_TELEGRAM !== "1") await sendMessage({ token: tg.token, chatId: tg.chatId, text });
+    else console.log(text);
+    process.exit(0);
+  }
   const customId = `draft-${createHash("sha256").update(JSON.stringify(draft)).digest("hex").slice(0, 12)}`;
   const override = draft.steps?.length ? draft.steps : null;
   const generated = {
@@ -117,7 +181,8 @@ if (args[0] === "--create") {
     payoff: base.payoff, outroAsk: base.outroAsk, tgTitle: base.tgTitle,
     steps: base.tips.map((tip, i) => ({
       text: override?.[i] || tip.head, icon: tip.icon, path: tip.path,
-      screen: tip.screen, ui: tip.ui, brand: tip.brand, photo: tip.photo, photoFocus: tip.photoFocus,
+      screen: tip.screen, ui: tip.ui, brand: tip.brand, photo: tip.photo, photoAlt: tip.photoAlt,
+      photoFocus: tip.photoFocus, visualEvidence: tip.visualEvidence, video: tip.video, videoStart: tip.videoStart,
     })),
   };
   mkdirSync("lib/generated", { recursive: true });

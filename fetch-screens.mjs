@@ -26,7 +26,11 @@ const MANIFEST = `${DIR}/candidates.json`;
 const env = loadEnv();
 const KEY = process.env.EXA_API_KEY || env.EXA_API_KEY || "";
 const tg = telegramConfig(env);
-const only = process.argv[2];
+const args = process.argv.slice(2);
+const valueAfter = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : ""; };
+const sourcePage = valueAfter("--source");
+const sourceId = valueAfter("--id");
+const only = args.find((x) => !x.startsWith("--") && x !== sourcePage && x !== sourceId);
 
 const TIKTOK = ["newsroom.tiktok.com", "support.tiktok.com", "business.tiktok.com"];
 const META = ["about.instagram.com", "creators.instagram.com", "help.instagram.com", "about.fb.com"];
@@ -49,7 +53,7 @@ const WANTED = {
   "ig-bonuses-photos": { q: "Instagram Bonuses reels photos performance payout creators dashboard", domains: META },
 };
 
-if (!KEY) { console.error("EXA_API_KEY تنظیم نشده است"); process.exit(1); }
+if (!KEY && !sourcePage) { console.error("EXA_API_KEY تنظیم نشده است"); process.exit(1); }
 
 const readJSON = (p, d) => { try { return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : d; } catch { return d; } };
 
@@ -69,16 +73,52 @@ async function candidates(spec) {
     .slice(0, 3);
 }
 
+// A live search result already has a source page.  Use only that page's own
+// Open Graph/Twitter preview as a *candidate* — it is never auto-approved.
+// This avoids replacing a missing product screen with a guessed UI or stock
+// icon, while letting the creator inspect the actual source image in Telegram.
+function metaValue(html, names) {
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patterns = [
+      new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["']`, "i"),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["']`, "i"),
+    ];
+    for (const re of patterns) {
+      const hit = html.match(re);
+      if (hit?.[1]) return hit[1].replace(/&amp;/g, "&");
+    }
+  }
+  return "";
+}
+
+async function sourcePageCandidate(url) {
+  try {
+    const page = await fetch(url, { headers: { "user-agent": "GapMediaVisualResearch/1.0" } });
+    if (!page.ok) return [];
+    const html = await page.text();
+    const image = metaValue(html, ["og:image", "twitter:image"]);
+    if (!image) return [];
+    return [{
+      image: new URL(image, url).href,
+      url,
+      title: metaValue(html, ["og:title", "twitter:title"]) || new URL(url).hostname,
+    }];
+  } catch { return []; }
+}
+
 mkdirSync(DIR, { recursive: true });
 const manifest = readJSON(MANIFEST, {});
-const ids = only ? [only] : Object.keys(WANTED);
+const targets = sourcePage
+  ? [{ id: sourceId || `source-${Date.now()}`, source: sourcePage }]
+  : (only ? [only] : Object.keys(WANTED)).map((id) => ({ id, spec: WANTED[id] }));
 
-for (const id of ids) {
-  const spec = WANTED[id];
-  if (!spec) { console.log(`—  ${id}: در فهرست نیست`); continue; }
+for (const target of targets) {
+  const { id, spec } = target;
+  if (!spec && !target.source) { console.log(`—  ${id}: در فهرست نیست`); continue; }
 
   let hits = [];
-  try { hits = await candidates(spec); }
+  try { hits = target.source ? await sourcePageCandidate(target.source) : await candidates(spec); }
   catch (e) { console.log(`!  ${id}: ${e.message}`); continue; }
   if (!hits.length) { console.log(`—  ${id}: هیچ تصویری در صفحات رسمی نبود`); continue; }
 
