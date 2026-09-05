@@ -61,7 +61,7 @@ const NUMBERED_ACTIONS = {
   // This must set the build action itself as pending.  The former
   // `direct-media-help` value was only a label, not a workflow action, so a
   // photo sent after choosing ۲۶ was acknowledged but never built.
-  "26": { pending: "custom-content-media", ask: "📷 عکس یا ویدیو را همراه کپشن بفرستید: موضوع | گام یک | گام دو | گام سه\nویدیو پس از گیت کیفیت، بدون تأیید دوباره ساخته می‌شود." },
+  "26": { pending: "custom-content-media", ask: "📷 عکس یا ویدیو را همراه کپشن بفرستید: موضوع | گام یک | گام دو | گام سه\nاگر کیفیت، اندازه و ارتباط تصویر با موضوع تأیید شود، ویدیو خودکار ساخته می‌شود؛ تأیید دستی لازم نیست." },
   "11": { action: "news-scan" }, "12": { action: "news-germany" }, "13": { action: "news-europe" },
   "14": { pending: "news-search-live", ask: "🔎 عبارت جستجوی خبر را بفرستید؛ مثلاً: قوانین اقامت آلمان" },
   "15": { pending: "news-text-preview", ask: "📝 متن خبر را بفرستید — همان‌طور که هست، با پاراگراف. بات خودش تیتر و جمله‌ها را جدا می‌کند.\nاگر خواستید خودتان جدا کنید: تیتر | جمله ۱ | جمله ۲" },
@@ -109,6 +109,14 @@ function videoAction(text) {
   if (/^(?:ویدیو مستقیم|ساخت مستقیم|direct video)\s*[:：]/i.test(c)) {
     const payload = cleanContent(String(text).replace(/^\s*(?:ویدیو مستقیم|ساخت مستقیم|direct video)\s*[:：]\s*/i, ""));
     return payload.trim().length >= 25 ? { action: "custom-content-media", payload, ...audio } : { action: "custom-help" };
+  }
+  // Immediate editorial builds used by the production operator. These have
+  // fixed, source-checked packs in the repository; they are not vague topic
+  // requests and therefore do not need to go through the draft queue.
+  if (any("اپ کاربردی بساز", "نمونه اپ بساز", "اپ جدید بساز")) return withAudio("build-app-pair");
+  if (/^(?:خبر مستقیم|ساخت خبر مستقیم)\s*[:：]/i.test(c)) {
+    const payload = stripLinks(String(text).replace(/^\s*(?:خبر مستقیم|ساخت خبر مستقیم)\s*[:：]\s*/i, "")).replace(/[\r\n]+/g, " ").trim().slice(0, 5000);
+    return payload.length >= 40 ? { action: "news-text", payload, ...audio } : { action: "custom-help" };
   }
   if (/^(?:محتوا|ویدیو|ساخت محتوا|custom content|موضوع)\s*[:：]/i.test(c)) {
     const payload = cleanContent(text);
@@ -558,7 +566,7 @@ export default {
         } else if (command.action === "status") {
           await reply(env, chatId, "✅ بات آنلاین است. چت فوری و فرمان ساخت ویدیو فعال‌اند.");
         } else if (command.action === "custom-help") {
-          await reply(env, chatId, "برای ساخت مستقیم، عکس یا ویدیو را همراه کپشن بفرستید — موضوع و گام‌ها را با «|» جدا کنید:\n\n<code>موضوع | گام یک | گام دو | گام سه</code>\n\nبدون تأیید دوباره، پس از گیت کیفیت ساخته می‌شود.");
+          await reply(env, chatId, "برای ساخت مستقیم، عکس یا ویدیو را همراه کپشن بفرستید — موضوع و گام‌ها را با «|» جدا کنید:\n\n<code>موضوع | گام یک | گام دو | گام سه</code>\n\nاگر گیت کیفیت تصویر واقعی، اندازه و ارتباط با موضوع را تأیید کند، بدون تأیید دستی ساخته می‌شود.");
         } else {
           if (command.action === "news-text-preview") command.payload = prepareNewsLocally(command.payload);
           // custom-content.mjs and content-draft.mjs both read «|» separated

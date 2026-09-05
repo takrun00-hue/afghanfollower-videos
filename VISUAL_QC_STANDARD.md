@@ -139,3 +139,6 @@ These defects have already reached a review and are permanently rejected:
 For every release, inspect frame zero, the action moment, and the final settled
 frame of each slide. If the text is hidden, a reviewer must still identify the
 action and the real subject. If not, reject the scene.
+# تصویربرداری و ویدیو: سیاست اجرای خودکار
+
+برای تصویر و ویدیوی واقعی تأیید دستیِ سازنده لازم نیست. رندر فقط زمانی مجاز است که گیت کیفیت همهٔ شرط‌های زیر را تأیید کند: تصویر یا ویدیو واقعاً همان اپ، محصول، قابلیت یا خبر را نشان دهد؛ منبع آن رسمی، معتبر یا ارسال‌شده توسط سازنده باشد؛ ضلع بلند دست‌کم ۱۰۸۰ پیکسل و مساحت دست‌کم ۷۰۰٬۰۰۰ پیکسل باشد؛ تصویر اصلی حداقل یک‌سوم قاب عمودی را بگیرد؛ و هر اسلاید مدرک بصریِ متفاوت و مرتبط با همان جمله داشته باشد. اگر یکی از این شرط‌ها برقرار نبود، سیستم نباید رابط حدسی یا تصویر عمومی بسازد؛ باید آن خروجی را رد کند و منبع واقعیِ جایگزین پیدا کند.
