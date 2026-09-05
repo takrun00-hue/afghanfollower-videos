@@ -48,7 +48,29 @@ const featIdx = args.indexOf("--feature");
 const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
 
 const sel = packsForDate(date);
+const featIdxEarly = args.indexOf("--feature");
 let deliveries = dailyDeliveriesForDate(date);
+if (featIdxEarly < 0) {
+  // Visual QC (below) rejects a pack with no real per-slide screenshot. That
+  // used to just kill the slot for the day; now the rotation gets a chance to
+  // move on to the next id in its own category instead of reporting failure
+  // on the first one it happens to land on. Each round collects every id that
+  // is STILL failing across all four slots (not just the first one found) so
+  // one exhausted category — every one of its ids already tried — does not
+  // stop the others from still swapping to a fresh pick. A round that adds no
+  // new id means every category has hit its own wall, so it stops there.
+  const avoidIds = new Set();
+  for (let round = 0; round < 60; round++) {
+    let progressed = false;
+    for (const d of deliveries) {
+      try { assertVisualProof(d.pack); continue; } catch { /* falls through */ }
+      const id = String(d.pack.id).toLowerCase();
+      if (!avoidIds.has(id)) { avoidIds.add(id); progressed = true; }
+    }
+    if (!progressed) break;
+    deliveries = dailyDeliveriesForDate(date, avoidIds);
+  }
+}
 let generated = null;
 if (featureId) {
   // One-off news and user-supplied tutorials live in generated files rather
