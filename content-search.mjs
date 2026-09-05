@@ -74,10 +74,11 @@ const LANE_QUERIES = {
   ],
   utility: [
     // The source must still pass the evidence, demand and visual-proof gates.
-    // These searches deliberately seek useful Android discoveries, not generic
-    // 'top app' clickbait lists.
-    "site:play.google.com Android app productivity launcher widgets reminder one hand control recent",
-    "official Google Play editorial useful Android apps productivity personalization this month",
+    // These searches deliberately seek useful cross-platform discoveries, not
+    // generic 'top app' clickbait lists.
+    "site:play.google.com OR site:apps.apple.com useful app productivity personalization reminder launcher recent",
+    "official app store editorial useful iPhone Android web apps productivity personalization this month",
+    "new useful app iPhone Android web daily workflow official announcement recent",
   ],
 };
 
@@ -288,7 +289,7 @@ async function discover() {
 
   const selected = query ? passed.sort((a, b) => b.gate.score - a.gate.score).slice(0, 5)
     // Two of five live recommendations now reserve space for verified useful
-    // Android/mobile discoveries.  Income and reach keep a place, so the
+    // app discoveries across phone, web and desktop. Income and reach keep a place, so the
     // feed is broader without becoming a generic app-list channel.
     : selectBalanced(passed, { income: 1, reach: 1, utility: 2, trend: 1 });
   const backlog = passed.filter((c) => !selected.some((s) => s.id === c.id));
