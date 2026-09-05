@@ -72,6 +72,13 @@ const LANE_QUERIES = {
     "TikTok Instagram AI app trend creators are actually using right now, this week",
     "new AI app feature creators are actually using this week, hands-on coverage",
   ],
+  utility: [
+    // The source must still pass the evidence, demand and visual-proof gates.
+    // These searches deliberately seek useful Android discoveries, not generic
+    // 'top app' clickbait lists.
+    "site:play.google.com Android app productivity launcher widgets reminder one hand control recent",
+    "official Google Play editorial useful Android apps productivity personalization this month",
+  ],
 };
 
 async function search(q, since) {
@@ -198,11 +205,11 @@ function alreadySentVerdict(c) {
 }
 
 function selectBalanced(passed, target) {
-  const byLane = { income: [], reach: [], trend: [] };
+  const byLane = { income: [], reach: [], trend: [], utility: [] };
   const sorted = [...passed].sort((a, b) => b.gate.score - a.gate.score);
   for (const c of sorted) (byLane[c.lane] || byLane.trend).push(c);
   const chosen = [];
-  for (const lane of ["income", "reach", "trend"]) chosen.push(...byLane[lane].slice(0, target[lane] || 0));
+  for (const lane of ["income", "reach", "utility", "trend"]) chosen.push(...byLane[lane].slice(0, target[lane] || 0));
   if (chosen.length < 5) {
     const have = new Set(chosen.map((c) => c.id));
     const leftover = sorted.filter((c) => !have.has(c.id));
@@ -280,10 +287,13 @@ async function discover() {
   }
 
   const selected = query ? passed.sort((a, b) => b.gate.score - a.gate.score).slice(0, 5)
-    : selectBalanced(passed, { income: 2, reach: 2, trend: 1 });
+    // Two of five live recommendations now reserve space for verified useful
+    // Android/mobile discoveries.  Income and reach keep a place, so the
+    // feed is broader without becoming a generic app-list channel.
+    : selectBalanced(passed, { income: 1, reach: 1, utility: 2, trend: 1 });
   const backlog = passed.filter((c) => !selected.some((s) => s.id === c.id));
 
-  const laneFa = (l) => ({ income: "درآمد", reach: "دیده‌شدن", trend: "ترند" }[l] || l);
+  const laneFa = (l) => ({ income: "درآمد", reach: "دیده‌شدن", utility: "اپ کاربردی", trend: "ترند" }[l] || l);
   const accessFa = (a) => ({ public: "عمومی", limited: "محدود", unknown: "نامشخص" }[a] || "نامشخص");
 
   const formatTopic = (c, n) => {
@@ -339,7 +349,7 @@ function clip17(text) {
 }
 
 function buildHookOptions(c) {
-  const laneWord = { income: "این فرصت درآمدی", reach: "این راه دیده‌شدن", trend: "این ترند" }[c.lane] || "این موضوع";
+  const laneWord = { income: "این فرصت درآمدی", reach: "این راه دیده‌شدن", utility: "این اپ کاربردی", trend: "این ترند" }[c.lane] || "این موضوع";
   const raw = [
     { angle: "هشدار/فرصت از دست‌رفته", text: `اگه هنوز از ${laneWord} خبر نداری، شاید داری یه فرصت واقعی رو از دست می‌دی؟` },
     { angle: "کنجکاوی/شواهد", text: c.corroboration >= 2 ? `${FA(c.corroboration)} منبع مستقل دربارهٔ این خبر نوشتن؛ می‌دونی دقیقاً چیه؟` : `منبع رسمی دربارهٔ این خبر نوشته؛ می‌دونی دقیقاً چیه؟` },
@@ -408,7 +418,7 @@ async function pick(n) {
 
   const generated = {
     id: c.id, platform, feature: c.title, title: c.title,
-    hook: { ask: best.text, l1: best.text, l2: `تا آخر ببین؛ ${({ income: "سود واقعی", reach: "دیده‌شدن", trend: "این ترند" }[c.lane] || "نکتهٔ اصلی")} توی گام آخر مشخص می‌شه.` },
+    hook: { ask: best.text, l1: best.text, l2: `تا آخر ببین؛ ${({ income: "سود واقعی", reach: "دیده‌شدن", utility: "کاربرد واقعی", trend: "این ترند" }[c.lane] || "نکتهٔ اصلی")} توی گام آخر مشخص می‌شه.` },
     payoff, outroAsk: OUTRO_BY_LANE[c.lane] || OUTRO_BY_LANE.trend,
     tgTitle: `🎬 ${c.title}\n\n#GapMedia`,
     tips: steps.map((head, i) => ({ head, icon: ["target", "play", "chart", "pen"][i] || "target" })),
