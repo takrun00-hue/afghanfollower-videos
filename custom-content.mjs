@@ -29,7 +29,7 @@ let suppliedPhoto = null;
 let suppliedVideo = null;
 async function downloadTelegramFile(fileId, destination) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new Error("توکن تلگرام برای دریافت عکس ارسال‌شده موجود نیست.");
+  if (!token) throw new Error("توکن تلگرام برای دریافت رسانهٔ ارسال‌شده موجود نیست.");
   const info = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`).then((r) => r.json());
   if (!info?.ok || !info?.result?.file_path) throw new Error("دریافت رسانهٔ تلگرام ناموفق بود.");
   const bytes = Buffer.from(await fetch(`https://api.telegram.org/file/bot${token}/${info.result.file_path}`).then((r) => r.arrayBuffer()));

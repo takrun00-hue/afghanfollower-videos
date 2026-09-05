@@ -17,7 +17,7 @@ const HELP = `🤖 <b>منوی GapMedia — اول جستجو، بعد ساخت<
 <b>۸</b> رادار ترندهای بررسی‌شده
 <b>۹</b> تقاضای واقعی مردم برای یک موضوع
 <b>۱۰</b> فهرست صداها
-<b>۲۶</b> ساخت مستقیم از متن و عکس
+<b>۲۶</b> ساخت مستقیم از متن و عکس یا ویدیو
 
 <i>روش کار: ۱ یا ۲ ← انتخاب شمارهٔ موضوع ← پیش‌نویس ← ۵ یا ۶ برای ادیت ← ۷ برای ساخت.</i>
 
@@ -45,7 +45,7 @@ const HELP = `🤖 <b>منوی GapMedia — اول جستجو، بعد ساخت<
 <b>۲۱</b> حذف آخرین ویدیوی خبری
 <b>۰</b> نمایش دوبارهٔ این منو
 
-برای گزینهٔ ۲۶، عکس را همراه کپشن بفرستید: <code>ویدیو مستقیم: موضوع | گام یک | گام دو | گام سه</code> — بدون تأیید دوباره ساخته می‌شود.`;
+برای گزینهٔ ۲۶، عکس یا ویدیو را همراه کپشن بفرستید: <code>موضوع | گام یک | گام دو | گام سه</code> — بدون تأیید دوباره ساخته می‌شود.`;
 
 const NUMBERED_ACTIONS = {
   "1": { action: "content-search" },
@@ -61,7 +61,7 @@ const NUMBERED_ACTIONS = {
   // This must set the build action itself as pending.  The former
   // `direct-media-help` value was only a label, not a workflow action, so a
   // photo sent after choosing ۲۶ was acknowledged but never built.
-  "26": { pending: "custom-content-media", ask: "📷 عکس را همراه کپشن بفرستید: موضوع | گام یک | گام دو | گام سه\nویدیو پس از گیت کیفیت، بدون تأیید دوباره ساخته می‌شود." },
+  "26": { pending: "custom-content-media", ask: "📷 عکس یا ویدیو را همراه کپشن بفرستید: موضوع | گام یک | گام دو | گام سه\nویدیو پس از گیت کیفیت، بدون تأیید دوباره ساخته می‌شود." },
   "11": { action: "news-scan" }, "12": { action: "news-germany" }, "13": { action: "news-europe" },
   "14": { pending: "news-search-live", ask: "🔎 عبارت جستجوی خبر را بفرستید؛ مثلاً: قوانین اقامت آلمان" },
   "15": { pending: "news-text-preview", ask: "📝 متن خبر را بفرستید — همان‌طور که هست، با پاراگراف. بات خودش تیتر و جمله‌ها را جدا می‌کند.\nاگر خواستید خودتان جدا کنید: تیتر | جمله ۱ | جمله ۲" },
@@ -558,7 +558,7 @@ export default {
         } else if (command.action === "status") {
           await reply(env, chatId, "✅ بات آنلاین است. چت فوری و فرمان ساخت ویدیو فعال‌اند.");
         } else if (command.action === "custom-help") {
-          await reply(env, chatId, "متن آموزشی را بعد از «محتوا:» بفرستید — همان‌طور که هست، با گام‌های شماره‌دار یا خط‌به‌خط:\n\n<code>محتوا: راه پیدا کردن موضوع ترند در TikTok\n۱. Search را باز کن\n۲. Creator Search Insights را بنویس\n۳. Content gap را بزن\n۴. از موضوعِ پرجستجو ویدیو بساز</code>\n\nقالب <code>|</code> هم اگر خواستید کار می‌کند.");
+          await reply(env, chatId, "برای ساخت مستقیم، عکس یا ویدیو را همراه کپشن بفرستید — موضوع و گام‌ها را با «|» جدا کنید:\n\n<code>موضوع | گام یک | گام دو | گام سه</code>\n\nبدون تأیید دوباره، پس از گیت کیفیت ساخته می‌شود.");
         } else {
           if (command.action === "news-text-preview") command.payload = prepareNewsLocally(command.payload);
           // custom-content.mjs and content-draft.mjs both read «|» separated
