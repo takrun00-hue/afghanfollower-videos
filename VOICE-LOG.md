@@ -323,6 +323,76 @@ source, not from a lucky guess about where to look. **Any feature with no
 hand-authored entry in `lib/narration.mjs` speaks its payoff as the last line
 — check it.**
 
+## The 2026-09-06 batch — a whole class of unprotected English labels
+
+User report: "نریشن نیز مشکل دارد باید بررسی کنی و تمام قانون نریشین فارسی
+باید تطبیق شود" (the narration also has a problem; go check it and make sure
+every Persian narration rule is applied) — no single word named. Text-level
+only: no `MINIMAX_API_KEY` and no local Whisper in this environment, so
+nothing here was regenerated or transcribed; each line below was checked by
+running the actual `minimaxSpeakable()` the render calls, on the actual
+catalogue text, and reading the output.
+
+### English UI labels re-splitting after they were already protected — CONFIRMED, FIXED (class-level)
+`breathe()` protects a multi-word English label by joining it with NBSP
+before counting words — the mechanism «TikTok Search», «Creator Rewards»,
+«Add media» etc. already relied on. But the later generic single-word rules
+(`\bTikTok\b` → «تیک تاک», `\bReels?\b` → «ریل») do not stop at an NBSP: a
+plain `\b` word boundary sits on both sides of it exactly like it sits next
+to a plain space, so those rules re-matched the *first* word of an
+already-protected label and partially re-Persianised it. Confirmed live in
+already-shipped narration: «TikTok Search» → «تیک تاک Search» (the exact
+line spoken in `search-insights-real-ui`, sent 2026-08-27 and re-rendered
+2026-09-05) — a language switch mid-label, not a comma, so `verify-voice.mjs`'s
+word-for-word ASR diff would not have caught it either (it is still the
+written words, just half of one name read in the wrong language).
+**Fixed at the class, not the instance:** `\bTikTok\b` and `\bReels?\b` both
+gained a `(?! )` guard, so neither one touches a word it has already
+NBSP-joined to something else. Any future generic single-word rule placed
+after a multi-word-label protection needs the same guard — this is the
+general shape of the fault, not specific to these two words.
+
+### Three multi-word English labels had no protection at all — CONFIRMED, FIXED
+Found by running every `hook.ask` / `steps[].text` / `payoff` / `outroAsk`
+string in the catalogue through `minimaxSpeakable()` and flagging any comma
+that landed touching a Latin word. Three real, reproducible splits, none
+saved by a lucky adjacent comma in their actual sentence:
+- «Creator Center» → «Creator، Center» (`fresh/tiktok-shop-video-assistant`)
+- «Video Assistant» → «... روی، Video Assistant بزن» (same feature)
+- «Help me create» → «Help me، create» (`visual/google-vids-product-demo`)
+- «Reels insights» → «ریل insights» (mixed language, not just a split —
+  `Reels` has a generic Persianisation rule, `insights` has none, so the pair
+  came apart into one Persian and one bare English word — `visual/ig-insights-retention`)
+All four now use the same NBSP-join protection as the existing labels
+(`Creator Search Insights`, `Search analytics`, `TikTok Search`, `Content
+gap`, `Trial reel insights`, `Share with everyone`, `Creator Rewards`, `Trial
+reel`, `Add media`) — kept fully English, the same choice already made for
+that group and for the same reason (§ English UI labels above in this file:
+transliterating an English button name produced "شِیر" for Share and "نِکست"
+for Next, rejected by ear 2026-08-31; a bare mid-sentence English word with
+no Persian treatment at all is the same fault from the other direction).
+Also added: `TikTok Shop` (same bug as `TikTok Search`, same fix, found by
+the same sweep before the class-level fix above would have caught it anyway).
+
+### «روی» — a preposition missing from `BOUND_BEFORE` — CONFIRMED, FIXED
+This is the actual cause of the «Video Assistant» split above, not the
+missing label protection alone: «روی Video Assistant بزن» took its breath
+right after «روی» and before its object, because «روی» (on/onto) was never
+in the preposition set that `breathe()` refuses to place a pause after. «بر»
+(the more formal synonym) was already in the set; «روی» — used 54 times
+across the catalogue, far more than «بر» — was not. Added. This fixes every
+«روی <English label>» instruction in the catalogue, not only the one that
+happened to be reported first.
+
+### What this pass did not check
+No audio was generated or listened to (no API key, no local ASR in this
+environment) — everything above is a text-level fix, verified by reading
+`minimaxSpeakable()`'s output, not by ear. Rhythm, stress, breath *feel*, and
+whether any of the pronunciation-table entries in `lib/pronounce.mjs` are
+still the right call are unverified by this pass. The next real render with
+`MINIMAX_API_KEY` available should run `verify-voice.mjs` and a human
+listening pass before this narration status is called "confirmed" under
+`NARRATION_STANDARD.md` §"کنترل کیفیت اجباری".
 
 ---
 
