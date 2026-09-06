@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { replyOnFailure } from "./lib/fail-soft.mjs";
+import { findRealImage } from "./lib/auto-image.mjs";
 
 replyOnFailure();
 
@@ -53,14 +54,31 @@ const visualPreset = /edits|sound\s*separation|صدا.*جدا|جداسازی.*ص
   : /google\s*vids|گوگل\s*ویدز/i.test(topic)
     ? { name: "Google Vids", hookPhoto: "public/sources/product-sneakers-stock.webp", photo: "public/sources/google-vids-ui.webp", sourceUrl: "https://workspace.google.com/products/vids/", alt: "Google Vids official interface", focus: ["vids-start", "vids-prompt", "vids-preview", "vids-share"] }
     : null;
-const primaryPhoto = suppliedPhoto || visualPreset?.photo || null;
+// A bare "این متن را ویدیو کن" with no attached photo used to be a dead end
+// unless the topic happened to match one of the two hand-mapped presets
+// above. auto-image.mjs searches the open web and only accepts a result that
+// passes both a real-image check and an LLM relevance check against this
+// exact topic — see that file for why a real, officially-published image can
+// still fail the second check.
+const autoImage = (!suppliedPhoto && !visualPreset) ? await findRealImage(topic, parts.slice(1)) : null;
 const photoFocuses = ["subject-wide", "subject-detail", "subject-action", "subject-result"];
+// One place decides which of the three possible sources (Telegram upload,
+// hand-mapped preset, auto-found) is in play, so every consumer below reads
+// the same {sourceUrl, sourceType, alt, focus} shape regardless of which one.
+const media = suppliedPhoto
+  ? { sourceUrl: `telegram:file/${supplied.photoFileId || supplied.videoFileId}`, sourceType: "owner-supplied", alt: suppliedVideo ? "Creator-supplied video frame" : "Creator-supplied photo", focus: photoFocuses }
+  : visualPreset
+    ? { sourceUrl: visualPreset.sourceUrl, sourceType: "official-ui", alt: visualPreset.alt, focus: visualPreset.focus }
+    : autoImage
+      ? { sourceUrl: autoImage.sourceUrl, sourceType: autoImage.sourceType, alt: autoImage.alt, focus: photoFocuses }
+      : null;
+const primaryPhoto = suppliedPhoto || visualPreset?.photo || autoImage?.photo || null;
 const evidenceFor = (text, i) => primaryPhoto ? ({
-  sourceUrl: suppliedPhoto ? `telegram:file/${supplied.photoFileId || supplied.videoFileId}` : visualPreset.sourceUrl,
-  sourceType: suppliedPhoto ? "owner-supplied" : "official-ui",
+  sourceUrl: media.sourceUrl,
+  sourceType: media.sourceType,
   claim: text.slice(0, 140),
   mainVisual: primaryPhoto,
-  whatItProves: suppliedPhoto ? "تصویر واقعیِ ارسال‌شده توسط صاحب محتوا" : visualPreset.alt,
+  whatItProves: suppliedPhoto ? "تصویر واقعیِ ارسال‌شده توسط صاحب محتوا" : media.alt,
   motionAction: "عمل مربوط به همین گام روی تصویر با تمرکز و آشکارسازی نشان داده می‌شود",
   secondaryMotion: "واکنش کنترل یا بخش مرتبط پس از حرکت اصلی",
   ambientMotion: "تغییر نور و عمق بسیار آرام، بدون حواس‌پرتی",
@@ -69,13 +87,13 @@ const evidenceFor = (text, i) => primaryPhoto ? ({
 const provided = parts.slice(1).map((text, i) => ({
   text: text.slice(0, 180),
   icon: ["target", "play", "chart", "pen"][i] || "target",
-  ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedVideo ? "Creator-supplied video frame" : suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[i] : visualPreset.focus[i], visualEvidence: evidenceFor(text, i), ...(suppliedVideo ? { video: suppliedVideo, videoStart: i * 0.5 } : {}) } : {}),
+  ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: media.alt, photoFocus: media.focus[i], visualEvidence: evidenceFor(text, i), ...(suppliedVideo ? { video: suppliedVideo, videoStart: i * 0.5 } : {}) } : {}),
 }));
 const steps = provided.length >= 4 ? provided.slice(0, 4) : [
   ...provided,
   ...Array.from({ length: 4 - provided.length }, (_, i) => ({
     text: i === 0 ? "یک نمونهٔ واقعی از نتیجه را در ویدیو نشان بده" : "نکتهٔ بعدی را کوتاه و روشن نشان بده",
-    icon: "play", ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: suppliedVideo ? "Creator-supplied video frame" : suppliedPhoto ? "Creator-supplied photo" : visualPreset.alt, photoFocus: suppliedPhoto ? photoFocuses[provided.length + i] : visualPreset.focus[provided.length + i], visualEvidence: evidenceFor("نمونهٔ واقعی", provided.length + i), ...(suppliedVideo ? { video: suppliedVideo, videoStart: (provided.length + i) * 0.5 } : {}) } : {}),
+    icon: "play", ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: media.alt, photoFocus: media.focus[provided.length + i], visualEvidence: evidenceFor("نمونهٔ واقعی", provided.length + i), ...(suppliedVideo ? { video: suppliedVideo, videoStart: (provided.length + i) * 0.5 } : {}) } : {}),
   })),
 ];
 
@@ -100,8 +118,8 @@ const pack = {
   category,
   name: appName,
   kicker: appName,
-  hookPhoto: suppliedPhoto || visualPreset?.hookPhoto || null,
-  source: suppliedPhoto ? `telegram:file/${supplied.photoFileId || supplied.videoFileId}` : (visualPreset ? "official-feature-source" : "creator-supplied-text"),
+  hookPhoto: suppliedPhoto || visualPreset?.hookPhoto || autoImage?.photo || null,
+  source: media?.sourceUrl || "creator-supplied-text",
   title: topic,
   benefit: { key: "custom", fa: topic },
   hook: {
