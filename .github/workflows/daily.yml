@@ -1,17 +1,23 @@
 name: Daily GapMedia video delivery
 
-# Runs in GitHub's cloud. The computer may be off. GitHub cron is UTC-only,
-# therefore both CET and CEST candidates run. GitHub may begin a scheduled run
-# late, so the gate keys off the scheduled cron expression rather than the
-# runner's current hour.
+# Runs in GitHub's cloud. The computer may be off.
+#
+# This used to fire on four exact single-minute crons (30 6/7 * * *, 0 15/16
+# * * *) and gate on which one matched. On 2026-09-06 the 08:30 Berlin run
+# never fired at all — no run of any kind exists for that morning, not even
+# a quick "wrong offset, skipping" one — while this same repo's much more
+# frequent cron (telegram.yml, every 5 minutes) kept firing normally the
+# whole time. GitHub's scheduler does not reliably deliver an exact,
+# infrequent cron; a frequent one it clearly does deliver here.
+#
+# So instead of one shot per delivery window, this polls every 15 minutes
+# like that one does, and treats each Berlin delivery window as 30 minutes
+# wide so a couple of polls get a real chance at it even if one is skipped
+# or delayed. A cached marker file makes a repeat hit inside the same
+# window (or a GitHub retry) a no-op instead of a duplicate send.
 on:
   schedule:
-    # 08:30 Europe/Berlin: 06:30 UTC in CEST, 07:30 UTC in CET
-    - cron: "30 6 * * *"
-    - cron: "30 7 * * *"
-    # 17:00 Europe/Berlin: 15:00 UTC in CEST, 16:00 UTC in CET
-    - cron: "0 15 * * *"
-    - cron: "0 16 * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       batch:
@@ -24,7 +30,7 @@ on:
           - evening
           - all
 
-# Do not cancel a morning render just because the evening trigger begins.
+# Do not cancel a morning render just because a later poll begins.
 concurrency:
   group: gapmedia-scheduled-production
   cancel-in-progress: false
@@ -37,58 +43,55 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Check the Berlin delivery window
-        id: gate
-        shell: bash
-        run: |
-          local_time="$(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
-          offset="$(TZ=Europe/Berlin date +%z)"
-          schedule="${{ github.event.schedule }}"
-          echo "Berlin local time: $local_time"
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "go=yes" >> "$GITHUB_OUTPUT"
-            echo "batch=${{ inputs.batch }}" >> "$GITHUB_OUTPUT"
-          # GitHub's event carries the cron that caused this run even when the
-          # runner starts late. Match it against the current Berlin offset so
-          # exactly one of each CET/CEST pair renders.
-          elif [ "$schedule" = "30 6 * * *" ] && [ "$offset" = "+0200" ]; then
-            echo "go=yes" >> "$GITHUB_OUTPUT"
-            echo "batch=morning" >> "$GITHUB_OUTPUT"
-          elif [ "$schedule" = "30 7 * * *" ] && [ "$offset" = "+0100" ]; then
-            echo "go=yes" >> "$GITHUB_OUTPUT"
-            echo "batch=morning" >> "$GITHUB_OUTPUT"
-          elif [ "$schedule" = "0 15 * * *" ] && [ "$offset" = "+0200" ]; then
-            echo "go=yes" >> "$GITHUB_OUTPUT"
-            echo "batch=evening" >> "$GITHUB_OUTPUT"
-          elif [ "$schedule" = "0 16 * * *" ] && [ "$offset" = "+0100" ]; then
-            echo "go=yes" >> "$GITHUB_OUTPUT"
-            echo "batch=evening" >> "$GITHUB_OUTPUT"
-          else
-            echo "go=no" >> "$GITHUB_OUTPUT"
-            echo "This cron does not match the current Berlin daylight-saving offset — skipping."
-          fi
-
       - uses: actions/checkout@v4
-        if: steps.gate.outputs.go == 'yes'
 
-      - uses: actions/setup-node@v4
-        if: steps.gate.outputs.go == 'yes'
-        with:
-          node-version: "22"
-
-      # Keep delivery and editorial memory between cloud runs to prevent a
-      # successfully sent topic being treated as unseen later.
+      # Restored before the gate runs, so the gate can tell whether today's
+      # window was already delivered by an earlier poll (or a manual dispatch)
+      # before deciding whether to go again.
       - name: Restore delivery memory
-        if: steps.gate.outputs.go == 'yes'
         uses: actions/cache@v4
         with:
           path: |
             .telegram-sent.json
             .content-history.json
             .content-registry.json
+            .daily-batch-sent.json
           key: scheduled-delivery-${{ github.run_id }}
           restore-keys: scheduled-delivery-
+
+      - name: Check the Berlin delivery window
+        id: gate
+        shell: bash
+        run: |
+          local_date="$(TZ=Europe/Berlin date '+%Y-%m-%d')"
+          local_hm="$(TZ=Europe/Berlin date '+%H:%M')"
+          echo "Berlin local time: $(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
+
+          already_sent() {
+            [ -f .daily-batch-sent.json ] && grep -q "\"$1\"" .daily-batch-sent.json
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=${{ inputs.batch }}" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
+          elif [[ "$local_hm" > "08:29" && "$local_hm" < "09:00" ]] && ! already_sent "$local_date-morning"; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=morning" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
+          elif [[ "$local_hm" > "16:59" && "$local_hm" < "17:30" ]] && ! already_sent "$local_date-evening"; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=evening" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=no" >> "$GITHUB_OUTPUT"
+            echo "Outside both delivery windows, or already delivered — skipping."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          node-version: "22"
 
       - name: System packages for video rendering
         if: steps.gate.outputs.go == 'yes'
@@ -144,3 +147,23 @@ jobs:
               exit 1
               ;;
           esac
+
+      # Marks today's window delivered so a later poll inside the same
+      # 30-minute window does not send the same batch a second time.
+      - name: Record delivery marker
+        if: steps.gate.outputs.go == 'yes'
+        shell: bash
+        run: |
+          case "${{ steps.gate.outputs.batch }}" in
+            morning) markers=("${{ steps.gate.outputs.date }}-morning") ;;
+            evening) markers=("${{ steps.gate.outputs.date }}-evening") ;;
+            all) markers=("${{ steps.gate.outputs.date }}-morning" "${{ steps.gate.outputs.date }}-evening") ;;
+          esac
+          node -e '
+            const fs = require("fs");
+            let existing = [];
+            try { existing = JSON.parse(fs.readFileSync(".daily-batch-sent.json", "utf8")); } catch {}
+            const add = process.argv.slice(1);
+            const merged = [...new Set([...existing, ...add])].slice(-60);
+            fs.writeFileSync(".daily-batch-sent.json", JSON.stringify(merged, null, 2));
+          ' "${markers[@]}"
