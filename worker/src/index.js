@@ -414,7 +414,7 @@ function prepareTopicLocally(raw) {
   return [topic, ...(steps.length ? steps : TOPIC_SCAFFOLD)].join(" | ");
 }
 
-const SYSTEM = `تو دستیار فارسی/دری GapMedia و German Insider هستی. قانون‌نامهٔ واحد پروژه الزام‌آور است: قبل از ساخت، تاریخچهٔ کامل را برای موضوع، اپ، قابلیت، قلاب و ساختار تکراری بررسی کن؛ Kling AI نامزد خودکار نیست. فقط موضوعِ منبع‌دار و مفید؛ هیچ تضمین درآمد، ویو یا وایرال‌شدن؛ خبر جدا و بی‌طرف؛ و تصویر/ویدیو فقط پس از گیت کیفیت واقعی، مرتبط و کافی. رسانهٔ واقعی پیدا نشد یعنی ابتدا منبع رسمی و مسیر جایگزین را جستجو کن، نه اینکه رابط حدسی یا تصویر ساختگی بسازی. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، نمونه بده: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و فرایند فکرکردن را توضیح نده.`;
+const SYSTEM = `تو دستیار فارسی/دری GapMedia و German Insider هستی. قانون‌نامهٔ واحد پروژه الزام‌آور است: قبل از ساخت، تاریخچهٔ کامل را برای موضوع، اپ، قابلیت، قلاب و ساختار تکراری بررسی کن. فقط موضوعِ منبع‌دار و مفید؛ هیچ تضمین درآمد، ویو یا وایرال‌شدن؛ خبر جدا و بی‌طرف؛ و تصویر/ویدیو فقط پس از گیت کیفیت واقعی، مرتبط و کافی. رسانهٔ واقعی پیدا نشد یعنی ابتدا منبع رسمی و مسیر جایگزین را جستجو کن، نه اینکه رابط حدسی یا تصویر ساختگی بسازی. برای ساخت ویدیو از فرمان‌های روشن استفاده می‌شود؛ اگر کاربر دستور مبهم ویدیویی داد، نمونه بده: «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «خبر فوری»، یا «بساز». اگر کاربر یک متن خام فرستاد و خواست از آن ویدیو/اسلاید بسازی ولی درخواست ناقص بود (مثلاً متن خیلی کوتاه بود یا نکتهٔ واقعی نداشت)، دقیقاً همین فرمت را نشانش بده: «موضوع | نکتهٔ یک | نکتهٔ دو | نکتهٔ سه» و بگو اگر عکس یا اسکرین‌شات واقعیِ همان موضوع را هم همراه پیام بفرستد، ویدیو با همان تصویر ساخته می‌شود؛ بدون عکس واقعی، گیت کیفیت رد می‌کند. هرگز کلید، توکن یا اطلاعات محرمانه را درخواست یا نمایش نده. پاسخ نهایی را مستقیم، در حداکثر چهار خط، در فیلد پاسخ بنویس و فرایند فکرکردن را توضیح نده.`;
 
 function textFromWorkersAI(data) {
   // Workers AI models have used both native `response` and OpenAI-compatible
@@ -437,6 +437,59 @@ function textFromWorkersAI(data) {
     ?? data?.result?.output?.[0]?.text
     ?? data?.output?.[0]?.content?.[0]?.text;
   return typeof value === "string" ? value.trim() : "";
+}
+
+// Natural-language messages use a deliberately small, allow-listed contract.
+// The model may suggest an operation, but cannot invent a workflow action or
+// inject arbitrary command fields. Exact commands still go through videoAction
+// first; this bridge only handles conversational phrasing such as «قلاب امروز
+// را پرانرژی‌تر کن».
+const CHAT_ACTIONS = new Set([
+  "content-search-live", "news-search-live", "content-edit-hook",
+  "content-edit-steps", "custom-content", "news-text", "plan-today",
+  "plan-tomorrow", "plan-week", "build-tiktok", "build-instagram",
+  "build-tools", "build-all", "news-germany", "news-europe",
+  "news-today", "news-breaking",
+]);
+
+function parseChatIntent(raw) {
+  const text = String(raw || "").trim();
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    const value = JSON.parse(match[0]);
+    if (!CHAT_ACTIONS.has(value?.action)) return null;
+    const payload = String(value.payload || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 1200);
+    if (["content-search-live", "news-search-live", "content-edit-hook", "content-edit-steps", "custom-content", "news-text"].includes(value.action) && !payload) return null;
+    // custom-content.mjs hard-requires "topic | point | point ..." (at least
+    // one point after the topic) and throws otherwise. A model reply that
+    // just paraphrases the user's raw text with no "|" would reach that
+    // script, burn a full GitHub Actions run, and fail with a raw error the
+    // user never sees clearly. Catching the malformed shape here means the
+    // request falls back to the plain chat() reply instead, which — since it
+    // shares the same SYSTEM prompt — tells the user the exact format needed.
+    if (value.action === "custom-content" && payload.split("|").map((s) => s.trim()).filter(Boolean).length < 2) return null;
+    return { action: value.action, ...(payload ? { payload } : {}), voiceMode: "on", voiceId: "" };
+  } catch { return null; }
+}
+
+async function chatIntent(env, userText) {
+  if (!env.AI) return null;
+  const instruction = `پیام کاربر را فقط به یک JSON تبدیل کن. هیچ متن دیگری ننویس.
+action فقط یکی از این‌ها باشد: content-search-live، news-search-live، content-edit-hook، content-edit-steps، custom-content، news-text، plan-today، plan-tomorrow، plan-week، build-tiktok، build-instagram، build-tools، build-all، news-germany، news-europe، news-today، news-breaking.
+برای actionهای جستجو، ویرایش، محتوا و خبر، payload را با متن مناسب فارسی بده. برای ساخت و برنامه‌ریزی payload را خالی بگذار.
+اگر کاربر یک متن خام داد و خواست از آن ویدیو/اسلاید بسازی («این را آرایش کن»، «با ۴ اسلاید ویدیو بساز»، «از این متن ویدیو بساز»، ...)، action را custom-content بگذار و payload را دقیقاً به این شکل بده: «موضوع کوتاه | نکتهٔ یک | نکتهٔ دو | نکتهٔ سه | نکتهٔ چهار» — یعنی خودت متن خام را بخوان، مهم‌ترین و متفاوت‌ترین نکته‌هایش را پیدا کن، هرکدام را در یک جملهٔ کوتاه و عملی بازنویسی کن (نه کپی کلمه‌به‌کلمه، نه نکتهٔ تکراری یا الکی)، و دقیقاً با «|» جدایشان کن. اگر متن کمتر از ۲ نکتهٔ واقعی و متفاوت داشت، همان تعداد را بده — کمتر از ۴ اشکالی ندارد، ولی هرگز نکتهٔ ساختگی اضافه نکن.
+نمونه‌ها: «یک موضوع تازه برای درآمد از آیفون پیدا کن» => {"action":"content-search-live","payload":"ایده‌های تازه و معتبر برای درآمد با آیفون"}
+«قلاب امروز را کوتاه‌تر و هیجان‌انگیزتر کن» => {"action":"content-edit-hook","payload":"قلاب را کوتاه‌تر، پرانرژی‌تر و بدون افشای پاسخ بازنویسی کن"}
+«از این متن خبر بساز: ...» => {"action":"news-text","payload":"..."}
+«این متن را آرایش کن و با چهار اسلاید ویدیو بساز: تلگرام قابلیت جدیدی به نام Tags اضافه کرده که با آن می‌شود مخاطبان را دسته‌بندی کرد. با این قابلیت، پیام هدفمند به هر گروه فرستاده می‌شود. همچنین آمار هر تگ به‌طور جداگانه نمایش داده می‌شود.» => {"action":"custom-content","payload":"قابلیت تازهٔ Tags در تلگرام | مخاطبان را با تگ دسته‌بندی کن | برای هر گروه پیام هدفمند بفرست | آمار هر تگ را جدا ببین"}
+اگر پیام فقط گفت‌وگو، سؤال یا درخواست مبهم است، {} بده.`;
+  const data = await env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
+    messages: [{ role: "system", content: instruction }, { role: "user", content: userText.slice(0, 6000) }],
+    max_tokens: 420,
+    temperature: 0.1,
+  });
+  return parseChatIntent(textFromWorkersAI(data));
 }
 
 async function chat(env, chatId, userText) {
@@ -552,6 +605,9 @@ export default {
         command = { action: "custom-content-media", payload: input, ...audioFor(input) };
       }
       if (!command) command = videoAction(input);
+      // Conversational requests are classified only after all explicit menu,
+      // pending-state, media and command paths have had priority.
+      if (!command) command = await chatIntent(env, input);
       if (command) {
         if (command.action === "help") {
           await reply(env, chatId, HELP);
@@ -602,4 +658,4 @@ export default {
 };
 
 // Kept outside the HTTP handler solely for deterministic local command tests.
-export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally, prepareTopicLocally, acknowledgementFor, bareTopicPick };
+export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareNewsLocally, prepareTopicLocally, acknowledgementFor, bareTopicPick, parseChatIntent };

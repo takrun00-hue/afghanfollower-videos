@@ -2,7 +2,7 @@
 // local-PC bot test: the phone uses worker/src/index.js, so it needs its own
 // regression test for the exact commands the creator actually types.
 import assert from "node:assert/strict";
-import worker, { NUMBERED_ACTIONS, menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick } from "./src/index.js";
+import worker, { NUMBERED_ACTIONS, menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick, parseChatIntent } from "./src/index.js";
 
 assert.equal(videoAction("تیک تاک بساز").action, "build-tiktok");
 assert.equal(videoAction("انستا بساز").action, "build-instagram");
@@ -48,6 +48,24 @@ assert.equal(bareTopicPick("3", null), null);
 assert.equal(bareTopicPick("3", "news"), null);
 assert.equal(bareTopicPick("6", "search"), null); // only 1-5 are offered topics
 assert.match(acknowledgementFor({ action: "search-topic-pick" }), /گیت انتشار/);
+
+// Natural chat is constrained to known actions; a model answer cannot invent
+// a shell command, a URL, or an arbitrary workflow input.
+assert.deepEqual(
+  parseChatIntent('حتماً: {"action":"content-edit-hook","payload":"قلاب را کوتاه‌تر و پرانرژی‌تر کن"}'),
+  { action: "content-edit-hook", payload: "قلاب را کوتاه‌تر و پرانرژی‌تر کن", voiceMode: "on", voiceId: "" },
+);
+assert.equal(parseChatIntent('{"action":"delete-everything","payload":"x"}'), null);
+assert.equal(parseChatIntent('{"action":"content-edit-hook","payload":""}'), null);
+
+// custom-content.mjs hard-requires "topic | point | point ..."; a model
+// reply that just paraphrases the raw text with no "|" would otherwise
+// dispatch a build doomed to fail deep inside a GitHub Actions run.
+assert.equal(parseChatIntent('{"action":"custom-content","payload":"یک متن بدون جداکننده"}'), null);
+assert.deepEqual(
+  parseChatIntent('{"action":"custom-content","payload":"موضوع | نکتهٔ یک | نکتهٔ دو"}'),
+  { action: "custom-content", payload: "موضوع | نکتهٔ یک | نکتهٔ دو", voiceMode: "on", voiceId: "" },
+);
 
 // A captioned Telegram video must use the same direct-build path as a photo.
 // This is an in-memory Worker request: no message or workflow is sent outside
