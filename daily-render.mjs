@@ -17,6 +17,7 @@ import { packsForDate, packForFeature, CATEGORIES, dailyDeliveriesForDate } from
 import { sceneArtPlan } from "./lib/scene-art.mjs";
 import { creativeBriefFor } from "./lib/creative-brief.mjs";
 import { assertVisualProof } from "./lib/visual-proof.mjs";
+import { rescuePackPhotos } from "./lib/auto-image.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.mjs";
 import { fingerprint, check, register, hasHistory } from "./lib/dedupe.mjs";
@@ -63,7 +64,16 @@ if (featIdxEarly < 0) {
   for (let round = 0; round < 60; round++) {
     let progressed = false;
     for (const d of deliveries) {
-      try { assertVisualProof(d.pack); continue; } catch { /* falls through */ }
+      try { assertVisualProof(d.pack); continue; } catch {
+        // Most of the rotation banks predate the Visual Truth Gate and only
+        // ever had a guessed `tip.ui` mockup, never a real screenshot. Try
+        // to source one automatically before giving up on this id entirely
+        // — a real, verified photo is strictly better than skipping to the
+        // next candidate and losing this id's turn in the rotation.
+        try {
+          if (await rescuePackPhotos(d.pack)) { assertVisualProof(d.pack); continue; }
+        } catch { /* still fails after rescue attempt — fall through below */ }
+      }
       const id = String(d.pack.id).toLowerCase();
       if (!avoidIds.has(id)) { avoidIds.add(id); progressed = true; }
     }
@@ -152,18 +162,27 @@ for (const delivery of deliveries) {
   // bare GitHub Actions failure with no explanation.
   try {
     assertVisualProof(pack);
-  } catch (e) {
-    console.error(`   ✗ Visual QC رد شد — ${platform} (${pack.id}) ساخته نشد: ${e.message}`);
-    if (tg.enabled) {
-      try {
-        await sendMessage({
-          token: tg.token, chatId: tg.chatId,
-          text: `⚠ ویدیوی ${platform} برای «${pack.id}» ساخته نشد.\n\nعلت: ${e.message}\n\nاین قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد؛ باید اول با اسکرین‌شات واقعی تجهیز شود.`,
-        });
-      } catch {}
+  } catch (firstErr) {
+    // The retry loop above already tried this for the daily rotation; a
+    // direct "--feature <id>" build (a manually-approved topic, e.g. from
+    // "تأیید <id>") skips that loop entirely, so it gets one rescue attempt
+    // of its own here before being reported as failed.
+    try {
+      if (await rescuePackPhotos(pack)) assertVisualProof(pack);
+      else throw firstErr;
+    } catch (e) {
+      console.error(`   ✗ Visual QC رد شد — ${platform} (${pack.id}) ساخته نشد: ${e.message}`);
+      if (tg.enabled) {
+        try {
+          await sendMessage({
+            token: tg.token, chatId: tg.chatId,
+            text: `⚠ ویدیوی ${platform} برای «${pack.id}» ساخته نشد.\n\nعلت: ${e.message}\n\nاین قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد؛ باید اول با اسکرین‌شات واقعی تجهیز شود.`,
+          });
+        } catch {}
+      }
+      results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: null, sent: false, visualQcFailed: e.message });
+      continue;
     }
-    results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: null, sent: false, visualQcFailed: e.message });
-    continue;
   }
   // Generate the topic-specific creative contract before any sound, HTML or
   // render work. It is saved beside the composition for review and prevents a
