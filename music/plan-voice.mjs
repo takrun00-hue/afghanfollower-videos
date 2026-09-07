@@ -8,7 +8,7 @@ import { mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
-import { minimaxSpeakable } from "../lib/pronounce.mjs";
+import { minimaxSpeakable, pocketSpeakable } from "../lib/pronounce.mjs";
 import { narrationLineCheck } from "../lib/voice-settings.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -18,7 +18,12 @@ const requestedTips = Math.max(1, Number(process.argv[3]) || 4);
 const vo = narrationFor(featureId);
 if (!vo) { console.log(JSON.stringify({ ok: false })); process.exit(0); }
 
-const TTS = "music/minimax-tts.mjs";
+// TTS_ENGINE=pocket switches to the local, free pocket-tts pipeline (see
+// music/pocket-tts.mjs) instead of the paid MiniMax API. Default stays
+// MiniMax — pocket-tts is a 2026-09-07 prototype, not yet load-bearing.
+const ENGINE = process.env.TTS_ENGINE === "pocket" ? "pocket" : "minimax";
+const speakable = ENGINE === "pocket" ? pocketSpeakable : minimaxSpeakable;
+const TTS = ENGINE === "pocket" ? "music/pocket-tts.mjs" : "music/minimax-tts.mjs";
 // Cached MiniMax lines must belong to the selected voice. Reusing a file named
 // only after the feature silently kept the previous speaker after the user
 // chose another Voice ID in Telegram.
@@ -26,6 +31,10 @@ const TTS = "music/minimax-tts.mjs";
 // silently reuses last week's slow MP3 files.
 const voiceKey = `${process.env.MINIMAX_VOICE_ID || "default"}-${process.env.TTS_PROFILE || "fa-natural-v6"}`
   .replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 96);
+// The engine name is part of the cache filename too (not just voiceKey), so
+// switching TTS_ENGINE never reuses — or is mistaken for — the other
+// engine's cached line, even when neither MINIMAX_VOICE_ID nor TTS_PROFILE
+// changed.
 
 mkdirSync("music/voice", { recursive: true });
 
@@ -41,13 +50,13 @@ function dur(file) {
 const texts = [vo.hook, ...vo.steps.slice(0, requestedTips), vo.outro];
 const files = [], durs = [];
 for (let i = 0; i < texts.length; i++) {
-  const spoken = minimaxSpeakable(texts[i]);
+  const spoken = speakable(texts[i]);
   const issues = narrationLineCheck(spoken);
   if (issues.length) {
     console.error(`Narration QC failed for line ${i + 1}: ${issues.join(", ")}`);
     process.exit(1);
   }
-  const f = `music/voice/${featureId}-${voiceKey}-minimax-line${i}.mp3`;
+  const f = `music/voice/${featureId}-${voiceKey}-${ENGINE}-line${i}.mp3`;
   if (!existsSync(f)) {
     execFileSync("node", [TTS, spoken, "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],

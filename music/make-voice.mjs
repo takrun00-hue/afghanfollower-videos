@@ -8,7 +8,7 @@ import { mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
-import { minimaxSpeakable } from "../lib/pronounce.mjs";
+import { minimaxSpeakable, pocketSpeakable } from "../lib/pronounce.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -28,7 +28,15 @@ const OUT_AT = Number(outroAt), TOTAL = Number(total);
 const vo = narrationFor(featureId);
 if (!vo) { console.log(`  no narration for ${featureId} — silent`); process.exit(0); }
 
-const TTS = "music/minimax-tts.mjs";
+// TTS_ENGINE=pocket switches to the local, free pocket-tts pipeline (see
+// music/pocket-tts.mjs) instead of the paid MiniMax API. Default stays
+// MiniMax — pocket-tts is a 2026-09-07 prototype, not yet load-bearing. Must
+// match plan-voice.mjs's choice exactly, or the cache filename below misses
+// the file plan-voice already measured and this re-synthesises it, risking a
+// slightly different length that runs into the next slide.
+const ENGINE = process.env.TTS_ENGINE === "pocket" ? "pocket" : "minimax";
+const speakable = ENGINE === "pocket" ? pocketSpeakable : minimaxSpeakable;
+const TTS = ENGINE === "pocket" ? "music/pocket-tts.mjs" : "music/minimax-tts.mjs";
 // Match plan-voice.mjs exactly: a new speaking profile must synthesise fresh
 // lines rather than reuse a slower cached voice.
 const voiceKey = `${process.env.MINIMAX_VOICE_ID || "default"}-${process.env.TTS_PROFILE || "fa-natural-v6"}`
@@ -51,9 +59,9 @@ for (let i = 0; i < lines.length; i++) {
   // Reuse the exact audio that plan-voice measured for the scene duration.
   // Re-synthesising here can vary the length slightly and makes a sentence run
   // into the next slide.
-  const f = `music/voice/${featureId}-${voiceKey}-minimax-line${i}.mp3`;
+  const f = `music/voice/${featureId}-${voiceKey}-${ENGINE}-line${i}.mp3`;
   if (!existsSync(f)) {
-    execFileSync("node", [TTS, minimaxSpeakable(lines[i].text), "-o", f], {
+    execFileSync("node", [TTS, speakable(lines[i].text), "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],
     });
   }
