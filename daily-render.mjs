@@ -13,6 +13,7 @@ import { existsSync } from "node:fs";
 import { buildHTML } from "./lib/build.mjs";
 import { buildInkHTML } from "./lib/build-ink.mjs";
 import { buildNeonHTML } from "./lib/build-neon.mjs";
+import { buildCartoonHTML } from "./lib/build-cartoon.mjs";
 import { packsForDate, packForFeature, CATEGORIES, dailyDeliveriesForDate } from "./lib/content.mjs";
 import { sceneArtPlan } from "./lib/scene-art.mjs";
 import { creativeBriefFor } from "./lib/creative-brief.mjs";
@@ -64,6 +65,11 @@ if (featIdxEarly < 0) {
   for (let round = 0; round < 60; round++) {
     let progressed = false;
     for (const d of deliveries) {
+      // The Visual Truth Gate exists to stop a real screenshot being faked.
+      // STYLE=cartoon never claims a real screenshot at all — every scene is
+      // an illustrated mascot + a symbolic icon by design (owner-directed
+      // pivot, 2026-09-07) — so there is nothing for this gate to check.
+      if (process.env.STYLE === "cartoon") continue;
       try { assertVisualProof(d.pack); continue; } catch {
         // Most of the rotation banks predate the Visual Truth Gate and only
         // ever had a guessed `tip.ui` mockup, never a real screenshot. Try
@@ -161,7 +167,7 @@ for (const delivery of deliveries) {
   // only its own slot, and a human hears why in Telegram instead of finding a
   // bare GitHub Actions failure with no explanation.
   try {
-    assertVisualProof(pack);
+    if (process.env.STYLE !== "cartoon") assertVisualProof(pack);
   } catch (firstErr) {
     // The retry loop above already tried this for the daily rotation; a
     // direct "--feature <id>" build (a manually-approved topic, e.g. from
@@ -221,7 +227,7 @@ for (const delivery of deliveries) {
   }
 
   const comp = `${compDir}/${platform}.html`;
-  writeFileSync(comp, (process.env.STYLE === "neon" ? buildNeonHTML : process.env.STYLE === "legacy" ? buildHTML : buildInkHTML)(pack));
+  writeFileSync(comp, (process.env.STYLE === "neon" ? buildNeonHTML : process.env.STYLE === "legacy" ? buildHTML : process.env.STYLE === "cartoon" ? buildCartoonHTML : buildInkHTML)(pack));
   // Beat-synced score: generated at this video's exact length so every cut lands
   // on a bar, and the intro/drop/outro line up with hook/tips/CTA.
   // every scene boundary, so the score can punctuate the picture changing
