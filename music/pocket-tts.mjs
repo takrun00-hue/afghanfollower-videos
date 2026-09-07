@@ -83,7 +83,7 @@ try {
   execFileSync("ffmpeg", [
     "-y", "-hide_banner", "-loglevel", "error",
     "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
-    "-t", "0.12", "-c:a", "pcm_s16le", silence,
+    "-t", "0.06", "-c:a", "pcm_s16le", silence,
   ]);
 
   // Only one segment needs a real generation call when the line is entirely
