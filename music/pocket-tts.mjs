@@ -86,19 +86,52 @@ try {
     "-t", "0.06", "-c:a", "pcm_s16le", silence,
   ]);
 
+  const durationOf = (f) => Number(execFileSync("ffprobe",
+    ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString().trim()) || 0;
+
   // Only one segment needs a real generation call when the line is entirely
   // one language — no wasted silence-splice for the common all-Persian case.
   const pieces = [];
   segs.forEach((seg, i) => {
     const wav = join(workDir, `seg${i}.wav`);
-    const args = seg.lang === "en"
-      ? ["-m", "pocket_tts", "generate", "--voice", VOICE, "--language", "english",
-        "--text", seg.text, "--temperature", "0.3", "--eos-threshold", "-2",
-        "--frames-after-eos", "0", "--output-path", wav]
-      : ["-m", "pocket_tts", "generate", "--config", FARSI_CONFIG, "--voice", VOICE,
-        "--text", seg.text, "--temperature", "0.3", "--eos-threshold", "-2",
-        "--frames-after-eos", "0", "--output-path", wav];
-    execFileSync("python", args, { stdio: ["ignore", "ignore", "inherit"] });
+    const genOnce = (temp) => {
+      const args = seg.lang === "en"
+        ? ["-m", "pocket_tts", "generate", "--voice", VOICE, "--language", "english",
+          "--text", seg.text, "--temperature", String(temp), "--eos-threshold", "-2",
+          "--frames-after-eos", "0", "--output-path", wav]
+        : ["-m", "pocket_tts", "generate", "--config", FARSI_CONFIG, "--voice", VOICE,
+          "--text", seg.text, "--temperature", String(temp), "--eos-threshold", "-2",
+          "--frames-after-eos", "0", "--output-path", wav];
+      execFileSync("python", args, { stdio: ["ignore", "ignore", "inherit"] });
+    };
+    genOnce(0.3);
+    // A short, isolated Farsi fragment — a connector word like "است" or "را
+    // کنار بگذار،" left standing alone between two English spans — sometimes
+    // makes this Farsi model overrun past the real word and drift into
+    // echoing its own voice-cloning reference clip ("یک فرد با دوربین...",
+    // confirmed 2026-09-07 by transcribing the reference wav itself and
+    // matching it word-for-word against the garbled tail reported live).
+    // Real short Persian phrases run well under 0.55s/word.
+    if (seg.lang === "fa") {
+      const words = seg.text.trim().split(/\s+/).filter(Boolean).length;
+      const expected = 0.9 + 0.55 * words;
+      if (durationOf(wav) > expected) {
+        // A retry at the SAME temperature reproduced the identical overrun
+        // duration to the millisecond (verified 2026-09-07) — 0.3 is too
+        // close to deterministic here to escape the failure by chance. A
+        // higher temperature actually samples a different path.
+        genOnce(0.75);
+        // Still overran: cut losses. A word or two trimmed abruptly is a
+        // small, local rough edge; several seconds of the reference clip's
+        // own sentence spliced in is a much louder, more confusing defect.
+        if (durationOf(wav) > expected) {
+          const capped = join(workDir, `seg${i}-cap.wav`);
+          execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error",
+            "-i", wav, "-t", expected.toFixed(2), capped]);
+          execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-i", capped, wav]);
+        }
+      }
+    }
     if (i > 0) pieces.push(silence);
     pieces.push(wav);
   });
