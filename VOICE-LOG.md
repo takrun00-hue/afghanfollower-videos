@@ -444,3 +444,20 @@ is the same wrong vowel the rule above is about). Do not re-try either.
 a two-word line it returned «بریلستر», which is a failure of the transcriber and
 not evidence about the audio. Short lines go to the ear, and a transcript of one
 is not a result.
+
+### «پست» (post) — FIXED as «پُست», 2026-09-07
+Reported live in the collab (Instagram) video: the payoff «پست روی هر دو پیج…»
+was read as «پَست» (low/mean), a different word. An English loanword written in
+Persian keeps its English sound (`foreign-words.md` Type A) — mark the damma.
+Root cause was a pipeline gotcha: `["پست","پُست"]` already existed in the
+`FIXES` table, but the voice pipeline calls `minimaxSpeakable()`, which uses the
+separate `PERSIAN_TTS_FIXES` table — so the fix was dead for narration. Added
+bare «پست» to `PERSIAN_TTS_FIXES` (sorted longest-first, so «پستت»/«پست‌هایت»
+still win). **Always add TTS fixes to `PERSIAN_TTS_FIXES`, not `FIXES`.**
+
+### «ده» (ten) — FIXED as «دَه» in number contexts, 2026-09-07
+Reported live: «ده دقیقه» in the descript hook misread. The number ten needs a
+fatha, «دَه» (/dah/), or the engine says /deh/ (village) — the wrong number.
+Added «ده دقیقه»/«ده بار»/«ده ثانیه» only. **Rejected:** a bare «ده»→«دَه»
+replace — bare «ده» is also the imperative «ده» (give, «نشان ده») which is /deh/
+and must stay. Verified «نشان ده» is untouched.
