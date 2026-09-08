@@ -157,6 +157,7 @@ jobs:
           # Checking what THIS commit actually touched is the real signal.
           IS_VIDEO_REQUEST_PUSH: ${{ contains(github.event.head_commit.modified, '.video-request.json') || contains(github.event.head_commit.added, '.video-request.json') }}
         run: |
+          echo "event=$EVENT_NAME is_video_request_push=$IS_VIDEO_REQUEST_PUSH" > .cmd-debug.txt
           if [ "$EVENT_NAME" = "push" ] && [ "$IS_VIDEO_REQUEST_PUSH" = "true" ]; then
             request_action=$(jq -r '.action // "none"' .video-request.json)
             request_payload=$(jq -r '.payload // ""' .video-request.json | tr '\r\n' ' ' | cut -c1-900)
@@ -167,6 +168,7 @@ jobs:
             case "$request_action" in custom-content|content-radar) ;; *) request_action="none" ;; esac
             case "$request_voice" in on|off) ;; *) request_voice="on" ;; esac
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
+            echo "route=video-request-push request_action=$request_action" >> .cmd-debug.txt
           elif [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
               approved-feature|approved-screen|user-photo|topic-pick|topic-reject|topic-unreject|topic-rejected-list|search-topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|build-app-pair|resend|research|content-radar|news-radar|demand-research|content-search|content-search-live|custom-content|custom-content-media|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
@@ -178,8 +180,26 @@ jobs:
             case "$INPUT_VOICE_MODE" in on|off) safe_voice_mode="$INPUT_VOICE_MODE" ;; *) safe_voice_mode="on" ;; esac
             printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\nVOICE_MODE=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" "$safe_voice_mode" >> "$GITHUB_OUTPUT"
           else
+            echo "route=cloud-listen" >> .cmd-debug.txt
             node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
           fi
+
+      # Temporary — a content-radar push request silently fell through to
+      # ACTION=none instead of taking the video-request-push route. Pushes
+      # whichever route was actually taken plus the final resolved ACTION so
+      # it can be read back with a plain git pull. Remove once found.
+      - name: Push cmd-debug
+        if: always()
+        shell: bash
+        run: |
+          echo "final_action=${{ steps.cmd.outputs.ACTION }}" >> .cmd-debug.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .cmd-debug.txt
+          git diff --staged --quiet || git commit -m "debug: record cmd routing"
+          git pull --rebase --autostash || true
+          git push || true
+
       # Only the actions that actually render a video need ffmpeg and a headless
       # browser. Listing news or deleting a message does not.
       - name: System packages (ffmpeg + headless Chrome libs)
