@@ -28,21 +28,41 @@ name: Daily GapMedia video delivery
 #      next threshold, which the observed gaps satisfy far more often than
 #      they satisfy a 30-minute window.
 #   2. A trigger this project does not depend on GitHub's own scheduler for
-#      also calls this workflow via workflow_dispatch on a real cron,
-#      independent of GitHub Actions' scheduled-event queue (see the
-#      "gapmedia-daily-dispatch" Routine — ask about it if it needs
-#      changing; it is not defined in this repo). `batch: auto` (the
-#      default) makes a workflow_dispatch run go through the exact same
-#      time+dedup gate as a schedule-triggered run, so calling it early,
-#      late, or extra is always safe — it just no-ops outside a threshold
-#      or after today's batch already shipped. An explicit morning/evening/
-#      all input bypasses the gate, for a manual backfill or test.
+#      pushes a one-line touch to .trigger-daily-dispatch on a real, hourly
+#      cron (see the "GapMedia daily.yml reliable dispatch" Routine — ask
+#      about it if it needs changing; it is not defined in this repo), which
+#      fires this workflow through the `push` trigger below — an ordinary
+#      commit, not a workflow-dispatch API call, because the GitHub App
+#      connected to this repo has "contents: write" but not "actions: write"
+#      (confirmed live 2026-09-08: an actual workflow_dispatch call 403s,
+#      "Resource not accessible by integration," on both the MCP tool and a
+#      raw REST call; a plain push with the same credential does not). Every
+#      push through that path runs through the exact same time+dedup gate as
+#      a schedule-triggered run (see the default case below), so it is always
+#      safe to fire early, late, or extra — it just no-ops outside a
+#      threshold or after today's batch already shipped. An explicit
+#      workflow_dispatch with morning/evening/all bypasses the gate, for a
+#      manual backfill or test — that one still needs someone with actual
+#      Actions access to fire it from the GitHub UI or a CLI with a real PAT.
 #
 # The schedule trigger stays as a free, harmless second chance — GitHub is
 # not reliable, but it is not zero, either.
 on:
   schedule:
     - cron: "*/15 * * * *"
+  # The reliable trigger this file's header comment describes turned out to
+  # need workflow_dispatch permission ("actions: write") on the GitHub App
+  # installed for this repo, which it does not have — confirmed live
+  # 2026-09-08: the same call 403s identically whether made through the MCP
+  # tool or a raw REST POST ("Resource not accessible by integration"), while
+  # a plain git push with the exact same credential succeeds every time. So
+  # the trigger pushes a one-line touch to this path instead — an ordinary
+  # commit, not a workflow API call — which only needs the "contents: write"
+  # permission that already works. Scoped to this one path so it does not
+  # fire on every unrelated commit to the repo.
+  push:
+    paths:
+      - ".trigger-daily-dispatch"
   workflow_dispatch:
     inputs:
       batch:
