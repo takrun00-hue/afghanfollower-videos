@@ -11,6 +11,14 @@ on:
   push:
     paths:
       - ".video-request.json"
+      # A reliable poll trigger, same reasoning and mechanism as daily.yml's
+      # .trigger-daily-dispatch — confirmed live 2026-09-08 that this
+      # workflow's own "*/5 * * * *" schedule does not fire anywhere near
+      # every 5 minutes (real gaps of hours between runs), and workflow_
+      # dispatch needs "actions: write" on the GitHub App connected to this
+      # repo, which it does not have (git push works, the Actions API
+      # 403s). A push here just needs "contents: write", which does work.
+      - ".trigger-telegram-poll"
   # No Cloudflare Worker is deployed for this bot right now, so nothing else
   # reads new Telegram messages. This polls instead: every 5 minutes it asks
   # Telegram for updates since the last run (cloud-listen.mjs, the same path
@@ -139,8 +147,17 @@ jobs:
           INPUT_VOICE_ID: ${{ inputs.voice_id }}
           INPUT_VOICE_MODE: ${{ inputs.voice_mode }}
           EVENT_NAME: ${{ github.event_name }}
+          # `-f .video-request.json` alone used to gate this branch, which
+          # only worked because that was the ONLY push path this workflow
+          # listened on — the file being present (which it always is; it is
+          # a normal tracked file, not written-then-deleted) was a stand-in
+          # for "this push was actually a fresh video request." Adding the
+          # .trigger-telegram-poll path above broke that assumption: a poll
+          # push would have been misread as a stale video-request replay.
+          # Checking what THIS commit actually touched is the real signal.
+          IS_VIDEO_REQUEST_PUSH: ${{ contains(github.event.head_commit.modified, '.video-request.json') || contains(github.event.head_commit.added, '.video-request.json') }}
         run: |
-          if [ "$EVENT_NAME" = "push" ] && [ -f .video-request.json ]; then
+          if [ "$EVENT_NAME" = "push" ] && [ "$IS_VIDEO_REQUEST_PUSH" = "true" ]; then
             request_action=$(jq -r '.action // "none"' .video-request.json)
             request_payload=$(jq -r '.payload // ""' .video-request.json | tr '\r\n' ' ' | cut -c1-900)
             request_voice=$(jq -r '.voice_mode // "on"' .video-request.json)
