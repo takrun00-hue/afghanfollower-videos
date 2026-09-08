@@ -196,7 +196,37 @@ jobs:
             case "$INPUT_VOICE_MODE" in on|off) safe_voice_mode="$INPUT_VOICE_MODE" ;; *) safe_voice_mode="on" ;; esac
             printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\nVOICE_MODE=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" "$safe_voice_mode" >> "$GITHUB_OUTPUT"
           else
-            node cloud-listen.mjs | tee -a "$GITHUB_OUTPUT"
+            cl_out=$(node cloud-listen.mjs)
+            echo "$cl_out"
+            printf '%s\n' "$cl_out" >> "$GITHUB_OUTPUT"
+            cl_action=$(printf '%s\n' "$cl_out" | sed -n 's/^ACTION=//p' | tail -1)
+            # Opportunistic auto-research: an idle poll (no real Telegram
+            # command pending) doubles as the "keep researching, every couple
+            # of days" cadence the owner asked for 2026-09-08 — GitHub's own
+            # schedule cron is too unreliable (see this file's header) to
+            # trust for a bare "every 2 days" cron on its own, but polls
+            # already arrive often via the hourly reliability trigger and
+            # the */5 schedule, so piggybacking is more reliable than a
+            # dedicated cron would be. .content-radar.json (cache-persisted)
+            # already carries a timestamp from its last real run — reused as
+            # the "last researched" marker instead of a second file. A real
+            # pending command always wins; this never overrides one.
+            if [ "$cl_action" = "none" ] || [ -z "$cl_action" ]; then
+              stale=true
+              if [ -f .content-radar.json ]; then
+                last=$(jq -r '.at // empty' .content-radar.json)
+                if [ -n "$last" ]; then
+                  last_epoch=$(date -d "$last" +%s 2>/dev/null || echo 0)
+                  now_epoch=$(date -u +%s)
+                  age_days=$(( (now_epoch - last_epoch) / 86400 ))
+                  [ "$age_days" -lt 2 ] && stale=false
+                fi
+              fi
+              if [ "$stale" = "true" ]; then
+                echo "auto content-radar: last run 2+ days ago (or never) — researching now"
+                echo "ACTION=content-radar" >> "$GITHUB_OUTPUT"
+              fi
+            fi
           fi
 
       # Only the actions that actually render a video need ffmpeg and a headless
