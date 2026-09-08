@@ -52,6 +52,11 @@ const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
 const sel = packsForDate(date);
 const featIdxEarly = args.indexOf("--feature");
 let deliveries = dailyDeliveriesForDate(date);
+// Shared across the pre-scan below AND the per-slot retry loop further down:
+// an id excluded here (no real screenshot) must stay excluded there too, and
+// an id a retry gives up on after this pre-scan must not be handed straight
+// back out by a later dailyDeliveriesForDate() call in the same run.
+const avoidIds = new Set();
 if (featIdxEarly < 0) {
   // Visual QC (below) rejects a pack with no real per-slide screenshot. That
   // used to just kill the slot for the day; now the rotation gets a chance to
@@ -61,7 +66,6 @@ if (featIdxEarly < 0) {
   // one exhausted category — every one of its ids already tried — does not
   // stop the others from still swapping to a fresh pick. A round that adds no
   // new id means every category has hit its own wall, so it stops there.
-  const avoidIds = new Set();
   for (let round = 0; round < 60; round++) {
     let progressed = false;
     for (const d of deliveries) {
@@ -157,43 +161,56 @@ function recordPublishedTopic(pack, entry) {
 const results = [];
 // rule 10: items in one run are compared against each other, not only history
 const batchPrints = [];
-for (const delivery of deliveries) {
-  const { slot: platform, pack, mirrorOf } = delivery;
-  // Do this before HTML/audio/render work. A missing real visual is a research
-  // failure, not a reason to ship a generic illustration. Most of the older
-  // rotation banks predate this gate and were never fitted with a real
-  // per-slide screenshot, so this fails often and predictably — a content gap,
-  // not a code bug. It must never crash the whole run: a bad feature blocks
-  // only its own slot, and a human hears why in Telegram instead of finding a
-  // bare GitHub Actions failure with no explanation.
-  try {
-    if (process.env.STYLE !== "cartoon") assertVisualProof(pack);
-  } catch (firstErr) {
-    // The retry loop above already tried this for the daily rotation; a
-    // direct "--feature <id>" build (a manually-approved topic, e.g. from
-    // "تأیید <id>") skips that loop entirely, so it gets one rescue attempt
-    // of its own here before being reported as failed.
+// A build used to just die on its first failure — a Visual QC reject, a
+// duplicate-topic reject, a render/voice crash, a Telegram send error — and
+// that slot shipped nothing for the day, with no second attempt on a
+// different topic. Requested explicitly: on any of those, try again with a
+// FRESH candidate for the same slot before giving up, so a single bad topic
+// (missing photo, already covered, a crash specific to its script) does not
+// cost the day a video when the category has other untried topics left.
+// A manually-approved "--feature <id>" build is the one exception: swapping
+// its content silently would defeat the point of a human having picked it
+// (matches the existing rule that a direct feature request is never
+// silently substituted), so it gets exactly one attempt, same as before.
+//
+// Verified live 2026-09-08: a duplicate rejection (a full, expensive render
+// that only fails at the very last dup-check) can be followed by several
+// Visual QC rejections in a row (cheap — they fail before any render work,
+// most of a category's older bank entries predate the real-screenshot
+// requirement). 6 gives real room to clear a short run of cheap QC misses
+// after one expensive miss, without letting a slot stuck on QC failures
+// alone eat the whole job's time budget re-rendering repeatedly.
+const MAX_ATTEMPTS_PER_SLOT = featureId ? 1 : 6;
+for (const firstDelivery of deliveries) {
+  let delivery = firstDelivery;
+  const triedIds = new Set();
+  for (let attempt = 1; ; attempt++) {
+    const { slot: platform, pack, mirrorOf } = delivery;
+    triedIds.add(String(pack.id).toLowerCase());
     try {
-      if (await rescuePackPhotos(pack)) assertVisualProof(pack);
-      else throw firstErr;
-    } catch (e) {
-      console.error(`   ✗ Visual QC رد شد — ${platform} (${pack.id}) ساخته نشد: ${e.message}`);
-      if (tg.enabled) {
+      // Do this before HTML/audio/render work. A missing real visual is a
+      // research failure, not a reason to ship a generic illustration. Most
+      // of the older rotation banks predate this gate and were never fitted
+      // with a real per-slide screenshot, so this fails often and
+      // predictably — a content gap, not a code bug.
+      try {
+        if (process.env.STYLE !== "cartoon") assertVisualProof(pack);
+      } catch (firstErr) {
+        // The pre-scan loop above already tried this for the daily rotation;
+        // a direct "--feature <id>" build skips that loop entirely, so it
+        // gets one rescue attempt of its own here before being reported.
         try {
-          await sendMessage({
-            token: tg.token, chatId: tg.chatId,
-            text: `⚠ ویدیوی ${platform} برای «${pack.id}» ساخته نشد.\n\nعلت: ${e.message}\n\nاین قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد؛ باید اول با اسکرین‌شات واقعی تجهیز شود.`,
-          });
-        } catch {}
+          if (!(await rescuePackPhotos(pack))) throw firstErr;
+          assertVisualProof(pack);
+        } catch (stillErr) {
+          throw Object.assign(new Error(stillErr.message), { kind: "visualQc" });
+        }
       }
-      results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: null, sent: false, visualQcFailed: e.message });
-      continue;
-    }
-  }
-  // Generate the topic-specific creative contract before any sound, HTML or
-  // render work. It is saved beside the composition for review and prevents a
-  // generic visual decision from being made after the script is already built.
-  const creativeBrief = creativeBriefFor(pack, { date });
+      // Generate the topic-specific creative contract before any sound, HTML
+      // or render work. It is saved beside the composition for review and
+      // prevents a generic visual decision from being made after the script
+      // is already built.
+      const creativeBrief = creativeBriefFor(pack, { date });
   pack.creative = creativeBrief;
   writeFileSync(`${compDir}/${platform}-creative-brief.json`, JSON.stringify(creativeBrief, null, 2));
   // Measure the narration FIRST, then let each scene last as long as its own
@@ -328,12 +345,10 @@ for (const delivery of deliveries) {
     ? { verdict: "MIRROR", score: 0, checked: true, sameSubstance: true, mirrorOf }
     : check(print, { alsoAgainst: batchPrints });
   if (dup.verdict === "DUPLICATE" && process.env.ALLOW_DUPLICATE !== "1") {
-    console.error(`   ✗ تکراری (${dup.score}) — همان محتوای «${dup.closest?.id}» در ۳۰ روز اخیر رفته است. ارسال نشد.`);
-    // The MP4 exists locally even when the editorial duplicate gate prevents
-    // delivery. Keep the same `file` field as ordinary completed renders so
-    // the final summary never prints `undefined`.
-    results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: resolve(final), sent: false, duplicate: dup });
-    continue;
+    throw Object.assign(
+      new Error(`تکراری (${dup.score}) — همان محتوای «${dup.closest?.id}» در ۳۰ روز اخیر رفته است`),
+      { kind: "duplicate", dup },
+    );
   }
   if (dup.verdict === "PARTIALLY_OVERLAPPING") {
     console.warn(`   ⚠ هم‌پوشانی ${dup.score}٪ با «${dup.closest?.id}» — بررسی کن که چیز تازه‌ای می‌گوید`);
@@ -364,7 +379,59 @@ for (const delivery of deliveries) {
   } else if (!noTelegram) {
     throw new Error("Telegram is not configured; refusing to mark a local-only render as delivered.");
   }
-  results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: resolve(final), telegram: sent });
+      results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: resolve(final), telegram: sent });
+      break; // this attempt succeeded — done with this slot
+    } catch (err) {
+      // Every failure mode above (Visual QC, duplicate, voice/render crash,
+      // Telegram send) lands here. avoidIds is shared with the pre-scan so a
+      // photo-less id excluded there stays excluded; triedIds additionally
+      // keeps this run from re-picking an id that JUST failed for this slot.
+      avoidIds.add(String(pack.id).toLowerCase());
+      const canRetry = attempt < MAX_ATTEMPTS_PER_SLOT;
+      // featureFor()/aiFeatureFor() (lib/features.mjs) fall back to the day's
+      // original, unexcluded pick once every candidate in the category is
+      // exhausted — pickAvoiding() returns undefined and `|| list[i]` takes
+      // over, ignoring the exclude set entirely. Verified live 2026-09-08:
+      // once the category was actually exhausted this alone re-served the
+      // exact same failed id three attempts running ("reply-video", "reply-
+      // video", "reply-video"). Rejecting an alt already in triedIds is the
+      // same "did this round actually make progress" check the pre-scan loop
+      // above already uses for the identical reason — treat a repeat as no
+      // alternative left, not as a fresh candidate to burn an attempt on.
+      const found = canRetry
+        ? dailyDeliveriesForDate(date, new Set([...avoidIds, ...triedIds])).find((d) => d.slot === platform)
+        : null;
+      const alt = found && !triedIds.has(String(found.pack.id).toLowerCase()) ? found : null;
+      if (alt) {
+        console.error(`   ⚠ ${platform} (${pack.id}) attempt ${attempt}/${MAX_ATTEMPTS_PER_SLOT} failed: ${err.message} — retrying with a new topic (${alt.pack.id})`);
+        delivery = alt;
+        continue;
+      }
+      // No attempts left, or no untried candidate left for this slot: give up
+      // on it, but — critically — do not throw out of the process. One
+      // slot's exhausted failure must never take down the other slots in the
+      // same GitHub Actions step (daily.yml runs one `node daily-render.mjs
+      // --only <slot>` per platform in one shell step; an uncaught throw here
+      // used to abort that whole shell step under `set -e`, so a crash on
+      // e.g. tiktok silently skipped instagram too, not just tiktok).
+      console.error(`   ✗ ${platform} (${pack.id}) failed after ${attempt} attempt${attempt === 1 ? "" : "s"}, no more topics to try: ${err.message}`);
+      if (tg.enabled) {
+        try {
+          const label = err.kind === "visualQc"
+            ? "این قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد؛ باید اول با اسکرین‌شات واقعی تجهیز شود."
+            : err.kind === "duplicate"
+              ? "این موضوع اخیراً یک‌بار ساخته شده."
+              : "خطای فنی در ساخت یا ارسال.";
+          await sendMessage({
+            token: tg.token, chatId: tg.chatId,
+            text: `⚠ ویدیوی ${platform} بعد از ${attempt} تلاش (موضوع‌های مختلف) ساخته نشد.\n\nآخرین علت: ${err.message}\n\n${label}`,
+          });
+        } catch {}
+      }
+      results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: null, sent: false, buildFailed: err.message, attempts: attempt });
+      break;
+    }
+  }
 }
 
 writeFileSync(`${outDir}/${isNewsRun ? "news-manifest" : "manifest"}.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
