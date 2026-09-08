@@ -137,7 +137,7 @@ jobs:
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=morning" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
-          elif [[ "$local_hm" > "17:00" || "$local_hm" == "17:00" ]]; then
+          elif [[ "$local_hm" > "17:00" || "$local_hm" == "17:00" ]] && ! already_sent "$local_date-evening"; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=evening" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
