@@ -150,6 +150,18 @@ https://hyperframes.heygen.com/llms.txt
 - `meta.json` — project metadata (id, name)
 - `transcript.json` — whisper word-level transcript (if generated)
 
+## Codebase graph (CodeGraphContext)
+
+For questions like "what calls this?", "which functions have zero callers?", or "what's the most complex/highest-fan-in code here?" — install and use CodeGraphContext (CGC, https://github.com/CodeGraphContext/CodeGraphContext) instead of guessing from grep alone. It builds a real call/import graph via tree-sitter, with a zero-config embedded database (KuzuDB — no external server needed):
+
+```bash
+python3 -m venv /tmp/cgc-venv && /tmp/cgc-venv/bin/pip install --quiet codegraphcontext kuzu
+cd <project-root> && /tmp/cgc-venv/bin/cgc --database kuzudb index .
+/tmp/cgc-venv/bin/cgc --database kuzudb report --output /tmp/CGC_REPORT.md   # god nodes, complexity, dead-code candidates
+```
+
+It can also run as an MCP server for natural-language graph queries (`cgc mcp`, see its README) rather than the one-shot CLI report above. Sourced from the BraveOPotato/NoSignups free-tools list, owner request 2026-09-08 — it's a dev tool for exploring this repo, not a runtime dependency; nothing here needs it committed to package.json.
+
 ## Linting — ALWAYS RUN AFTER CHANGES
 
 After creating or editing any `.html` composition, **always** run the full check before considering the task complete:
