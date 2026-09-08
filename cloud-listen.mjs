@@ -21,7 +21,7 @@ const stored = existsSync(STATE) ? Number(readFileSync(STATE, "utf8").trim()) ||
 // timeout=0 → return immediately; a scheduled job must not sit and wait
 const updates = await getUpdates({ token: tg.token, offset: stored ? stored + 1 : 0, timeout: 0 });
 
-let action = "none", label = "", highest = stored, pick = 1, payloadText = "";
+let action = "none", label = "", highest = stored, pick = 1, payloadText = "", photoFileId = "";
 
 const cleanPayload = (t) =>
   String(t)
@@ -33,7 +33,19 @@ const cleanPayload = (t) =>
 for (const u of updates) {
   highest = Math.max(highest, u.update_id);
   const msg = u.message || u.channel_post;
-  if (!msg || String(msg.chat.id) !== String(tg.chatId) || !msg.text) continue;
+  if (!msg || String(msg.chat.id) !== String(tg.chatId)) continue;
+  // A real screenshot sent straight from the phone, caption = the feature
+  // id it belongs to — the direct route PROJECT_RULES §14-د/14-ه already
+  // calls for once no official source has the image. Telegram sends one
+  // update per photo with several resolutions in `photo`; the array is
+  // ordered smallest to largest, so the last entry is the one worth saving.
+  if (Array.isArray(msg.photo) && msg.photo.length) {
+    action = "user-photo"; label = "ذخیرهٔ عکس واقعی";
+    payloadText = msg.caption || "";
+    photoFileId = msg.photo[msg.photo.length - 1].file_id;
+    continue; // a photo carries no further text command to parse
+  }
+  if (!msg.text) continue;
   const cmd = parseCommand(msg.text);
   if (cmd) {
     action = cmd.action; label = cmd.label; payloadText = msg.text;
@@ -74,6 +86,7 @@ if (action === "help") {
     ? String(payloadText).replace(/^\s*جستجو(?:ی)?\s+(?:خبر|اخبار)\s*[:：]?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 300)
     : cleanPayload(payloadText);
   console.log(`PAYLOAD=${payload}`);
+  if (photoFileId) console.log(`PHOTO_FILE_ID=${photoFileId}`);
 } else {
   console.log("ACTION=none");
 }

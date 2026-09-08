@@ -417,8 +417,15 @@ for (const firstDelivery of deliveries) {
       console.error(`   ✗ ${platform} (${pack.id}) failed after ${attempt} attempt${attempt === 1 ? "" : "s"}, no more topics to try: ${err.message}`);
       if (tg.enabled) {
         try {
+          const isRealAsset = (tip) => typeof tip?.photo === "string" && tip.photo.startsWith("public/") && existsSync(tip.photo);
           const label = err.kind === "visualQc"
-            ? "این قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد؛ باید اول با اسکرین‌شات واقعی تجهیز شود."
+            // Names every missing slide, not just the first one the checker
+            // happened to stop on, and gives the exact reply format
+            // save-user-photo.mjs expects — the "address, step by step" the
+            // owner asked for instead of a generic rejection.
+            ? "این قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد.\n\n" +
+              (pack.tips || []).map((t, i) => !isRealAsset(t) ? `مرحلهٔ ${i + 1}: ${String(t.text || t.head || "").replace(/<[^>]*>/g, "")}` : null).filter(Boolean).join("\n") +
+              `\n\nیک اسکرین‌شات واقعی از همین صفحه/قابلیت در اپ بگیر و همینجا به‌صورت عکس (نه فایل) بفرست — کپشن عکس را دقیقاً «${pack.id}» بگذار. رندر بعدی همین موضوع خودکار از آن استفاده می‌کند.`
             : err.kind === "duplicate"
               ? "این موضوع اخیراً یک‌بار ساخته شده."
               : "خطای فنی در ساخت یا ارسال.";
