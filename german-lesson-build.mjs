@@ -60,8 +60,8 @@ const pack = {
   id: unit.id,
   platform: "news", // unbranded layout, same as the news channel this replaces
   feature: `آموزش آلمانی A1 — قسمت ${episodeNo}`,
-  title: `آموزش آلمانی A1 — قسمت ${episodeNo}: ${unit.topic}`,
-  hook: { ask: unit.hook, l1: "آموزش آلمانی A1", l2: `قسمت ${episodeNo}` },
+  title: `آموزش آلمانی هوشمند — قسمت ${episodeNo}: ${unit.topic}`,
+  hook: { ask: unit.hook, l1: "آموزش آلمانی هوشمند", l2: `قسمت ${episodeNo} · سطح A1` },
   // Each on-screen card shows the German word/phrase AND its Persian
   // meaning (with register — رسمی/غیررسمی — spelled out where it matters);
   // the spoken narration (lib/narration.mjs, VO[unit.id]) stays Persian for
@@ -71,11 +71,11 @@ const pack = {
   tips: unit.items.map((it) => ({ head: `${it.de} — ${it.fa}` })),
   outroAsk: `قسمت بعد: ${nextUnit.topic}`,
   payoff: "چهار کلمهٔ تازهٔ آلمانی یاد گرفتی — سطح A1.",
-  tgTitle: `🇩🇪 آموزش آلمانی A1 | قسمت ${episodeNo}: ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی`,
+  tgTitle: `🇩🇪 آموزش آلمانی هوشمند | قسمت ${episodeNo}: ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی #مکالمه #واژگان #گرامر`,
   // No mascot/character illustration — owner correction 2026-09-08.
   noCharacters: true,
   ink: { pair: ["#1B4B8A", "#C8102E"], paper: "#F5F1E8", tint: "rgba(27,75,138,.10)" },
-  outro: { tag: "برای قسمت بعدی، دنبال کن", follow: "دنبال کنید +" },
+  outro: { tag: "هر روز یک قدم به آلمانی بهتر —<br/>ما را دنبال کن.", follow: "دنبال کنید +" },
   mood: "calm",
   bpm: 92,
   musicVariant: "v1",
