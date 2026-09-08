@@ -147,16 +147,31 @@ jobs:
           INPUT_VOICE_ID: ${{ inputs.voice_id }}
           INPUT_VOICE_MODE: ${{ inputs.voice_mode }}
           EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
           # `-f .video-request.json` alone used to gate this branch, which
           # only worked because that was the ONLY push path this workflow
           # listened on — the file being present (which it always is; it is
           # a normal tracked file, not written-then-deleted) was a stand-in
           # for "this push was actually a fresh video request." Adding the
           # .trigger-telegram-poll path above broke that assumption: a poll
-          # push would have been misread as a stale video-request replay.
-          # Checking what THIS commit actually touched is the real signal.
-          IS_VIDEO_REQUEST_PUSH: ${{ contains(github.event.head_commit.modified, '.video-request.json') || contains(github.event.head_commit.added, '.video-request.json') }}
-        run: |
+          # push would have been misread as a stale video-request replay,
+          # so "did THIS commit actually touch that file" became the real
+          # signal — first tried via github.event.head_commit.modified/added,
+          # but confirmed live 2026-09-08 that field is unreliable (GitHub's
+          # push-webhook payload does not guarantee it's populated/accurate):
+          # a commit that genuinely, solely modified .video-request.json
+          # (verified after the fact via the commits API) still evaluated
+          # false. The commits API itself was reliable in that same check,
+          # so use it directly instead of trusting the webhook payload.
+          IS_VIDEO_REQUEST_PUSH=false
+          if [ "$EVENT_NAME" = "push" ]; then
+            changed=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/commits/$SHA" | jq -r '.files[]?.filename // empty')
+            if printf '%s\n' "$changed" | grep -qx '\.video-request\.json'; then IS_VIDEO_REQUEST_PUSH=true; fi
+          fi
           echo "event=$EVENT_NAME is_video_request_push=$IS_VIDEO_REQUEST_PUSH" > .cmd-debug.txt
           if [ "$EVENT_NAME" = "push" ] && [ "$IS_VIDEO_REQUEST_PUSH" = "true" ]; then
             request_action=$(jq -r '.action // "none"' .video-request.json)
