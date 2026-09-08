@@ -90,7 +90,24 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: node german-lesson-build.mjs
+        run: node german-lesson-build.mjs 2>&1 | tee .german-lesson-debug.txt
+
+      # Temporary — the real-photo/no-mascot rebuild failed on its first
+      # real run and raw Actions logs are unreachable from the investigating
+      # session (see daily.yml's header for the same limitation). Publishes
+      # the build's own output so the actual error can be read with a plain
+      # git pull. Remove once found.
+      - name: Push build output for review
+        if: always() && steps.gate.outputs.go == 'yes'
+        run: |
+          if [ -f .german-lesson-debug.txt ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -f .german-lesson-debug.txt
+            git diff --staged --quiet || git commit -m "debug: publish german-lesson build output"
+            git pull --rebase --autostash || true
+            git push || true
+          fi
 
       - name: Remember the next episode
         if: steps.gate.outputs.go == 'yes'
