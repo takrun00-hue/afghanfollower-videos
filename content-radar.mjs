@@ -174,19 +174,31 @@ if (!rows.length) {
 const byCat = {};
 for (const r of rows) (byCat[r.cat] ||= []).push(r);
 
+// Numbered so a plain "۲" (or the topic's own words) in the next Telegram
+// reply can be resolved back to one specific candidate by cloud-listen.mjs
+// — the owner correctly pointed out (2026-09-08) that "بگو کدام‌یک" was a
+// promise nothing in the polling path (no Worker deployed, see worker/
+// README) ever actually kept. `shown` persists that same numbering
+// alongside the message so the reply can be matched against it.
+let n = 0;
+const shown = [];
 const sections = Object.entries(byCat).map(([cat, list]) => {
-  const items = list.slice(0, 3).map((r) =>
-    `• <a href="${esc(r.url)}">${esc(r.title.slice(0, 100))}</a>\n` +
-    `  🗓 ${esc(r.date || "؟")} · 🔁 ${r.sources} منبع مستقل · ${r.clear ? "🎯 پیام روشن" : "⚠️ پیام طولانی"} · امتیاز ${r.score}`
-  ).join("\n");
+  const items = list.slice(0, 3).map((r) => {
+    n += 1;
+    shown.push({ n, cat, title: r.title, url: r.url });
+    return `${n}. <a href="${esc(r.url)}">${esc(r.title.slice(0, 100))}</a>\n` +
+      `  🗓 ${esc(r.date || "؟")} · 🔁 ${r.sources} منبع مستقل · ${r.clear ? "🎯 پیام روشن" : "⚠️ پیام طولانی"} · امتیاز ${r.score}`;
+  }).join("\n");
   return `<b>${LABEL[cat]}</b>\n${items}`;
 });
+
+writeFileSync(".content-radar.json", JSON.stringify({ at: new Date().toISOString(), rows, shown }, null, 2));
 
 const text =
   `📡 <b>رادار محتوا — گپ‌مدیا</b>\n<i>${DAYS} روز گذشته · ${WHERE}</i>\n\n` +
   sections.join("\n\n") +
   `\n\nاین‌ها فقط نامزدند، نه محتوای ساخته‌شده. برای بررسی میزان تقاضای واقعیِ هرکدام: <code>دیماند: عنوان یا کلیدواژه</code>\n` +
-  `اگر یکی از این‌ها را می‌خواهی بسازم، بگو کدام‌یک.`;
+  `برای ساخت، فقط شمارهاش را بفرست (مثلاً «${shown[0]?.n ?? 1}»).`;
 
 console.log(`${rows.length} candidate(s) scored`);
 if (tg.enabled && !quiet) {

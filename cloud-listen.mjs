@@ -16,12 +16,57 @@ const STATE = ".telegram-offset";
 const tg = telegramConfig(loadEnv());
 if (!tg.enabled) { console.log("ACTION=none"); process.exit(0); }
 
+// A bare number (or the topic's own words) replying to the last content-radar
+// shortlist should pick one of its candidates — the Worker (worker/) has a
+// KV-based "selection state" that does this, but per its own README it needs
+// a one-time Cloudflare deploy the owner has not done, so this polling path
+// (the one actually running) had no equivalent and silently ignored every
+// reply. Only trusted while the list itself is recent (matches the 2-day
+// auto-refresh window) so a reply days later can't land on a stale offer.
+const RADAR_FILE = ".content-radar.json";
+function radarShown() {
+  try {
+    const data = JSON.parse(readFileSync(RADAR_FILE, "utf8"));
+    if (!Array.isArray(data.shown) || !data.shown.length) return null;
+    const ageDays = (Date.now() - new Date(data.at).getTime()) / 86400000;
+    return ageDays <= 2 ? data.shown : null;
+  } catch { return null; }
+}
+function matchRadarPick(text, shown) {
+  const t = String(text || "").trim();
+  const digits = t.replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+  if (/^[0-9]+$/.test(digits)) {
+    return shown.find((s) => s.n === Number(digits)) || null;
+  }
+  // Otherwise: does the reply share most of a candidate's own distinctive
+  // words? Reuses content-radar.mjs's own stopword/stem approach so "typing
+  // the topic instead of the number" (also promised in the radar message)
+  // works the same way that script already dedupes near-identical titles.
+  const words = (s) => new Set(
+    String(s).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/)
+      .filter((w) => w.length > 2)
+  );
+  const tw = words(t);
+  if (tw.size < 2) return null;
+  let best = null, bestScore = 0;
+  for (const s of shown) {
+    const sw = words(s.title);
+    if (!sw.size) continue;
+    let shared = 0;
+    for (const w of tw) if (sw.has(w)) shared++;
+    const score = shared / Math.min(tw.size, sw.size);
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  return bestScore >= 0.5 ? best : null;
+}
+
 const stored = existsSync(STATE) ? Number(readFileSync(STATE, "utf8").trim()) || 0 : 0;
 
 // timeout=0 → return immediately; a scheduled job must not sit and wait
 const updates = await getUpdates({ token: tg.token, offset: stored ? stored + 1 : 0, timeout: 0 });
 
 let action = "none", label = "", highest = stored, pick = 1, payloadText = "", photoFileId = "";
+const shownRadar = radarShown();
 
 const cleanPayload = (t) =>
   String(t)
@@ -46,6 +91,13 @@ for (const u of updates) {
     continue; // a photo carries no further text command to parse
   }
   if (!msg.text) continue;
+  const radarPick = shownRadar && matchRadarPick(msg.text, shownRadar);
+  if (radarPick) {
+    // Same route custom-draft.mjs already serves for a creator-typed topic:
+    // expand into a reviewable draft, never straight to a render.
+    action = "content-topic-preview"; label = "پیش‌نمایش موضوع رادار"; payloadText = radarPick.title;
+    continue;
+  }
   const cmd = parseCommand(msg.text);
   if (cmd) {
     action = cmd.action; label = cmd.label; payloadText = msg.text;
