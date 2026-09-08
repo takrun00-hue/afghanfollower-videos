@@ -82,7 +82,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   render:
@@ -145,38 +145,6 @@ jobs:
             echo "go=no" >> "$GITHUB_OUTPUT"
             echo "Before today's first threshold, or today's batch(es) already delivered — skipping."
           fi
-
-      # Temporary — every observed run has computed go=no even well past
-      # both thresholds, and raw Actions logs are unreachable from the
-      # investigating session (MCP tool errors, direct log-URL fetch blocked
-      # by egress policy). This writes the gate's actual runtime state to a
-      # committed file so it can be read back with a plain git pull, and
-      # runs unconditionally so a go=no run still reports why. Remove once
-      # the cause is found and fixed.
-      - name: Write gate diagnostic
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "=== gate diagnostic $(date -u +%FT%TZ) run_id=${{ github.run_id }} event=${{ github.event_name }} ==="
-            echo "local_date: $(TZ=Europe/Berlin date '+%Y-%m-%d')"
-            echo "local_hm:   $(TZ=Europe/Berlin date '+%H:%M')"
-            echo "gate.go:    ${{ steps.gate.outputs.go }}"
-            echo "gate.batch: ${{ steps.gate.outputs.batch }}"
-            echo "gate.date:  ${{ steps.gate.outputs.date }}"
-            if [ -f .daily-batch-sent.json ]; then
-              echo ".daily-batch-sent.json (restored from cache):"
-              cat .daily-batch-sent.json
-            else
-              echo ".daily-batch-sent.json: MISSING — cache did not restore it"
-            fi
-          } > .gate-debug.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .gate-debug.txt
-          git diff --staged --quiet || git commit -m "debug: record gate diagnostic"
-          git pull --rebase --autostash || true
-          git push || true
 
       - uses: actions/setup-node@v4
         if: steps.gate.outputs.go == 'yes'
