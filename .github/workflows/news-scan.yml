@@ -1,46 +1,98 @@
-name: Hourly news scan
+name: German A1 lesson series
 
-# Looks for new German/Afghan migration stories every hour and sends each one to
-# Telegram with its text and its link. It never builds a video: a story is only
-# rendered after an explicit "بساز N" reply, handled by the telegram workflow.
+# Was "Hourly news scan" (German Insider). Replaced with a continuing,
+# animated A1 German-lesson series per owner request 2026-09-08 — same
+# Telegram destination, same file (renaming it would lose this workflow's
+# run history), new purpose: one episode roughly once a day, in curriculum
+# order, never skipping or repeating (lib/german-a1.mjs + german-lesson-
+# build.mjs, .german-lesson-progress.json tracks the next episode).
 #
-# The queue and the seen-list are committed back, because the runner is thrown
-# away after every job. Without that, "بساز ۲" would find no queue to read, and
-# every scan would re-send the same stories as if they were new.
+# Cadence is cadence-based (>= 20h since the last successful episode), not
+# a fixed clock time, and fires on BOTH this file's own schedule AND a push
+# to .trigger-daily-dispatch — the same reliable, already-proven hourly
+# trigger daily.yml uses (see that file's header for why: GitHub's own
+# schedule cron is confirmed unreliable for this repo, gaps of hours to
+# over a day). Reusing that existing push means no new trigger mechanism
+# had to be built for this.
 on:
   schedule:
     - cron: "0 * * * *"
+  push:
+    paths:
+      - ".trigger-daily-dispatch"
   workflow_dispatch: {}
 
 concurrency:
-  group: news-scan
+  group: german-lesson
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  scan:
+  lesson:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check the once-a-day cadence gate
+        id: gate
+        shell: bash
+        run: |
+          if [ -f .german-lesson-progress.json ]; then
+            last=$(jq -r '.lastBuiltAt // empty' .german-lesson-progress.json)
+          else
+            last=""
+          fi
+          if [ -z "$last" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "No episode built yet — starting the series."
+          else
+            last_epoch=$(date -d "$last" +%s 2>/dev/null || echo 0)
+            now_epoch=$(date -u +%s)
+            age_hours=$(( (now_epoch - last_epoch) / 3600 ))
+            if [ "$age_hours" -ge 20 ]; then
+              echo "go=yes" >> "$GITHUB_OUTPUT"
+              echo "Last episode $age_hours h ago — building the next one."
+            else
+              echo "go=no" >> "$GITHUB_OUTPUT"
+              echo "Last episode $age_hours h ago — not due yet."
+            fi
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.gate.outputs.go == 'yes'
         with:
           node-version: "22"
 
-      - name: Scan
+      - name: System packages for video rendering
+        if: steps.gate.outputs.go == 'yes'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
+
+      - name: Build and send the next episode
+        if: steps.gate.outputs.go == 'yes'
         env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node news-scan.mjs
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
+          VOICE: "on"
+          REQUIRE_VOICE: "on"
+          STYLE: "cartoon"
+        run: node german-lesson-build.mjs
 
-      - name: Remember what was offered
+      - name: Remember the next episode
+        if: steps.gate.outputs.go == 'yes'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f .news-queue.json .news-seen.json 2>/dev/null || true
-          git diff --staged --quiet || git commit -m "news: hourly scan"
+          git add -f .german-lesson-progress.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "german-lesson: advance to the next episode"
           git pull --rebase --autostash || true
           git push || true
