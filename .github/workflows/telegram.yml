@@ -178,8 +178,11 @@ jobs:
             request_voice=$(jq -r '.voice_mode // "on"' .video-request.json)
             # content-radar is read-only research (scored shortlist sent to
             # Telegram, nothing built or published) — safe to allow from this
-            # push path alongside custom-content.
-            case "$request_action" in custom-content|content-radar) ;; *) request_action="none" ;; esac
+            # push path alongside custom-content. approved-feature builds one
+            # specific, already-known bank id (the same action a real
+            # "تأیید <id>" Telegram command triggers) — no different in kind
+            # from custom-content, which already builds arbitrary content.
+            case "$request_action" in custom-content|content-radar|approved-feature) ;; *) request_action="none" ;; esac
             case "$request_voice" in on|off) ;; *) request_voice="on" ;; esac
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
