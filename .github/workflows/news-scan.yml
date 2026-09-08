@@ -84,7 +84,12 @@ jobs:
           MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
           VOICE: "on"
           REQUIRE_VOICE: "on"
-          STYLE: "cartoon"
+          # Real per-word photos (lib/lesson-image.mjs), not the cartoon
+          # mascot style — owner correction 2026-09-08.
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: node german-lesson-build.mjs
 
       - name: Remember the next episode

@@ -10,15 +10,20 @@
 // and — only once the send actually confirms — advances the index so the
 // next run picks up where this one left off, never repeating or skipping.
 //
-// Animated, cartoon-style (mascot + flat icons), same as STYLE=cartoon
-// elsewhere in this project: a language lesson has no "real screenshot" to
-// show, so the Visual Truth Gate does not apply here, exactly as it already
-// does not apply to the cartoon mascot style.
+// Real, topic-matched photos (build-ink.mjs, the same real-photo renderer
+// the rest of this project's tutorials use) — owner correction 2026-09-08:
+// no mascot/cartoon animation. Each vocabulary item gets its own photo via
+// lib/lesson-image.mjs (a live search, not a fixed set), and the same
+// Visual Truth Gate (assertVisualProof) every other tutorial must pass
+// applies here too — no photo found for a word means that episode does not
+// ship, same as any other feature with no real evidence.
 import { execSync, execFileSync } from "node:child_process";
 import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { buildCartoonHTML } from "./lib/build-cartoon.mjs";
+import { buildInkHTML } from "./lib/build-ink.mjs";
+import { assertVisualProof } from "./lib/visual-proof.mjs";
+import { findLessonImage } from "./lib/lesson-image.mjs";
 import { GERMAN_A1, germanUnitAt } from "./lib/german-a1.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.mjs";
@@ -53,18 +58,24 @@ const nextUnit = germanUnitAt(idx + 1);
 const HOOK_DUR = 4, TIP_DUR = 4, OUTRO_DUR = 5;
 const pack = {
   id: unit.id,
-  platform: "news",
+  platform: "news", // unbranded layout, same as the news channel this replaces
   feature: `آموزش آلمانی A1 — قسمت ${episodeNo}`,
   title: `آموزش آلمانی A1 — قسمت ${episodeNo}: ${unit.topic}`,
   hook: { ask: unit.hook, l1: "آموزش آلمانی A1", l2: `قسمت ${episodeNo}` },
   // Each on-screen card shows the German word/phrase AND its Persian
-  // meaning; the spoken narration (lib/narration.mjs, VO[unit.id]) stays
-  // Persian-only, so the German is read by the viewer, never mispronounced
-  // by the TTS voice.
-  tips: unit.items.map((it) => ({ text: `${it.de}\n${it.fa}` })),
+  // meaning (with register — رسمی/غیررسمی — spelled out where it matters);
+  // the spoken narration (lib/narration.mjs, VO[unit.id]) stays Persian for
+  // the explanation, with the German itself actually pronounced separately
+  // (see the voice section below), never mispronounced by reading it as
+  // part of a Persian sentence.
+  tips: unit.items.map((it) => ({ head: `${it.de} — ${it.fa}` })),
   outroAsk: `قسمت بعد: ${nextUnit.topic}`,
   payoff: "چهار کلمهٔ تازهٔ آلمانی یاد گرفتی — سطح A1.",
-  tgTitle: `🇩🇪 آموزش آلمانی A1 | قسمت ${episodeNo}: ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی #GapMedia`,
+  tgTitle: `🇩🇪 آموزش آلمانی A1 | قسمت ${episodeNo}: ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی`,
+  // No mascot/character illustration — owner correction 2026-09-08.
+  noCharacters: true,
+  ink: { pair: ["#1B4B8A", "#C8102E"], paper: "#F5F1E8", tint: "rgba(27,75,138,.10)" },
+  outro: { tag: "برای قسمت بعدی، دنبال کن", follow: "دنبال کنید +" },
   mood: "calm",
   bpm: 92,
   musicVariant: "v1",
@@ -150,8 +161,26 @@ try {
     }
   }
 
+  // One real photo per vocabulary item — not one shared photo for the whole
+  // episode (rescuePackPhotos() reuses a single search for a whole pack,
+  // which fits an app-feature video but not four different words).
+  for (let i = 0; i < unit.items.length; i++) {
+    const item = unit.items[i];
+    const found = await findLessonImage(item.img, item.fa);
+    if (!found) {
+      throw Object.assign(
+        new Error(`هیچ عکس واقعی و مرتبطی برای «${item.de} — ${item.fa}» پیدا نشد`),
+        { kind: "visualQc" },
+      );
+    }
+    pack.tips[i].photo = found.photo;
+    pack.tips[i].photoAlt = found.alt;
+    pack.tips[i].photoFocus = "subject-wide";
+  }
+  assertVisualProof(pack);
+
   const comp = `${compDir}/${pack.id}.html`;
-  writeFileSync(comp, buildCartoonHTML(pack));
+  writeFileSync(comp, buildInkHTML(pack));
 
   const cutTimes = (() => {
     const lens = pack.tipDurations;
