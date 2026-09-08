@@ -10,5 +10,5 @@
   MiniMax voice -> music/voice/german-a1-01-greetings-de3.mp3
   MiniMax voice -> music/voice/german-a1-01-greetings-fa3.mp3
   MiniMax voice -> music/voice/german-a1-01-greetings-outro.mp3
-   timing follows speech (incl. German pronunciation): 46.557s
+   timing follows speech (incl. German pronunciation): 46.192s
    ✗ episode 1 (a1-01-greetings) failed: هیچ عکس واقعی و مرتبطی برای «Tschüss — خداحافظ (غیررسمی)» پیدا نشد
