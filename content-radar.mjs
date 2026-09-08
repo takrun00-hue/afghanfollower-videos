@@ -104,6 +104,36 @@ async function corroboration(title) {
 const HAVE = alreadyCovered();
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// A raw search page from one query routinely returns the SAME real-world
+// story from several outlets (confirmed live 2026-09-08: 3 of the tiktok
+// category's top results were three different sites' coverage of the exact
+// same "voice comments + polls" TikTok update). Without this, the shortlist
+// LOOKS like 3 distinct ideas but is really 1 — the owner correctly called
+// this out as fake variety. Collapse same-story titles before scoring so
+// each category's picks are actually different stories, not the same one
+// re-reported.
+const STOPWORDS = new Set([
+  "a", "an", "the", "to", "for", "of", "in", "on", "with", "and", "or", "is", "are",
+  "new", "app", "apps", "feature", "features", "update", "updates", "adds", "add",
+  "now", "its", "it's", "this", "that", "how", "what", "tested", "hands-on", "hands", "on",
+  "review", "creators", "creator", "you", "your", "what's",
+]);
+// A light plural-strip so "comment"/"comments", "message"/"messages" count as
+// the same word — without it, near-identical headlines phrased with/without
+// a trailing "s" scored below the similarity threshold and slipped through.
+const stem = (w) => (w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w);
+const titleKeywords = (title) => new Set(
+  String(title).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+    .map(stem)
+);
+const sameStory = (a, b) => {
+  if (!a.size || !b.size) return false;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / Math.min(a.size, b.size) >= 0.5;
+};
+
 const rows = [];
 for (const [cat, q] of Object.entries(QUERIES)) {
   let results = [];
@@ -111,7 +141,16 @@ for (const [cat, q] of Object.entries(QUERIES)) {
   catch (e) { console.error(`${cat}: ${e.message}`); continue; }
 
   // Novelty first — no point scoring five sources for something already taught.
-  const fresh = results.filter((r) => r.title && !isFeatureKnown(r.title, HAVE)).slice(0, 5);
+  const seenKeywords = [];
+  const fresh = results
+    .filter((r) => r.title && !isFeatureKnown(r.title, HAVE))
+    .filter((r) => {
+      const kw = titleKeywords(r.title);
+      if (seenKeywords.some((s) => sameStory(s, kw))) return false;
+      seenKeywords.push(kw);
+      return true;
+    })
+    .slice(0, 5);
   for (const r of fresh) {
     const days = r.publishedDate ? (Date.now() - new Date(r.publishedDate)) / 86400000 : DAYS;
     const clear = String(r.title || "").length <= 100;
