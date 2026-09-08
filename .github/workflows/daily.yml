@@ -4,28 +4,54 @@ name: Daily GapMedia video delivery
 #
 # This used to fire on four exact single-minute crons (30 6/7 * * *, 0 15/16
 # * * *) and gate on which one matched. On 2026-09-06 the 08:30 Berlin run
-# never fired at all — no run of any kind exists for that morning, not even
-# a quick "wrong offset, skipping" one — while this same repo's much more
-# frequent cron (telegram.yml, every 5 minutes) kept firing normally the
-# whole time. GitHub's scheduler does not reliably deliver an exact,
-# infrequent cron; a frequent one it clearly does deliver here.
+# never fired at all. The fix at the time assumed telegram.yml's much more
+# frequent "*/5 * * * *" cron was proof GitHub delivers a frequent schedule
+# reliably, and switched this workflow to "*/15 * * * *" polling a 30-minute
+# window instead of one exact minute.
 #
-# So instead of one shot per delivery window, this polls every 15 minutes
-# like that one does, and treats each Berlin delivery window as 30 minutes
-# wide so a couple of polls get a real chance at it even if one is skipped
-# or delayed. A cached marker file makes a repeat hit inside the same
-# window (or a GitHub retry) a no-op instead of a duplicate send.
+# That assumption did not hold up. Checked against real run history
+# (2026-08-26 through 2026-09-08, both this workflow and telegram.yml):
+# neither cron fires anywhere near its configured interval — actual gaps
+# between runs range from under an hour to over 30 hours, regardless of
+# whether the cron says every 5 minutes or every 15. GitHub's own docs say
+# a scheduled run "may be delayed during periods of high load," which in
+# practice means a 30-minute window has no real guarantee of ever seeing a
+# poll land inside it: of ~40 sampled runs of THIS workflow across 13 days,
+# only 2 ever fell inside a delivery window — on 2026-09-06 the morning
+# batch was silently missed entirely and only the evening one happened to
+# land, at 17:28, two minutes before that window would have closed too.
+#
+# Two independent fixes, not one:
+#   1. The delivery windows below are open-ended (from the threshold time
+#      until the next one), not 30 minutes wide, so it no longer matters
+#      how late a poll arrives — only that at least one arrives before the
+#      next threshold, which the observed gaps satisfy far more often than
+#      they satisfy a 30-minute window.
+#   2. A trigger this project does not depend on GitHub's own scheduler for
+#      also calls this workflow via workflow_dispatch on a real cron,
+#      independent of GitHub Actions' scheduled-event queue (see the
+#      "gapmedia-daily-dispatch" Routine — ask about it if it needs
+#      changing; it is not defined in this repo). `batch: auto` (the
+#      default) makes a workflow_dispatch run go through the exact same
+#      time+dedup gate as a schedule-triggered run, so calling it early,
+#      late, or extra is always safe — it just no-ops outside a threshold
+#      or after today's batch already shipped. An explicit morning/evening/
+#      all input bypasses the gate, for a manual backfill or test.
+#
+# The schedule trigger stays as a free, harmless second chance — GitHub is
+# not reliable, but it is not zero, either.
 on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       batch:
-        description: "Which scheduled pair to produce"
+        description: "auto = respect the real Berlin time + dedup gate (safe to call anytime); morning/evening/all force that batch immediately, skipping the gate"
         required: true
-        default: "all"
+        default: "auto"
         type: choice
         options:
+          - auto
           - morning
           - evening
           - all
@@ -59,7 +85,7 @@ jobs:
           key: scheduled-delivery-${{ github.run_id }}
           restore-keys: scheduled-delivery-
 
-      - name: Check the Berlin delivery window
+      - name: Check the Berlin delivery gate
         id: gate
         shell: bash
         run: |
@@ -71,21 +97,33 @@ jobs:
             [ -f .daily-batch-sent.json ] && grep -q "\"$1\"" .daily-batch-sent.json
           }
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # An explicit (non-auto) workflow_dispatch input forces that batch
+          # right now, skipping the gate — a deliberate manual backfill/test,
+          # not something a poll should ever send on its own.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.batch }}" != "auto" ]; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=${{ inputs.batch }}" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
-          elif [[ "$local_hm" > "08:29" && "$local_hm" < "09:00" ]] && ! already_sent "$local_date-morning"; then
+            exit 0
+          fi
+
+          # Open-ended, not a narrow window: what matters is which threshold
+          # has most recently passed and is not yet marked sent today, not
+          # how many minutes ago it passed. A schedule tick or a
+          # workflow_dispatch poll arriving 5 hours late still catches it —
+          # see the note at the top of this file for why a tight window
+          # cannot be relied on to ever see a poll land inside it.
+          if [[ "$local_hm" > "08:30" || "$local_hm" == "08:30" ]] && ! already_sent "$local_date-morning"; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=morning" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
-          elif [[ "$local_hm" > "16:59" && "$local_hm" < "17:30" ]] && ! already_sent "$local_date-evening"; then
+          elif [[ "$local_hm" > "17:00" || "$local_hm" == "17:00" ]] && ! already_sent "$local_date-evening"; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=evening" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
           else
             echo "go=no" >> "$GITHUB_OUTPUT"
-            echo "Outside both delivery windows, or already delivered — skipping."
+            echo "Before today's first threshold, or today's batch(es) already delivered — skipping."
           fi
 
       - uses: actions/setup-node@v4
@@ -148,8 +186,8 @@ jobs:
               ;;
           esac
 
-      # Marks today's window delivered so a later poll inside the same
-      # 30-minute window does not send the same batch a second time.
+      # Marks today's batch delivered so a later poll the same day — however
+      # much later — does not send it a second time.
       - name: Record delivery marker
         if: steps.gate.outputs.go == 'yes'
         shell: bash
