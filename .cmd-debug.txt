@@ -1,3 +1,0 @@
-event=push is_video_request_push=true
-route=video-request-push request_action=content-radar
-final_action=content-radar
