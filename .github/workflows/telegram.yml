@@ -161,7 +161,10 @@ jobs:
             request_action=$(jq -r '.action // "none"' .video-request.json)
             request_payload=$(jq -r '.payload // ""' .video-request.json | tr '\r\n' ' ' | cut -c1-900)
             request_voice=$(jq -r '.voice_mode // "on"' .video-request.json)
-            case "$request_action" in custom-content) ;; *) request_action="none" ;; esac
+            # content-radar is read-only research (scored shortlist sent to
+            # Telegram, nothing built or published) — safe to allow from this
+            # push path alongside custom-content.
+            case "$request_action" in custom-content|content-radar) ;; *) request_action="none" ;; esac
             case "$request_voice" in on|off) ;; *) request_voice="on" ;; esac
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
