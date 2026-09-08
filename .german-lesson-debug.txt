@@ -1,0 +1,14 @@
+
+=== german-lesson episode 1: سلام و احوال‌پرسی (a1-01-greetings) ===
+  MiniMax voice -> music/voice/german-a1-01-greetings-hook.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-de0.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-fa0.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-de1.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-fa1.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-de2.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-fa2.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-de3.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-fa3.mp3
+  MiniMax voice -> music/voice/german-a1-01-greetings-outro.mp3
+   timing follows speech (incl. German pronunciation): 46.557s
+   ✗ episode 1 (a1-01-greetings) failed: هیچ عکس واقعی و مرتبطی برای «Tschüss — خداحافظ (غیررسمی)» پیدا نشد
