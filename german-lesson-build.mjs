@@ -14,8 +14,8 @@
 // elsewhere in this project: a language lesson has no "real screenshot" to
 // show, so the Visual Truth Gate does not apply here, exactly as it already
 // does not apply to the cartoon mascot style.
-import { execSync } from "node:child_process";
-import { writeFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
+import { execSync, execFileSync } from "node:child_process";
+import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { buildCartoonHTML } from "./lib/build-cartoon.mjs";
@@ -23,6 +23,8 @@ import { GERMAN_A1, germanUnitAt } from "./lib/german-a1.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.mjs";
 import { fingerprint, check, register } from "./lib/dedupe.mjs";
+import { narrationFor } from "./lib/narration.mjs";
+import { minimaxSpeakable } from "./lib/pronounce.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -81,23 +83,70 @@ mkdirSync(outDir, { recursive: true });
 
 console.log(`\n=== german-lesson episode ${episodeNo}: ${unit.topic} (${unit.id}) ===`);
 
+// Each tip scene's audio is TWO clips back to back: the German word/phrase,
+// synthesised with language_boost="German" so it is actually pronounced in
+// German (not read by the Persian voice — owner correction, 2026-09-08:
+// text-only on screen was not enough), then the Persian line explaining it.
+// Bypasses plan-voice.mjs/make-voice.mjs (built for one Persian line per
+// scene) with the same technique in miniature: synthesise every clip first,
+// measure it, then size the scene to fit — see make-voice.mjs's own
+// adelay+amix approach, reused directly below.
+function ttsSynthesize(text, languageBoost, outFile) {
+  const env = { ...process.env };
+  if (languageBoost) env.MINIMAX_LANGUAGE_BOOST = languageBoost;
+  execFileSync("node", ["music/minimax-tts.mjs", text, "-o", outFile], { env, stdio: "inherit" });
+}
+function ffprobeDuration(file) {
+  const out = execFileSync("ffprobe", [
+    "-v", "error", "-show_entries", "format=duration",
+    "-of", "default=noprint_wrappers=1:nokey=1", file,
+  ], { encoding: "utf8" });
+  return parseFloat(out.trim()) || 0;
+}
+
+const GAP = 0.45; // pause between the German word and its Persian explanation
+const LEAD = 0.2; // pause before a clip starts within its scene
+const SCENE_PAD = 0.7; // breathing room after the explanation, before the next scene
+
+let voiceParts = null; // { hookFile, tips: [{deFile, faFile, deDur, faDur}], outroFile } once synthesised
+
 try {
   if (process.env.VOICE === "on") {
+    const vo = narrationFor(pack.id);
+    if (!vo) throw new Error(`no narration for "${pack.id}"`);
+    const voiceDir = "music/voice";
+    mkdirSync(voiceDir, { recursive: true });
     try {
-      const plan = JSON.parse(
-        execSync(`node music/plan-voice.mjs ${pack.id} ${pack.tips.length}`, { encoding: "utf8" }).trim().split(String.fromCharCode(10)).pop()
-      );
-      if (plan.ok && plan.durs.length === pack.tips.length + 2) {
-        const PAD = 1.15, MIN = 2.5;
-        pack.hookDuration = +Math.max(MIN + 0.3, plan.durs[0] + PAD).toFixed(3);
-        pack.tipDurations = plan.durs.slice(1, -1).map((d) => +Math.max(MIN, d + PAD).toFixed(3));
-        pack.outroDuration = +Math.max(3.6, plan.durs[plan.durs.length - 1] + 1.3).toFixed(3);
-        pack.duration = +(pack.hookDuration + pack.tipDurations.reduce((a, d) => a + d, 0) + pack.outroDuration).toFixed(3);
-        pack.music = pack.music.replace(/.m4a$/, "-vo.m4a");
-        console.log(`   timing follows speech: ${pack.duration}s`);
+      const hookFile = `${voiceDir}/german-${pack.id}-hook.mp3`;
+      ttsSynthesize(minimaxSpeakable(vo.hook), null, hookFile);
+      const hookDur = ffprobeDuration(hookFile);
+
+      const tips = [];
+      for (let i = 0; i < unit.items.length; i++) {
+        const deFile = `${voiceDir}/german-${pack.id}-de${i}.mp3`;
+        const faFile = `${voiceDir}/german-${pack.id}-fa${i}.mp3`;
+        ttsSynthesize(unit.items[i].de, "German", deFile);
+        ttsSynthesize(minimaxSpeakable(vo.steps[i]), null, faFile);
+        tips.push({ deFile, faFile, deDur: ffprobeDuration(deFile), faDur: ffprobeDuration(faFile) });
       }
+
+      const outroFile = `${voiceDir}/german-${pack.id}-outro.mp3`;
+      ttsSynthesize(minimaxSpeakable(vo.outro), null, outroFile);
+      const outroDur = ffprobeDuration(outroFile);
+
+      voiceParts = { hookFile, hookDur, tips, outroFile, outroDur };
+
+      const MIN_TIP = 2.5;
+      pack.hookDuration = +Math.max(3.0, hookDur + LEAD + 0.8).toFixed(3);
+      pack.tipDurations = tips.map((t) => +Math.max(MIN_TIP, LEAD + t.deDur + GAP + t.faDur + SCENE_PAD).toFixed(3));
+      pack.outroDuration = +Math.max(3.6, outroDur + 1.0).toFixed(3);
+      pack.duration = +(pack.hookDuration + pack.tipDurations.reduce((a, d) => a + d, 0) + pack.outroDuration).toFixed(3);
+      pack.music = pack.music.replace(/.m4a$/, "-vo.m4a");
+      console.log(`   timing follows speech (incl. German pronunciation): ${pack.duration}s`);
     } catch (e) {
       console.error("   ✗ voice planning failed, using the beat grid:", String(e.message).split(String.fromCharCode(10))[0]);
+      voiceParts = null;
+      if (process.env.REQUIRE_VOICE === "on") throw e;
     }
   }
 
@@ -122,23 +171,46 @@ try {
   if (!existsSync(music)) music = "music/bed-60s-v1.m4a";
 
   let voice = null;
-  if (process.env.VOICE === "on") {
-    const tipLen = (pack.duration - pack.hookDuration - pack.outroDuration) / pack.tips.length;
-    const tipList = (pack.tipDurations || []).join(",");
+  if (voiceParts) {
     const vFile = `music/voice/german-${pack.id}.m4a`;
     try {
-      execSync(
-        `node music/make-voice.mjs ${pack.id} ${pack.hookDuration} ${tipLen.toFixed(3)} ` +
-        `${tipList ? `--tips ${tipList} ` : ""}` +
-        `${pack.tips.length} ${(pack.duration - pack.outroDuration).toFixed(3)} ${pack.duration} "${vFile}"`,
-        { stdio: "inherit" }
-      );
+      // Place each already-synthesised clip at its measured offset in the
+      // final track — same adelay+amix technique make-voice.mjs uses for a
+      // single line per scene, extended to two clips (German, then Persian)
+      // per tip scene.
+      const parts = [{ file: voiceParts.hookFile, at: LEAD }];
+      let sceneStart = pack.hookDuration;
+      for (let i = 0; i < voiceParts.tips.length; i++) {
+        const t = voiceParts.tips[i];
+        parts.push({ file: t.deFile, at: sceneStart + LEAD });
+        parts.push({ file: t.faFile, at: sceneStart + LEAD + t.deDur + GAP });
+        sceneStart += pack.tipDurations[i];
+      }
+      parts.push({ file: voiceParts.outroFile, at: sceneStart + LEAD });
+
+      const inputs = parts.flatMap((p) => ["-i", p.file]);
+      const delays = parts
+        .map((p, i) => `[${i + 1}:a]adelay=${Math.round(p.at * 1000)}|${Math.round(p.at * 1000)}[v${i}]`)
+        .join(";");
+      const mixIns = parts.map((_, i) => `[v${i}]`).join("");
+      const filter =
+        `${delays};[0:a]${mixIns}amix=inputs=${parts.length + 1}:duration=first:normalize=0[m];` +
+        `[m]loudnorm=I=-16:TP=-2:LRA=11[out]`;
+      execFileSync("ffmpeg", [
+        "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "lavfi", "-t", String(pack.duration), "-i", "anullsrc=r=44100:cl=stereo",
+        ...inputs,
+        "-filter_complex", filter, "-map", "[out]",
+        "-c:a", "aac", "-b:a", "192k", vFile,
+      ], { stdio: "inherit" });
+
+      for (const p of parts) if (existsSync(p.file)) unlinkSync(p.file);
       if (existsSync(vFile)) voice = vFile;
       if (!voice && process.env.REQUIRE_VOICE === "on") {
         throw new Error(`Narration did not render for "${pack.id}"`);
       }
     } catch (e) {
-      console.error("   ✗ voice failed, continuing music-only:", String(e.message).split(String.fromCharCode(10))[0]);
+      console.error("   ✗ voice assembly failed, continuing music-only:", String(e.message).split(String.fromCharCode(10))[0]);
       if (process.env.REQUIRE_VOICE === "on") throw e;
     }
   }
