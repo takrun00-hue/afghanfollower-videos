@@ -70,7 +70,7 @@ const pack = {
   // part of a Persian sentence.
   tips: unit.items.map((it) => ({ head: `${it.de} — ${it.fa}` })),
   outroAsk: `قسمت بعد: ${nextUnit.topic}`,
-  payoff: "چهار کلمهٔ تازهٔ آلمانی یاد گرفتی — سطح A1.",
+  payoff: "واژه، مکالمه و نکتهٔ گرامری تازه یاد گرفتی — سطح A1.",
   tgTitle: `🇩🇪 آموزش آلمانی هوشمند | قسمت ${episodeNo}: ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی #مکالمه #واژگان #گرامر`,
   // No mascot/character illustration — owner correction 2026-09-08.
   noCharacters: true,
@@ -82,9 +82,9 @@ const pack = {
   music: "music/bed-60s-v1.m4a",
   musicOutroBars: 4,
   hookDuration: HOOK_DUR,
-  tipDurations: [TIP_DUR, TIP_DUR, TIP_DUR, TIP_DUR],
+  tipDurations: unit.items.map(() => TIP_DUR),
   outroDuration: OUTRO_DUR,
-  duration: HOOK_DUR + TIP_DUR * 4 + OUTRO_DUR,
+  duration: HOOK_DUR + TIP_DUR * unit.items.length + OUTRO_DUR,
 };
 
 const compDir = `compositions/german/${iso}`;
