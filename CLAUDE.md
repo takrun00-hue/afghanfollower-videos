@@ -162,6 +162,30 @@ cd <project-root> && /tmp/cgc-venv/bin/cgc --database kuzudb index .
 
 It can also run as an MCP server for natural-language graph queries (`cgc mcp`, see its README) rather than the one-shot CLI report above. Sourced from the BraveOPotato/NoSignups free-tools list, owner request 2026-09-08 — it's a dev tool for exploring this repo, not a runtime dependency; nothing here needs it committed to package.json.
 
+## Persian writing QA (persian-writing)
+
+Every hook, caption, `tgTitle`, and narration line in this project is hand-written
+Persian, and this repo's own history (lib/pronounce.mjs's FIXES tables, the
+"سیو"→"سیف" mispronunciation fix) shows how easily a subtle Persian orthography or
+register issue slips through. Before shipping new hook/caption/narration text — or
+when reviewing a reported wording/register problem — run persian-writing
+(https://github.com/ali2000hos/persian-writing) instead of eyeballing it. Tested
+live 2026-09-09: `fa_lint.py --check` correctly flagged every em-dash in this
+project's `tgTitle` captions as a real style issue; `persian_cleanup.py --edit`
+confirmed this project's ZWNJ/ی-ك handling is already clean (no changes needed).
+
+```bash
+# already cloned to ~/.claude/skills/persian-writing (git clone https://github.com/ali2000hos/persian-writing ~/.claude/skills/persian-writing)
+python3 ~/.claude/skills/persian-writing/scripts/fa_lint.py --check <file.txt>     # report orthography/register issues (em dashes, attached می, fake tanvin, ...)
+python3 ~/.claude/skills/persian-writing/scripts/persian_cleanup.py --edit <file>  # safe auto-fixes: ZWNJ, ی/ک, Persian digits, spacing
+```
+
+It is a Claude Code **skill** (SKILL.md), not just a CLI — after a session restart
+it should also route automatically for Persian writing/register/de-AI-ing tasks via
+the Skill tool; the scripts above work immediately without waiting for that. Sourced
+from an owner-provided link, 2026-09-09 — a dev-time QA tool, not a runtime
+dependency; nothing here needs it committed to package.json.
+
 ## Linting — ALWAYS RUN AFTER CHANGES
 
 After creating or editing any `.html` composition, **always** run the full check before considering the task complete:
