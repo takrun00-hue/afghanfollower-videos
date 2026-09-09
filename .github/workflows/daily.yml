@@ -82,7 +82,11 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  # write, not read: the new "Persist delivery memory to git" step below
+  # commits .content-history.json / .content-registry.json / the sent
+  # markers after a real send, so the dedup record survives even if the
+  # Actions cache entry is evicted (see that step for why this matters).
+  contents: write
 
 jobs:
   render:
@@ -225,3 +229,31 @@ jobs:
             const merged = [...new Set([...existing, ...add])].slice(-60);
             fs.writeFileSync(".daily-batch-sent.json", JSON.stringify(merged, null, 2));
           ' "${markers[@]}"
+
+      # The dedup record (.content-registry.json / .content-history.json /
+      # .daily-batch-sent.json / .telegram-sent.json) previously lived ONLY in
+      # the actions/cache entry restored above — never committed to the repo.
+      # That cache is a real single point of failure: GitHub evicts a cache
+      # entry unused for 7 days, or once the repo's total cache size passes
+      # its 10GB cap (oldest first), and either one silently rewinds this
+      # workflow's memory of what it already sent — the exact failure
+      # lib/dedupe.mjs's own header comment already describes ("nothing
+      # recorded a send made outside daily-render — today's four videos are
+      # absent from the log entirely"). A viewer-reported repeat is the
+      # visible symptom of that: dedupe.mjs can only skip a topic it still
+      # remembers sending.
+      #
+      # Committing these files after every real send makes git the durable
+      # source of truth (checked out fresh every run) and the cache a pure
+      # speed optimization on top of it, the same pattern news-scan.yml
+      # already uses for .german-lesson-progress.json.
+      - name: Persist delivery memory to git
+        if: steps.gate.outputs.go == 'yes'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f .content-history.json .content-registry.json .daily-batch-sent.json .telegram-sent.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "daily: record today's ${{ steps.gate.outputs.batch }} send(s)"
+          git pull --rebase --autostash || true
+          git push || true
