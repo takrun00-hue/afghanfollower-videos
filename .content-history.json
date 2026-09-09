@@ -190,5 +190,85 @@
     "hook": "۷ اپلیکیشن هست که کمتر کسی می‌شناسدشان، ولی گوشیت را کاملاً عوض می‌کنند.",
     "messageId": 1493,
     "sentAt": "2026-09-03T22:16:09.959Z"
+  },
+  {
+    "id": "descript",
+    "platform": "tiktok",
+    "topic": "Descript",
+    "hook": "با این اپ، ادیت یک‌ساعته را در ده دقیقه تمام کن",
+    "messageId": 1617,
+    "sentAt": "2026-09-06T15:32:26.999Z"
+  },
+  {
+    "id": "descript",
+    "platform": "instagram",
+    "topic": "Descript",
+    "hook": "با این اپ، ادیت یک‌ساعته را در ده دقیقه تمام کن",
+    "messageId": 1618,
+    "sentAt": "2026-09-06T15:35:41.325Z"
+  },
+  {
+    "id": "reply-video",
+    "platform": "tiktok",
+    "topic": "Reply with video",
+    "hook": "با این ترفند، از هر کامنت یک ویدیوی وایرال بساز",
+    "messageId": 1664,
+    "sentAt": "2026-09-08T10:56:46.881Z"
+  },
+  {
+    "id": "reels-template",
+    "platform": "instagram",
+    "topic": "Reels Templates",
+    "hook": "با این قابلیت اینستاگرام، در پنج دقیقه ریلز بساز و ویو بگیر",
+    "messageId": 1665,
+    "sentAt": "2026-09-08T11:00:56.138Z"
+  },
+  {
+    "id": "adobe-podcast",
+    "platform": "instagram",
+    "topic": "Adobe Podcast",
+    "hook": "آیا صدای بد باعث می‌شود مردم ویدیویت را زود رد کنند؟",
+    "messageId": 1677,
+    "sentAt": "2026-09-08T14:40:58.718Z"
+  },
+  {
+    "id": "ideogram-text",
+    "platform": "tiktok",
+    "topic": "Ideogram",
+    "hook": "کاور و پوستر بساز، بدون اینکه دیزاینر باشی",
+    "messageId": 1678,
+    "sentAt": "2026-09-08T15:11:48.442Z"
+  },
+  {
+    "id": "google-vids-product-demo",
+    "platform": "instagram",
+    "topic": "Google Vids",
+    "hook": "برای محصولت ویدیو می‌خواهی، اما دوربین و بازیگر نداری؟",
+    "messageId": 1679,
+    "sentAt": "2026-09-08T15:17:35.812Z"
+  },
+  {
+    "id": "qa",
+    "platform": "tiktok",
+    "topic": "Q&A",
+    "hook": "بگذار فالوورهایت سوژهٔ ویدیوی بعدی‌ات را بسازند",
+    "messageId": 1716,
+    "sentAt": "2026-09-09T06:53:04.870Z"
+  },
+  {
+    "id": "carousel-captions",
+    "platform": "instagram",
+    "topic": "Slide Captions",
+    "hook": "با این آپدیت اینستاگرام، سیوِ پستت را چند برابر کن",
+    "messageId": 1717,
+    "sentAt": "2026-09-09T07:01:00.900Z"
+  },
+  {
+    "id": "cleanup-pictures",
+    "platform": "instagram",
+    "topic": "Cleanup",
+    "hook": "هر چیز اضافی را از عکست پاک کن، بدون نصب",
+    "messageId": 1721,
+    "sentAt": "2026-09-09T15:30:43.479Z"
   }
 ]
