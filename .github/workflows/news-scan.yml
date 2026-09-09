@@ -7,9 +7,17 @@ name: German A1 lesson series
 # order, never skipping or repeating (lib/german-a1.mjs + german-lesson-
 # build.mjs, .german-lesson-progress.json tracks the next episode).
 #
-# Cadence is cadence-based (>= 20h since the last successful episode), not
-# a fixed clock time, and fires on BOTH this file's own schedule AND a push
-# to .trigger-daily-dispatch — the same reliable, already-proven hourly
+# Owner request 2026-09-09: two episodes a day, at fixed Berlin clock times
+# (07:00 and 16:30) instead of the original once-a-day "20h since last
+# episode" cadence. Gate logic mirrors daily.yml's own morning/evening
+# threshold gate exactly (open-ended threshold + a per-day "already sent
+# this batch" marker, not a narrow time window — see daily.yml's header for
+# why a narrow window cannot be relied on with GitHub's own scheduler) so
+# this file inherits the same already-proven behaviour instead of a new,
+# untested one.
+#
+# Fires on BOTH this file's own schedule AND a push to
+# .trigger-daily-dispatch — the same reliable, already-proven hourly
 # trigger daily.yml uses (see that file's header for why: GitHub's own
 # schedule cron is confirmed unreliable for this repo, gaps of hours to
 # over a day). Reusing that existing push means no new trigger mechanism
@@ -36,29 +44,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the once-a-day cadence gate
+      - name: Check the twice-daily Berlin-time gate
         id: gate
         shell: bash
         run: |
-          if [ -f .german-lesson-progress.json ]; then
-            last=$(jq -r '.lastBuiltAt // empty' .german-lesson-progress.json)
-          else
-            last=""
-          fi
-          if [ -z "$last" ]; then
+          local_date="$(TZ=Europe/Berlin date '+%Y-%m-%d')"
+          local_hm="$(TZ=Europe/Berlin date '+%H:%M')"
+          echo "Berlin local time: $(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')"
+
+          already_sent() {
+            [ -f .german-lesson-batch-sent.json ] && grep -q "\"$1\"" .german-lesson-batch-sent.json
+          }
+
+          if [[ "$local_hm" > "07:00" || "$local_hm" == "07:00" ]] && ! already_sent "$local_date-morning"; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
-            echo "No episode built yet — starting the series."
+            echo "batch=morning" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
+          elif [[ "$local_hm" > "16:30" || "$local_hm" == "16:30" ]] && ! already_sent "$local_date-evening"; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=evening" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
           else
-            last_epoch=$(date -d "$last" +%s 2>/dev/null || echo 0)
-            now_epoch=$(date -u +%s)
-            age_hours=$(( (now_epoch - last_epoch) / 3600 ))
-            if [ "$age_hours" -ge 20 ]; then
-              echo "go=yes" >> "$GITHUB_OUTPUT"
-              echo "Last episode $age_hours h ago — building the next one."
-            else
-              echo "go=no" >> "$GITHUB_OUTPUT"
-              echo "Last episode $age_hours h ago — not due yet."
-            fi
+            echo "go=no" >> "$GITHUB_OUTPUT"
+            echo "Before today's next threshold (07:00/16:30 Berlin), or today's episode(s) already sent — skipping."
           fi
 
       - uses: actions/setup-node@v4
@@ -92,12 +100,28 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: node german-lesson-build.mjs
 
+      # Marks today's batch (morning/evening) delivered so a later poll the
+      # same day — however much later — does not send a second episode for
+      # the same threshold. Same pattern as daily.yml's own delivery marker.
+      - name: Record delivery marker
+        if: steps.gate.outputs.go == 'yes'
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            let existing = [];
+            try { existing = JSON.parse(fs.readFileSync(".german-lesson-batch-sent.json", "utf8")); } catch {}
+            const marker = "${{ steps.gate.outputs.date }}-${{ steps.gate.outputs.batch }}";
+            const merged = [...new Set([...existing, marker])].slice(-60);
+            fs.writeFileSync(".german-lesson-batch-sent.json", JSON.stringify(merged, null, 2));
+          '
+
       - name: Remember the next episode
         if: steps.gate.outputs.go == 'yes'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f .german-lesson-progress.json 2>/dev/null || true
+          git add -f .german-lesson-progress.json .german-lesson-batch-sent.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "german-lesson: advance to the next episode"
           git pull --rebase --autostash || true
           git push || true
