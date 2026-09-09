@@ -186,6 +186,34 @@ the Skill tool; the scripts above work immediately without waiting for that. Sou
 from an owner-provided link, 2026-09-09 — a dev-time QA tool, not a runtime
 dependency; nothing here needs it committed to package.json.
 
+## FFmpeg tooling (ffmpeg-skill)
+
+This project already hand-rolls ffmpeg calls for voice mixing (`adelay`+`amix`
+in german-lesson-build.mjs/music/make-voice.mjs), duration measurement
+(ffprobe), and the render pipeline. ffmpeg-skill
+(https://github.com/kajisho5/ffmpeg-skill) is a Python-stdlib toolkit of
+single-purpose ffmpeg scripts (probe, cut, caption, loudness, sync, platform
+`check`, contact-sheet `look`) — use it instead of writing a new one-off
+ffmpeg invocation, and especially for pre-send QC. Tested live 2026-09-09:
+`probe.py --json` on a real b-roll clip gave accurate duration/fps/codec;
+`check.py --platform tiktok` correctly PASSed loudness/codec/fps and FAILed
+the 4:5 aspect ratio against TikTok's 9:16/1:1 requirement — exactly the kind
+of platform-compliance check `VISUAL_QC_STANDARD.md`'s safe-zone rule already
+asks for by hand.
+
+```bash
+python3 ~/.claude/skills/ffmpeg-skill/scripts/probe.py <file> --json           # duration, fps, codec, VFR, HDR — plan edits from real numbers
+python3 ~/.claude/skills/ffmpeg-skill/scripts/check.py <file> --platform tiktok  # (or instagram) platform-compliance report before sending
+python3 ~/.claude/skills/ffmpeg-skill/scripts/look.py <file>                   # contact-sheet PNG — inspect a picture change, not just probe it
+```
+
+Every script takes `--dry-run --json` to preview the ffmpeg command before a
+long encode, and `--help` for its full flags (`references/scripts.md` in the
+skill has exact per-tool semantics). Installed via its own installer
+(`node bin/install.js`, copies into `~/.claude/skills/ffmpeg-skill`) — a
+dev-time tool, not a runtime dependency; nothing here needs it committed to
+package.json.
+
 ## Linting — ALWAYS RUN AFTER CHANGES
 
 After creating or editing any `.html` composition, **always** run the full check before considering the task complete:
