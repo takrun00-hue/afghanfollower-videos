@@ -489,7 +489,17 @@ jobs:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node music/minimax-voices.mjs --telegram
+          # Reuses the existing PAYLOAD output — "صداها" alone (PAYLOAD empty)
+          # keeps the original Persian-only behaviour; a workflow_dispatch
+          # payload like "German" lists that language's voices instead
+          # (music/minimax-voices.mjs --lang).
+          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
+        run: |
+          if [ -n "$PAYLOAD" ]; then
+            node music/minimax-voices.mjs --telegram --lang "$PAYLOAD"
+          else
+            node music/minimax-voices.mjs --telegram
+          fi
 
       # ---- news channel ----------------------------------------------------
       - name: Scan for new stories now

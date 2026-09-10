@@ -44,22 +44,43 @@ if (!response.ok || data?.base_resp?.status_code !== 0) {
 }
 const all = ["system_voice", "voice_cloning", "voice_generation"]
   .flatMap((kind) => (data[kind] || []).map((voice) => ({ kind, ...voice })));
+
+// Which language to filter for. Defaults to Persian (the project's own
+// narration voice, unchanged behaviour for every existing caller); pass
+// --lang <name> for any other language_boost target this project supports
+// via an override (e.g. "German" for german-lesson-build.mjs's word
+// pronunciation — owner report 2026-09-10 that the German word clips still
+// sound accented, because they reuse the Persian voice with only
+// language_boost overridden, never a language-appropriate voice_id).
+const langArgIdx = process.argv.indexOf("--lang");
+const targetLang = langArgIdx >= 0 ? process.argv[langArgIdx + 1] : "Persian";
 // Match complete language labels only. A substring search for `dari` wrongly
 // matched every `Mandarin` voice (Man<dari>n), which is why Chinese voices
-// appeared under the Persian heading.
-const isPersianLabel = (value) => /(^|[^a-z])(?:persian|farsi|dari|iranian|afghan)(?=$|[^a-z])/i.test(String(value));
-const persian = all.filter((voice) => isPersianLabel(
+// appeared under the Persian heading. Each language gets its own alias set
+// (Persian has real alternate names in MiniMax's labels; German's own
+// aliases below are the same pattern, kept separate so tuning one never
+// silently shifts the other).
+const LABEL_ALIASES = {
+  persian: ["persian", "farsi", "dari", "iranian", "afghan"],
+  german: ["german", "deutsch"],
+};
+const aliases = LABEL_ALIASES[targetLang.toLowerCase()] || [targetLang.toLowerCase()];
+const isTargetLabel = (value) => new RegExp(
+  `(^|[^a-z])(?:${aliases.join("|")})(?=$|[^a-z])`, "i",
+).test(String(value));
+const matched = all.filter((voice) => isTargetLabel(
   `${voice.voice_id || ""} ${voice.voice_name || ""} ${(voice.description || []).join(" ")}`
 ));
-// MiniMax may list a multilingual Persian voice by ID only in a project's
-// saved configuration, not in get_voice. Never fall back to unrelated Chinese
-// voices and call them Persian — that makes selection misleading and produces
-// the wrong pronunciation.
-const configuredPersian = process.env.MINIMAX_VOICE_ID
+// MiniMax may list a multilingual voice by ID only in a project's saved
+// configuration, not in get_voice. Never fall back to an unrelated voice
+// and call it a match — that makes selection misleading and produces the
+// wrong pronunciation. Only applies to the Persian default, since that is
+// the one language with an actual saved project voice_id right now.
+const configuredMatch = (targetLang.toLowerCase() === "persian" && process.env.MINIMAX_VOICE_ID)
   ? [{ voice_id: process.env.MINIMAX_VOICE_ID, voice_name: "صدای فارسی پیش‌فرض پروژه", kind: "configured" }]
   : [];
 const unique = (items) => [...new Map(items.filter((v) => v.voice_id).map((v) => [v.voice_id, v])).values()];
-const voices = unique([...configuredPersian, ...persian]);
+const voices = unique([...configuredMatch, ...matched]);
 if (process.argv.includes("--telegram")) {
   const tg = telegramConfig(loadEnv());
   if (!tg.enabled) {
@@ -69,10 +90,10 @@ if (process.argv.includes("--telegram")) {
   const lines = voices.slice(0, 18).map((voice, index) =>
     `${index + 1}. <code>${String(voice.voice_id || "")}</code>\n${String(voice.voice_name || voice.kind || "MiniMax voice")}`
   );
-  const note = persian.length
-    ? "صداهای Persian قابل استفاده:"
-    : "فقط صدای Persian تنظیم‌شدهٔ پروژه نمایش داده می‌شود؛ صدای غیر Persian حذف شد.";
-  const body = lines.length ? lines.join("\n\n") : "فعلاً Voice ID فارسی در تنظیمات پروژه نیست.";
+  const note = matched.length
+    ? `صداهای ${targetLang} قابل استفاده:`
+    : `فقط صدای ${targetLang} تنظیم‌شدهٔ پروژه نمایش داده می‌شود؛ صدای غیر ${targetLang} حذف شد.`;
+  const body = lines.length ? lines.join("\n\n") : `فعلاً Voice ID ${targetLang} در تنظیمات پروژه نیست.`;
   const plan = await tokenPlanReport();
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
