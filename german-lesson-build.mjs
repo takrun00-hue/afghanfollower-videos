@@ -80,10 +80,24 @@ const lessonCounter = `A1 • ${String(episodeNo).padStart(3, "0")}/${COURSE_TOT
 const HOOK_DUR = 4, TIP_DUR = 4, OUTRO_DUR = 5;
 const pack = {
   id: unit.id,
+  // Distinguishes this series from every other "news"-platform pack for
+  // lib/retention.mjs's hook nudge line (NEWS_NUDGES talks about "خبر" —
+  // a news story — which reads as nonsense under a vocabulary lesson;
+  // owner report 2026-09-10) without touching the news pipeline's own
+  // platform value or layout.
+  kind: "german-lesson",
   platform: "news", // unbranded layout, same as the news channel this replaces
   feature: `آموزش آلمانی A1 — قسمت ${episodeNo}`,
   title: `آموزش آلمانی هوشمند — قسمت ${episodeNo}: ${unit.topic}`,
-  hook: { ask: unit.hook, l1: "آموزش آلمانی هوشمند", l2: `${lessonCounter} · ${unit.topic}` },
+  hook: { ask: unit.hook, l1: "آموزش آلمانی هوشمند" },
+  // build-ink.mjs's hook scene renders this in the `.kick` slot at the very
+  // top of the hook — it was defaulting to the generic "قابلیت" ("Feature"),
+  // a leftover from the app-tutorial template this renderer was built for,
+  // which read as meaningless over a language lesson (owner report
+  // 2026-09-10). This is also the on-screen home for the "A1 • 0XX/100"
+  // lesson counter (MASTER SYSTEM spec sec. 17) — there is no other slot
+  // that renders it.
+  kicker: lessonCounter,
   // Each on-screen card shows the German word/phrase AND its Persian
   // meaning (with register — رسمی/غیررسمی — spelled out where it matters);
   // the spoken narration (lib/narration.mjs, VO[unit.id]) stays Persian for
@@ -217,6 +231,13 @@ try {
     pack.tips[i].photo = found.photo;
     pack.tips[i].photoAlt = found.alt;
     pack.tips[i].photoFocus = "subject-wide";
+    // A real vocabulary photo is never device-shaped, so lib/build-ink.mjs's
+    // usual native-aspect-ratio "panel" (sized to whatever the source photo
+    // happens to be — often a wide 4:3/16:9 web photo) rendered small,
+    // horizontal and high up on the vertical canvas (owner report
+    // 2026-09-10). photoAspect forces a fixed portrait ratio instead; the
+    // frame's own object-fit:cover crops the source photo into it cleanly.
+    pack.tips[i].photoAspect = 0.75;
   }
   assertVisualProof(pack);
 
