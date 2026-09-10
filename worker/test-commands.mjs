@@ -8,7 +8,6 @@ assert.equal(videoAction("تیک تاک بساز").action, "build-tiktok");
 assert.equal(videoAction("انستا بساز").action, "build-instagram");
 assert.equal(videoAction("بساز").action, "build-all");
 assert.equal(videoAction("تأیید محتوا").action, "content-approve");
-assert.equal(videoAction("تأیید خبر").action, "news-approve-draft");
 assert.equal(videoAction("محتوا: یک موضوع واقعی با سه گام کامل برای ویدیوی آموزشی").action, "custom-content");
 assert.equal(videoAction("ویدیو مستقیم: یک موضوع واقعی با سه گام کامل برای ویدیوی آموزشی").action, "custom-content-media");
 assert.equal(menuCode("۱"), "1");

@@ -19,10 +19,8 @@ import { parseCommand } from "./lib/commands.mjs";
 const bot = readFileSync("bot.mjs", "utf8");
 
 // Phrases a real user would actually type, one per action this test covers.
-// Not every commands.mjs action is here — news/amal/undo commands are a
-// separate pipeline (German Insider / Amal), routed through worker/src/
-// index.js's own cloud dispatch, not bot.mjs; that split may be intentional
-// and isn't this test's concern.
+// Not every commands.mjs action is here — undo is a keyword check bot.mjs
+// answers before parseCommand runs, so it isn't in scope for this test.
 const CASES = [
   ["تیک‌تاک بساز", "build-tiktok"],
   ["انستا بساز", "build-instagram"],
@@ -36,7 +34,6 @@ const CASES = [
   ["تأیید تصویر trial-reels 2", "approved-screen"],
   ["صداها", "voice-list"],
   ["رادار محتوا", "content-radar"],
-  ["رادار خبر", "news-radar"],
   ["فردا", "build-tomorrow"],
   ["بفرست", "resend"],
   ["وضعیت", "status"],

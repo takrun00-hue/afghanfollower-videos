@@ -124,14 +124,14 @@ if (action === "help") {
 } else if (action === "status") {
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
-    text: "✅ سیستم ابری فعال است و فرمان‌های تلگرام را هر چند دقیقه اجرا می‌کند. «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «بساز»، «فردا»، «خبر فوری» و «بفرست» آماده‌اند.",
+    text: "✅ سیستم ابری فعال است و فرمان‌های تلگرام را هر چند دقیقه اجرا می‌کند. «تیک‌تاک بساز»، «انستا بساز»، «ابزار بساز»، «بساز»، «فردا» و «بفرست» آماده‌اند.",
   });
   console.log("ACTION=none");
 } else if (action === "undo") {
   console.log("ACTION=undo");
 } else if (action !== "none") {
   const planning = action.startsWith("plan-") || action === "research";
-  const building = action.startsWith("build-") || action === "approved-feature" || action === "resend" || action.startsWith("news-") && !["news-scan", "news-germany", "news-europe", "news-today"].includes(action);
+  const building = action.startsWith("build-") || action === "approved-feature" || action === "resend";
   await sendMessage({
     token: tg.token, chatId: tg.chatId,
     text: planning
@@ -142,11 +142,9 @@ if (action === "help") {
   });
   console.log(`ACTION=${action}`);
   console.log(`PICK=${pick}`);
-  // strip the "خبر:" prefix and flatten newlines — GITHUB_OUTPUT is line-based,
-  // so a multi-line value would break the parsing of everything after it
-  const payload = action === "news-search-live"
-    ? String(payloadText).replace(/^\s*جستجو(?:ی)?\s+(?:خبر|اخبار)\s*[:：]?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 300)
-    : cleanPayload(payloadText);
+  // flatten newlines — GITHUB_OUTPUT is line-based, so a multi-line value
+  // would break the parsing of everything after it
+  const payload = cleanPayload(payloadText);
   console.log(`PAYLOAD=${payload}`);
   if (photoFileId) console.log(`PHOTO_FILE_ID=${photoFileId}`);
 } else {
