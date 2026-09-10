@@ -461,3 +461,43 @@ fatha, «دَه» (/dah/), or the engine says /deh/ (village) — the wrong numb
 Added «ده دقیقه»/«ده بار»/«ده ثانیه» only. **Rejected:** a bare «ده»→«دَه»
 replace — bare «ده» is also the imperative «ده» (give, «نشان ده») which is /deh/
 and must stay. Verified «نشان ده» is untouched.
+
+### German word clips read with an English-accented voice — FIXED, 2026-09-10
+Reported live: the German A1 series' German word/phrase clip was carrying
+`APPROVED.voiceId` (`Arabic_CalmWoman`) with only `language_boost=German` —
+language_boost changes reading rules, not the underlying voice, so it still
+sounded English/Arabic-accented, not German.
+**Action:** `music/minimax-voices.mjs` generalised to accept `--lang <name>`
+(was Persian-only); a live `get_voice` scan for German confirmed real system
+voices exist (`German_FriendlyMan`, `German_SweetLady`, `German_PlayfulMan`).
+Picked `German_SweetLady` (female, matching `APPROVED`'s gender) and wired it
+into `german-lesson-build.mjs` via `ttsSynthesize(..., GERMAN_WORD_VOICE_ID)`
+for the German-word clip only — every other clip in the pack (hook, Persian
+explanation, outro) stays on the Persian-approved voice.
+**Test:** episode 9 (a1-01-greetings) rebuilt and sent live, run 34516805328 —
+job log confirms `German_SweetLady` was the voice used for the German word
+clip, build completed with 0 errors. Owner listened and confirmed: "ویدیو را
+دیدم درست بود".
+**Status: LOCKED.** `GERMAN_WORD_VOICE_ID = "German_SweetLady"` in
+`lib/voice-settings.mjs`, next to `APPROVED`.
+
+### Persian `MINIMAX_VOICE_ID` secret — flagged, not resolved here
+Same test run (34516805328, 2026-09-10) shows the CI job printing "voice
+differs from the approved reading — voiceId: *** (approved: Arabic_CalmWoman)"
+for the Persian clips — the `MINIMAX_VOICE_ID` GitHub secret is currently
+overriding `APPROVED.voiceId` project-wide, not just for this build. The
+actual value is masked (`***`) in every CI log this session could read, so it
+is **not recorded here** — this entry only documents that an override is
+live and that this particular build did not error and was accepted by ear.
+Earlier in this same troubleshooting session the secret was seen set to
+`Persian_female_1_v1`, which two independent live `get_voice` scans and one
+direct `t2a_v2` synthesis call all confirmed does **not** exist in this
+MiniMax account (`"MiniMax TTS failed: voice id not exist"`) — that value
+cannot be what produced this successful run. The owner reported re-setting
+the secret again before this test ("این را از می‌نی‌مکس کاپی کردم") but the
+resulting value was never shared in chat and cannot be read from a secret.
+**Not LOCKED.** Per this file's own rule, an override this session cannot
+verify by name should not be treated as the new approved Persian voice — if
+it is meant to replace `Arabic_CalmWoman` going forward, the owner should
+either state the exact voice_id here for the record, or remove the
+`MINIMAX_VOICE_ID` secret to fall back to the documented, LOCKED value.
