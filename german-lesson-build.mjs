@@ -91,7 +91,17 @@ const pack = {
   // (see the voice section below), never mispronounced by reading it as
   // part of a Persian sentence. The German half is run through
   // colorArticle() so a leading der/die/das keeps its fixed course colour.
-  tips: unit.items.map((it) => ({ head: `${colorArticle(it.de)} — ${it.fa}` })),
+  // step: forces build-ink.mjs's kindOf() to pick the "step" scene kind,
+  // which is the ONLY kind that actually renders tip.photo — every other
+  // kind (the "paper" default this pack fell into before) shows a generic
+  // decorative icon and silently ignores tip.photo entirely. Without this,
+  // findLessonImage()'s real photos were fetched but never displayed —
+  // every episode looked identical regardless of vocabulary (owner report
+  // 2026-09-10: "همان طرح قبلی است"). Confirmed via lib/build-ink.mjs: a
+  // real photo's aspect ratio classifies as "panel"/"wide" (not "phone"),
+  // so it renders full-frame with no iPhone chrome and no fake UI overlay —
+  // exactly what MASTER SYSTEM spec sec. 3/5 requires.
+  tips: unit.items.map((it, i) => ({ head: `${colorArticle(it.de)} — ${it.fa}`, step: i + 1 })),
   outroAsk: `قسمت بعد: ${nextUnit.topic}`,
   payoff: "واژه، مکالمه و نکتهٔ گرامری تازه یاد گرفتی — سطح A1.",
   tgTitle: `🇩🇪 آموزش آلمانی هوشمند | ${lessonCode} — ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی #مکالمه #واژگان #گرامر`,
