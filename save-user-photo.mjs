@@ -5,7 +5,7 @@
 // with the exact id to reply with, instead of stopping at "no real photo".
 //
 //   node save-user-photo.mjs <feature-id> <telegram-file-id>
-import { existsSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage, downloadFile } from "./lib/telegram.mjs";
@@ -22,10 +22,25 @@ const say = async (text) => { if (tg.enabled) await sendMessage({ token: tg.toke
 // The caption is free text typed on a phone — keep only what a filename
 // needs and can safely hold, same character class the "تأیید تصویر" id
 // pattern in lib/commands.mjs already requires.
-const id = String(rawId || "").trim().toLowerCase().match(/[a-z0-9-]+/)?.[0] || "";
+const idFromCaption = String(rawId || "").trim().toLowerCase().match(/[a-z0-9-]+/)?.[0] || "";
+
+// Owner report 2026-09-10: typing the exact feature id by hand on a phone
+// keyboard is real friction, and it's unnecessary the moment there is only
+// one pending tutorial draft to attach a photo to — content-draft.mjs's own
+// DRAFT file already names it. A caption still wins when given (so a second,
+// unrelated draft can be targeted on purpose); this is a fallback, not a
+// replacement for the size/real-photo checks below, which still apply.
+function currentDraftFeatureId() {
+  try {
+    const draft = JSON.parse(readFileSync(".content-draft.json", "utf8"));
+    return String(draft.featureId || "").trim().toLowerCase().match(/[a-z0-9-]+/)?.[0] || "";
+  } catch { return ""; }
+}
+
+const id = idFromCaption || currentDraftFeatureId();
 
 if (!id || !fileId) {
-  await say('کپشن عکس باید فقط شناسهٔ همان قابلیت باشد — مثلاً «tt-schedule»، بدون فاصله یا کلمهٔ اضافه.');
+  await say('این عکس را به کدام موضوع مربوط کنم؟ کپشن عکس را شناسهٔ همان قابلیت بگذارید — مثلاً «tt-schedule» — یا اول یک پیش‌نویس فعال بسازید.');
   process.exit(0);
 }
 if (!tg.enabled) { console.error("Telegram not configured."); process.exit(1); }
