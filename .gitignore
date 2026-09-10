@@ -1,6 +1,9 @@
 # secrets — never commit
 .env
 
+# Claude Code session-local runtime state (session id/pid/lock), not project content
+.claude/
+
 # generated / heavy
 node_modules/
 renders/
