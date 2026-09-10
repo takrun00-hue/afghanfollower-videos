@@ -55,26 +55,57 @@ const unit = germanUnitAt(idx);
 const episodeNo = idx + 1;
 const nextUnit = germanUnitAt(idx + 1);
 
+// Article colour-coding (owner's MASTER SYSTEM spec, 2026-09-10, sec. 2 & 11):
+// der = blue, die = red, das = green, fixed for the whole course. A noun is
+// never taught without its Artikel (lib/german-a1.mjs already only attaches
+// der/die/das to real nouns, e.g. a1-06-family — verbs, phrases and question
+// words correctly carry none), so this only ever colours the leading
+// der/die/das token when one is actually present.
+const ARTICLE_COLOR = { der: "#3B82F6", die: "#EF4444", das: "#22C55E" };
+function colorArticle(de) {
+  const m = /^(der|die|das)\s+(.*)$/.exec(de);
+  if (!m) return de;
+  const [, art, rest] = m;
+  return `<span style="color:${ARTICLE_COLOR[art]}">${art}</span> ${rest}`;
+}
+
+// Total course length for the "A1 • 0XX/100" on-screen counter (sec. 17).
+// GERMAN_A1 currently holds fewer than 100 real lessons; the denominator
+// names the target course length the roadmap (sec. 16, 30 modules) is
+// building toward, not a claim that 100 already exist.
+const COURSE_TOTAL = 100;
+const lessonCode = `A1-${String(episodeNo).padStart(3, "0")}`;
+const lessonCounter = `A1 • ${String(episodeNo).padStart(3, "0")}/${COURSE_TOTAL}`;
+
 const HOOK_DUR = 4, TIP_DUR = 4, OUTRO_DUR = 5;
 const pack = {
   id: unit.id,
   platform: "news", // unbranded layout, same as the news channel this replaces
   feature: `آموزش آلمانی A1 — قسمت ${episodeNo}`,
   title: `آموزش آلمانی هوشمند — قسمت ${episodeNo}: ${unit.topic}`,
-  hook: { ask: unit.hook, l1: "آموزش آلمانی هوشمند", l2: `قسمت ${episodeNo} · سطح A1` },
+  hook: { ask: unit.hook, l1: "آموزش آلمانی هوشمند", l2: `${lessonCounter} · ${unit.topic}` },
   // Each on-screen card shows the German word/phrase AND its Persian
   // meaning (with register — رسمی/غیررسمی — spelled out where it matters);
   // the spoken narration (lib/narration.mjs, VO[unit.id]) stays Persian for
   // the explanation, with the German itself actually pronounced separately
   // (see the voice section below), never mispronounced by reading it as
-  // part of a Persian sentence.
-  tips: unit.items.map((it) => ({ head: `${it.de} — ${it.fa}` })),
+  // part of a Persian sentence. The German half is run through
+  // colorArticle() so a leading der/die/das keeps its fixed course colour.
+  tips: unit.items.map((it) => ({ head: `${colorArticle(it.de)} — ${it.fa}` })),
   outroAsk: `قسمت بعد: ${nextUnit.topic}`,
   payoff: "واژه، مکالمه و نکتهٔ گرامری تازه یاد گرفتی — سطح A1.",
-  tgTitle: `🇩🇪 آموزش آلمانی هوشمند | قسمت ${episodeNo}: ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی #مکالمه #واژگان #گرامر`,
-  // No mascot/character illustration — owner correction 2026-09-08.
+  tgTitle: `🇩🇪 آموزش آلمانی هوشمند | ${lessonCode} — ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی #مکالمه #واژگان #گرامر`,
+  // No mascot/character illustration — owner correction 2026-09-08, reaffirmed
+  // 2026-09-10 (MASTER SYSTEM spec sec. 5: CHARACTER_MODE=DISABLED, no AI
+  // avatar; real contextual images + typography + motion graphics only).
   noCharacters: true,
-  ink: { pair: ["#1B4B8A", "#C8102E"], paper: "#F5F1E8", tint: "rgba(27,75,138,.10)" },
+  // Exact palette from the owner's MASTER SYSTEM spec (sec. 2, 2026-09-10):
+  // background #F7F6F2, primary text #111111, German accent #E53935,
+  // secondary #F2C94C. PAIR[0] drives most on-screen text/accents in this
+  // renderer, PAIR[1] the secondary band colour — mapped so the dominant
+  // colour a viewer actually sees is the spec's German accent red, with the
+  // near-black spec text colour as the second ink.
+  ink: { pair: ["#E53935", "#111111"], paper: "#F7F6F2", tint: "rgba(229,57,53,.08)" },
   outro: { tag: "هر روز یک قدم به آلمانی بهتر —<br/>ما را دنبال کن.", follow: "دنبال کنید +" },
   mood: "calm",
   bpm: 92,
