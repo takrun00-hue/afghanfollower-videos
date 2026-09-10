@@ -1,14 +1,14 @@
 {
-  "at": "2026-09-10T17:07:49.319Z",
+  "at": "2026-09-10T19:13:03.247Z",
   "rows": [
     {
       "cat": "instagram",
-      "title": "Instagram Now Lets You Add Tagged Photos To Your Profile Grid",
-      "url": "https://www.engadget.com/2254580/instagram-lets-you-add-tagged-photos-to-profile-grid/",
+      "title": "Instagram’s latest feature lets you add tagged posts to your profile grid | TechCrunch",
+      "url": "https://techcrunch.com/2026/09/10/instagrams-latest-feature-lets-you-add-tagged-posts-to-your-profile-grid/",
       "date": "2026-09-10",
       "sources": 8,
       "clear": true,
-      "score": 29
+      "score": 30
     },
     {
       "cat": "instagram",
@@ -47,6 +47,15 @@
       "score": 28
     },
     {
+      "cat": "tools",
+      "title": "Meet SwitchX 2.0 — 4K, 20s, 10-bit, Camera Tracking & Fast Motion",
+      "url": "https://beeble.ai/research/switchx-2-0",
+      "date": "2026-09-09",
+      "sources": 7,
+      "clear": true,
+      "score": 28
+    },
+    {
       "cat": "instagram",
       "title": "Introducing Muse: Your Personal AI Agent | Instagram for Creators",
       "url": "https://creators.instagram.com/blog/introducing-muse-personal-ai-agent/",
@@ -65,12 +74,12 @@
       "score": 27
     },
     {
-      "cat": "tools",
-      "title": "ChatGPT Images 2.5 is out — I’ve been testing it for 24 hours, and these are the 3 new features you’ll actually use | TechRadar",
-      "url": "https://www.techradar.com/ai-platforms-assistants/chatgpt/chatgpt-images-2-5-is-out-ive-been-testing-it-for-24-hours-and-these-are-the-3-new-features-youll-actually-use",
-      "date": "2026-09-08",
-      "sources": 7,
-      "clear": false,
+      "cat": "tiktok",
+      "title": "TikTok Turns Comments Into a Multimedia Feed: Voice Notes, Polls and Carousels Arrive",
+      "url": "https://www.webpronews.com/tiktok-turns-comments-into-a-multimedia-feed-voice-notes-polls-and-carousels-arrive/",
+      "date": "2026-09-04",
+      "sources": 8,
+      "clear": true,
       "score": 24
     },
     {
@@ -87,14 +96,23 @@
       "title": "TikTok’s comments section is getting audio messages. | The Verge",
       "url": "https://www.theverge.com/tech/989929/tiktoks-comments-section-is-getting-audio-messages",
       "date": "2026-09-03",
-      "sources": 7,
+      "sources": 8,
       "clear": true,
       "score": 23
     },
     {
       "cat": "tiktok",
-      "title": "TikTok Introduces Voice Comments And Simplified Polls",
-      "url": "https://www.engadget.com/2250517/tiktok-introduces-voice-comments-and-simplified-polls/",
+      "title": "TikTok announces new ways to comment, including voice messages ...",
+      "url": "https://www-cdn.abcnews.com/GMA/Living/tiktok-announces-new-ways-comment-including-voice-messages/story?id=136153358",
+      "date": "2026-09-03",
+      "sources": 8,
+      "clear": true,
+      "score": 23
+    },
+    {
+      "cat": "tiktok",
+      "title": "Video TikTok to add new features for comments - ABC News",
+      "url": "https://www-cdn.abcnews.com/video/136179070/",
       "date": "2026-09-03",
       "sources": 8,
       "clear": true,
@@ -114,8 +132,8 @@
     {
       "n": 1,
       "cat": "instagram",
-      "title": "Instagram Now Lets You Add Tagged Photos To Your Profile Grid",
-      "url": "https://www.engadget.com/2254580/instagram-lets-you-add-tagged-photos-to-profile-grid/"
+      "title": "Instagram’s latest feature lets you add tagged posts to your profile grid | TechCrunch",
+      "url": "https://techcrunch.com/2026/09/10/instagrams-latest-feature-lets-you-add-tagged-posts-to-your-profile-grid/"
     },
     {
       "n": 2,
@@ -144,20 +162,26 @@
     {
       "n": 6,
       "cat": "tools",
-      "title": "Adobe Puts a Prompt Layer Across Pro Video | DIGITAL PRODUCTION",
-      "url": "https://digitalproduction.com/2026/09/08/adobe-puts-a-prompt-layer-across-pro-video/"
+      "title": "Meet SwitchX 2.0 — 4K, 20s, 10-bit, Camera Tracking & Fast Motion",
+      "url": "https://beeble.ai/research/switchx-2-0"
     },
     {
       "n": 7,
+      "cat": "tiktok",
+      "title": "TikTok Turns Comments Into a Multimedia Feed: Voice Notes, Polls and Carousels Arrive",
+      "url": "https://www.webpronews.com/tiktok-turns-comments-into-a-multimedia-feed-voice-notes-polls-and-carousels-arrive/"
+    },
+    {
+      "n": 8,
       "cat": "tiktok",
       "title": "TikTok’s comments section is getting audio messages. | The Verge",
       "url": "https://www.theverge.com/tech/989929/tiktoks-comments-section-is-getting-audio-messages"
     },
     {
-      "n": 8,
+      "n": 9,
       "cat": "tiktok",
-      "title": "TikTok Introduces Voice Comments And Simplified Polls",
-      "url": "https://www.engadget.com/2250517/tiktok-introduces-voice-comments-and-simplified-polls/"
+      "title": "TikTok announces new ways to comment, including voice messages ...",
+      "url": "https://www-cdn.abcnews.com/GMA/Living/tiktok-announces-new-ways-comment-including-voice-messages/story?id=136153358"
     }
   ]
 }
