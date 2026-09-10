@@ -157,9 +157,21 @@ console.log(`\n=== german-lesson episode ${episodeNo}: ${unit.topic} (${unit.id}
 // scene) with the same technique in miniature: synthesise every clip first,
 // measure it, then size the scene to fit — see make-voice.mjs's own
 // adelay+amix approach, reused directly below.
-function ttsSynthesize(text, languageBoost, outFile) {
+//
+// language_boost alone was not enough either (owner report 2026-09-10: the
+// German clips still came out sounding English-accented) — every clip, the
+// German word included, was still synthesised with the project's approved
+// Persian narration voice ("Arabic_CalmWoman"), which was never auditioned
+// for German at all. Confirmed via a live `get_voice` API call (through the
+// generalized music/minimax-voices.mjs --lang) that MiniMax has real
+// German-native system voices; GERMAN_VOICE_ID picks one of them
+// specifically for the German-word clip, leaving the approved Persian
+// voice (used for every other clip, hook, and outro) untouched.
+const GERMAN_VOICE_ID = "German_SweetLady"; // female, matches the Persian narrator's voice gender
+function ttsSynthesize(text, languageBoost, outFile, voiceId) {
   const env = { ...process.env };
   if (languageBoost) env.MINIMAX_LANGUAGE_BOOST = languageBoost;
+  if (voiceId) env.MINIMAX_VOICE_ID = voiceId;
   execFileSync("node", ["music/minimax-tts.mjs", text, "-o", outFile], { env, stdio: "inherit" });
 }
 function ffprobeDuration(file) {
@@ -191,7 +203,7 @@ try {
       for (let i = 0; i < unit.items.length; i++) {
         const deFile = `${voiceDir}/german-${pack.id}-de${i}.mp3`;
         const faFile = `${voiceDir}/german-${pack.id}-fa${i}.mp3`;
-        ttsSynthesize(unit.items[i].de, "German", deFile);
+        ttsSynthesize(unit.items[i].de, "German", deFile, GERMAN_VOICE_ID);
         ttsSynthesize(minimaxSpeakable(vo.steps[i]), null, faFile);
         tips.push({ deFile, faFile, deDur: ffprobeDuration(deFile), faDur: ffprobeDuration(faFile) });
       }
