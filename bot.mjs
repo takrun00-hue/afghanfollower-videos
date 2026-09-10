@@ -130,68 +130,6 @@ export async function handle(text) {
     catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
     return;
   }
-  if (cmd && cmd.action === "news-radar") {
-    await say("📡 در حال رتبه‌بندی خبرها به میزان خبرساز بودن…");
-    try { execSync("node news-radar.mjs", { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-    return;
-  }
-
-  if (cmd && (cmd.action === "news-scan" || cmd.action === "news-search-live")) {
-    const query = cmd.action === "news-search-live"
-      ? text.replace(/^\s*جستجو(?:ی)?\s+(?:خبر|اخبار)\s*[:：]?\s*/i, "").trim().slice(0, 300)
-      : "";
-    await say(query ? `🔎 در حال جستجوی زندهٔ خبر دربارهٔ «${query}»…` : "🔎 در حال جستجوی تازه‌ترین خبرهای آلمان و اروپا…");
-    try { execFileSync("node", ["news-scan.mjs", ...(query ? ["--query", query] : [])], { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطای جستجوی خبر: " + String(e.message).split(String.fromCharCode(10))[0]); }
-    return;
-  }
-  if (cmd && (cmd.action === "news-breaking" || cmd.action === "news-today")) {
-    await say("📰 در حال جستجوی خبر…");
-    const flag = cmd.action === "news-today" ? " --today --list" : "";
-    try { execSync("node news-build.mjs --fetch" + flag, { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-    return;
-  }
-
-  if (cmd && (cmd.action === "news-germany" || cmd.action === "news-europe")) {
-    const eu = cmd.action === "news-europe";
-    await say(eu ? "🇪🇺 در حال جستجوی خبرهای اروپا و مهاجرت…" : "🇩🇪 در حال جستجوی خبرهای آلمان…");
-    try { execSync("node news-build.mjs --fetch --list" + (eu ? " --europe" : ""), { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-    return;
-  }
-
-  if (cmd && cmd.action === "europe-pick") {
-    const n = String(text).replace(/[^0-9۰-۹]/g, "").replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
-    await say("🎬 در حال ساخت ویدیو از خبر اروپای شمارهٔ " + n + "…");
-    try { execSync("node news-build.mjs --fetch --europe --pick " + (Number(n) || 1), { stdio: "inherit" }); return say("✅ ساخته و فرستاده شد."); }
-    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-  }
-
-  if (cmd && cmd.action === "news-pick") {
-    const n = String(text).replace(/[^0-9۰-۹]/g, "").replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
-    await say("🎬 در حال ساخت ویدیو از خبر شمارهٔ " + n + "…");
-    try { execSync("node news-build.mjs --fetch --pick " + (Number(n) || 1), { stdio: "inherit" }); return say("✅ ساخته و فرستاده شد."); }
-    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-  }
-
-  if (cmd && cmd.action === "news-text") {
-    const payload = text.replace(/^\s*(خبر|news)\s*[:：]\s*/i, "").trim();
-    if (payload.length < 20) return say("متن خبر خیلی کوتاه است. این شکل را بفرست:\nخبر: تیتر | جمله ۱ | جمله ۲ | جمله ۳ | جمله ۴");
-    await say("🎬 در حال ساخت ویدیوی خبری…");
-    try {
-      execSync("node news-build.mjs --text " + JSON.stringify(payload), { stdio: "inherit" });
-      return say("✅ ویدیوی خبری ساخته و فرستاده شد.");
-    } catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-  }
-
-  if (cmd && cmd.action === "undo-news") {
-    try { execSync("node undo-send.mjs 1 --news", { encoding: "utf8" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-    return;
-  }
-
   if (cmd && cmd.action === "undo") {
     try { execSync("node undo-send.mjs", { encoding: "utf8" }); }
     catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }

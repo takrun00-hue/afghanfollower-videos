@@ -1,8 +1,8 @@
 // A number the operator sends refers to the list they were just shown.
 //
-// This is the fault that has now appeared three times in three different
-// commands: «خبر ۱» re-ran the search and built a different story, «موضوع ۲»
-// re-ranked and built a different topic. Each time the code looked right —
+// This is the fault that has now appeared more than once in different
+// commands: «موضوع ۲» re-ranked and built a different topic. Each time the
+// code looked right —
 // index N of a list — and each time the list was not the one on screen.
 //
 // The proposal cooldown made it worse rather than better: the ids just offered
@@ -28,17 +28,6 @@ const CASES = [
     pick: 2,
     expect: "tt-story-highlights",
     resolve(rows, n) { return rows.find((r) => r.n === n)?.id; },
-  },
-  {
-    name: "«خبر ۱» → news-build --pick",
-    file: ".news-queue.json",
-    rows: [
-      { n: 1, title: "هشدار مرکل", url: "https://x", source: "DW", sentences: ["s1", "s2"] },
-      { n: 2, title: "گزارش دیگر", url: "https://y", source: "X", sentences: ["s1", "s2"] },
-    ],
-    pick: 1,
-    expect: "هشدار مرکل",
-    resolve(rows, n) { return rows.find((r) => r.n === n)?.title; },
   },
   {
     name: "«منبع ۲» → source-draft",

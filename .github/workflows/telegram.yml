@@ -3,10 +3,10 @@ name: Telegram video runner
 # Receives explicit render jobs from the real-time Telegram Worker and acts in
 # the cloud — so videos can be ordered from the phone with the PC switched off.
 #
-# Every action the command parser can return must be handled here. It was not:
-# after the news commands were added, an earlier listener returned actions like
-# "news-germany" and this workflow passed them to `--only`, which is a category
-# flag. Twelve runs in a row failed on "unknown category" before anyone looked.
+# Every action the command parser can return must be handled here. It was not
+# once: an earlier listener returned an action this workflow passed straight
+# to `--only`, which is a category flag, not an action name. Twelve runs in a
+# row failed on "unknown category" before anyone looked.
 on:
   push:
     paths:
@@ -27,11 +27,6 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
-      run_news_now:
-        description: "Build one current short news video now"
-        required: false
-        default: false
-        type: boolean
       action:
         description: "Command sent by the real-time Telegram Worker"
         required: false
@@ -66,36 +61,7 @@ permissions:
   contents: write
 
 jobs:
-  manual-news:
-    if: inputs.run_news_now == true
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: System packages (ffmpeg + headless Chrome libs)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg \
-            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
-            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
-      - name: Build one current short news video
-        env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-          MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
-          VOICE: "on"
-          REQUIRE_VOICE: "on"
-        run: node news-build.mjs --fetch --today
-
   listen:
-    if: inputs.run_news_now != true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -129,9 +95,6 @@ jobs:
             .content-search-offered.json
             .content-search-backlog.json
             .content-registry.json
-            .news-draft.json
-            .news-queue.json
-            .news-seen.json
             .content-radar.json
           key: tg-offset-${{ github.run_id }}
           restore-keys: tg-offset-
@@ -187,7 +150,7 @@ jobs:
             printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
-              approved-feature|approved-screen|user-photo|topic-pick|topic-reject|topic-unreject|topic-rejected-list|search-topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|build-app-pair|resend|research|content-radar|news-radar|demand-research|content-search|content-search-live|custom-content|custom-content-media|voice-list|news-scan|news-search-live|news-source-pick|news-germany|news-europe|news-today|news-breaking|news-pick|europe-pick|news-text|news-approve|news-breaking-preview|news-pick-preview|europe-pick-preview|news-text-preview|news-edit-hook|news-edit-text|news-approve-draft|undo|undo-news|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools|amal-berlin|amal-hamburg|amal-frankfurt|amal-farsi) ;;
+              approved-feature|approved-screen|user-photo|topic-pick|topic-reject|topic-unreject|topic-rejected-list|search-topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|build-app-pair|resend|research|content-radar|demand-research|content-search|content-search-live|custom-content|custom-content-media|voice-list|undo|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools) ;;
               *) echo "ACTION=none" >> "$GITHUB_OUTPUT"; exit 0 ;;
             esac
             safe_pick=$(printf '%s' "$INPUT_PICK" | tr -cd '0-9' | cut -c1-1)
@@ -232,7 +195,7 @@ jobs:
       # Only the actions that actually render a video need ffmpeg and a headless
       # browser. Listing news or deleting a message does not.
       - name: System packages (ffmpeg + headless Chrome libs)
-        if: contains(fromJSON('["approved-feature","content-approve","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","build-app-pair","resend","custom-content","custom-content-media","news-breaking","news-pick","europe-pick","news-text","news-approve","news-approve-draft"]'), steps.cmd.outputs.ACTION)
+        if: contains(fromJSON('["approved-feature","content-approve","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","build-app-pair","resend","custom-content","custom-content-media"]'), steps.cmd.outputs.ACTION)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg \
@@ -463,26 +426,6 @@ jobs:
             git push || true
           fi
 
-      - name: News radar — newsworthiness-ranked shortlist
-        if: steps.cmd.outputs.ACTION == 'news-radar'
-        env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node news-radar.mjs
-
-      - name: Verify news radar queue for cache
-        if: steps.cmd.outputs.ACTION == 'news-radar'
-        # Missing files here aren't always a real fault: news-radar.mjs exits
-        # before writing either file when it genuinely finds nothing new —
-        # an expected, common outcome, not something to red-flag the job for.
-        run: |
-          if [ -f .news-queue.json ] && [ -f .news-seen.json ]; then
-            echo "News radar queue and duplicate guard will be retained by the Actions cache."
-          else
-            echo "::warning::No queue/seen file — likely just no new stories this run."
-          fi
-
       - name: Send MiniMax voice IDs
         if: steps.cmd.outputs.ACTION == 'voice-list'
         env:
@@ -500,94 +443,6 @@ jobs:
           else
             node music/minimax-voices.mjs --telegram
           fi
-
-      # ---- news channel ----------------------------------------------------
-      - name: Scan for new stories now
-        if: contains(fromJSON('["news-scan","news-search-live","amal-berlin","amal-hamburg","amal-frankfurt","amal-farsi"]'), steps.cmd.outputs.ACTION)
-        env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-        run: |
-          if [ "${{ steps.cmd.outputs.ACTION }}" = "amal-berlin" ]; then
-            node news-scan.mjs --amal berlin
-          elif [ "${{ steps.cmd.outputs.ACTION }}" = "amal-hamburg" ]; then
-            node news-scan.mjs --amal hamburg
-          elif [ "${{ steps.cmd.outputs.ACTION }}" = "amal-frankfurt" ]; then
-            node news-scan.mjs --amal frankfurt
-          elif [ "${{ steps.cmd.outputs.ACTION }}" = "amal-farsi" ]; then
-            node news-scan.mjs --amal farsi
-          elif [ "${{ steps.cmd.outputs.ACTION }}" = "news-search-live" ]; then
-            node news-scan.mjs --query "$PAYLOAD"
-          else
-            node news-scan.mjs
-          fi
-
-      - name: Verify news queue for cache
-        if: contains(fromJSON('["news-scan","news-search-live","amal-berlin","amal-hamburg","amal-frankfurt","amal-farsi"]'), steps.cmd.outputs.ACTION)
-        # Missing files here aren't always a real fault: news-scan.mjs exits
-        # before writing either file when it genuinely finds nothing new —
-        # an expected, common outcome, not something to red-flag the job for.
-        run: |
-          if [ -f .news-queue.json ] && [ -f .news-seen.json ]; then
-            echo "News queue and duplicate guard will be retained by the Actions cache."
-          else
-            echo "::warning::No queue/seen file — likely just no new stories this run."
-          fi
-
-      - name: List news
-        if: contains(fromJSON('["news-germany","news-europe","news-today"]'), steps.cmd.outputs.ACTION)
-        env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            news-europe) node news-build.mjs --fetch --list --europe ;;
-            news-today)  node news-build.mjs --fetch --list --today ;;
-            *)           node news-build.mjs --fetch --list ;;
-          esac
-
-      - name: Build a news video
-        if: contains(fromJSON('["news-breaking","news-pick","europe-pick","news-text","news-approve","news-approve-draft"]'), steps.cmd.outputs.ACTION)
-        env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-          MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
-          VOICE: "on"
-          REQUIRE_VOICE: "on"
-          PICK: ${{ steps.cmd.outputs.PICK }}
-          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-        run: |
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            news-pick)   node news-build.mjs --fetch --pick "${PICK:-1}" ;;
-            europe-pick) node news-build.mjs --fetch --europe --pick "${PICK:-1}" ;;
-            news-approve) node news-build.mjs --from-queue "${PICK:-1}" ;;
-            news-approve-draft) node news-draft.mjs --build ;;
-            news-text)   node news-build.mjs --text "$PAYLOAD" ;;
-            *)           node news-build.mjs --fetch ;;
-          esac
-
-      - name: Preview or edit news draft
-        if: contains(fromJSON('["news-breaking-preview","news-pick-preview","europe-pick-preview","news-text-preview","news-edit-hook","news-edit-text"]'), steps.cmd.outputs.ACTION)
-        env:
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-          PICK: ${{ steps.cmd.outputs.PICK }}
-        run: |
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            news-pick-preview)   node news-build.mjs --fetch --pick "${PICK:-1}" --preview ;;
-            europe-pick-preview) node news-build.mjs --fetch --europe --pick "${PICK:-1}" --preview ;;
-            news-text-preview)   node news-build.mjs --text "$PAYLOAD" --preview ;;
-            news-edit-hook)      node news-draft.mjs --edit-hook "$PAYLOAD" ;;
-            news-edit-text)      node news-draft.mjs --edit-text "$PAYLOAD" ;;
-            *)                   node news-build.mjs --fetch --preview ;;
-          esac
 
       - name: Real search demand for a topic
         if: steps.cmd.outputs.ACTION == 'demand-research'
@@ -611,34 +466,10 @@ jobs:
             topic-rejected-list) node reject-topic.mjs --list ;;
           esac
 
-      - name: Preview selected news source
-        if: steps.cmd.outputs.ACTION == 'news-source-pick'
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PICK: ${{ steps.cmd.outputs.PICK }}
-        run: node news-build.mjs --from-queue "${PICK:-1}" --preview
-
-      - name: Verify news draft for cache
-        if: contains(fromJSON('["news-breaking-preview","news-pick-preview","europe-pick-preview","news-text-preview","news-edit-hook","news-edit-text"]'), steps.cmd.outputs.ACTION)
-        # A missing file isn't always a real fault — the previous step may
-        # have already sent a clear Telegram explanation and exited 0.
-        run: |
-          if [ -f .news-draft.json ]; then
-            echo "News draft will be retained by the Actions cache."
-          else
-            echo "::warning::No draft file — the previous step likely already explained why in Telegram."
-          fi
-
       # ---- deleting --------------------------------------------------------
       - name: Undo the last send
-        if: contains(fromJSON('["undo","undo-news"]'), steps.cmd.outputs.ACTION)
+        if: steps.cmd.outputs.ACTION == 'undo'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          if [ "${{ steps.cmd.outputs.ACTION }}" = "undo-news" ]; then
-            node undo-send.mjs 1 --news
-          else
-            node undo-send.mjs 3 --daily
-          fi
+        run: node undo-send.mjs 3 --daily
