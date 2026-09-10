@@ -8,6 +8,8 @@ import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { replyOnFailure } from "./lib/fail-soft.mjs";
 import { findRealImage } from "./lib/auto-image.mjs";
+import { loadEnv } from "./lib/telegram.mjs";
+import { stripChineseText } from "./lib/translate-fa.mjs";
 
 replyOnFailure();
 
@@ -23,6 +25,64 @@ if (parts.length < 2) {
 }
 
 const topic = parts[0].slice(0, 150);
+
+// Owner report 2026-09-10: a direct-build send ("ویدیو مستقیم: ...") used the
+// creator's exact raw wording as the spoken narration, unedited — the topic
+// and each point are whatever was typed on a phone, often one long clause
+// with no natural breath point, which minimaxSpeakable() (lib/pronounce.mjs)
+// cannot fix: that table corrects known pronunciation/orthography cases, it
+// does not restructure a sentence for how a person actually talks. This
+// rewrites the SAME claims into short, natural, speakable Persian before
+// they become the hook/step text — same pattern as custom-draft.mjs's
+// draftBareTopic(), but rewriting given points instead of inventing new
+// ones, and explicitly forbidden from adding or dropping any claim.
+const clean = (value, max) => String(value || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+async function rewriteForSpeech(rawTopic, rawPoints) {
+  const env = loadEnv();
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "";
+  if (!geminiKey) return null;
+  const prompt = [
+    "You rewrite a Persian (Farsi) short-video topic and its points so they sound natural when spoken out loud.",
+    "Return ONLY valid JSON: {topic, points}. points is an array, same length and same order as the input points.",
+    "Keep EXACTLY the same meaning, facts, numbers, and claims as the input — you are rephrasing for natural speech, not writing new content, not adding anything, not dropping anything.",
+    "Each rewritten line must be short, in natural spoken Persian (how a person actually talks), broken into clauses a person would actually pause between — never one long unbroken sentence.",
+    "Do not invent statistics, prices, features, guarantees, or promises of views/followers/income that are not already in the input.",
+    "Input topic: " + JSON.stringify(clean(rawTopic, 200)),
+    "Input points: " + JSON.stringify(rawPoints.map((p) => clean(p, 220))),
+  ].join("\n");
+  const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
+  const call = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": geminiKey },
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, responseMimeType: "application/json" } }),
+  });
+  let response;
+  try {
+    response = await call();
+    for (let i = 0; !response.ok && (response.status === 503 || response.status === 429) && i < 2; i++) {
+      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+      response = await call();
+    }
+    if (!response.ok) return null;
+    const body = await response.json();
+    const answer = String(body?.candidates?.[0]?.content?.parts?.map((part) => part?.text || "").join("") || "");
+    const json = answer.match(/\{[\s\S]*\}/)?.[0] || answer;
+    const parsed = JSON.parse(json);
+    const nextTopic = stripChineseText(clean(parsed?.topic, 150));
+    const nextPoints = Array.isArray(parsed?.points)
+      ? parsed.points.map((p) => stripChineseText(clean(p, 180))).filter(Boolean)
+      : [];
+    // A rewrite that dropped a point or lost the topic is worse than no
+    // rewrite — the caller falls back to the creator's own raw wording.
+    if (!nextTopic || nextPoints.length !== rawPoints.length) return null;
+    return { topic: nextTopic, points: nextPoints };
+  } catch {
+    return null; // never let a rewrite failure block the creator's direct build
+  }
+}
+const spoken = await rewriteForSpeech(topic, parts.slice(1));
+const spokenTopic = spoken?.topic || topic;
+const spokenPoints = spoken?.points || parts.slice(1);
 const category = /(اینستا|انستا|instagram|reels|ریلز|edits)/i.test(topic) ? "instagram"
   : /(تیک\s*تاک|tiktok|tik\s*tok)/i.test(topic) ? "tiktok" : "tools";
 const id = `custom-${createHash("sha256").update(raw).digest("hex").slice(0, 10)}`;
@@ -84,7 +144,7 @@ const evidenceFor = (text, i) => primaryPhoto ? ({
   ambientMotion: "تغییر نور و عمق بسیار آرام، بدون حواس‌پرتی",
   coverage: 0.55,
 }) : undefined;
-const provided = parts.slice(1).map((text, i) => ({
+const provided = spokenPoints.map((text, i) => ({
   text: text.slice(0, 180),
   icon: ["target", "play", "chart", "pen"][i] || "target",
   ...(primaryPhoto ? { photo: primaryPhoto, photoAlt: media.alt, photoFocus: media.focus[i], visualEvidence: evidenceFor(text, i), ...(suppliedVideo ? { video: suppliedVideo, videoStart: i * 0.5 } : {}) } : {}),
@@ -110,7 +170,7 @@ const hookOptions = visualPreset?.name === "Google Vids"
         "فکر می‌کنی مشکل ویدیویت تصویر است؟ شاید صدا دلیل اصلی باشد.",
         "یک اشتباه کوچک در صدا می‌تواند ویدیوی خوبت را غیرقابل‌تماشا کند.",
       ]
-    : [topic.endsWith("؟") ? topic : `${topic}؛ تا آخر ببینید، مسیر واقعی‌اش را نشان می‌دهم`];
+    : [spokenTopic.endsWith("؟") ? spokenTopic : `${spokenTopic}؛ تا آخر ببینید، مسیر واقعی‌اش را نشان می‌دهم`];
 const selectedHook = hookOptions[0];
 
 const pack = {
