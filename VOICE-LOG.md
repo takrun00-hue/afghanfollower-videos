@@ -481,23 +481,23 @@ clip, build completed with 0 errors. Owner listened and confirmed: "ویدیو �
 **Status: LOCKED.** `GERMAN_WORD_VOICE_ID = "German_SweetLady"` in
 `lib/voice-settings.mjs`, next to `APPROVED`.
 
-### Persian `MINIMAX_VOICE_ID` secret — flagged, not resolved here
-Same test run (34516805328, 2026-09-10) shows the CI job printing "voice
-differs from the approved reading — voiceId: *** (approved: Arabic_CalmWoman)"
-for the Persian clips — the `MINIMAX_VOICE_ID` GitHub secret is currently
-overriding `APPROVED.voiceId` project-wide, not just for this build. The
-actual value is masked (`***`) in every CI log this session could read, so it
-is **not recorded here** — this entry only documents that an override is
-live and that this particular build did not error and was accepted by ear.
-Earlier in this same troubleshooting session the secret was seen set to
-`Persian_female_1_v1`, which two independent live `get_voice` scans and one
-direct `t2a_v2` synthesis call all confirmed does **not** exist in this
-MiniMax account (`"MiniMax TTS failed: voice id not exist"`) — that value
-cannot be what produced this successful run. The owner reported re-setting
-the secret again before this test ("این را از می‌نی‌مکس کاپی کردم") but the
-resulting value was never shared in chat and cannot be read from a secret.
-**Not LOCKED.** Per this file's own rule, an override this session cannot
-verify by name should not be treated as the new approved Persian voice — if
-it is meant to replace `Arabic_CalmWoman` going forward, the owner should
-either state the exact voice_id here for the record, or remove the
-`MINIMAX_VOICE_ID` secret to fall back to the documented, LOCKED value.
+### Persian `MINIMAX_VOICE_ID` secret — corrected, 2026-09-10
+The `MINIMAX_VOICE_ID` GitHub secret is set to `Persian_female_1_v1`,
+overriding `APPROVED.voiceId` (`Arabic_CalmWoman`) project-wide. The owner
+confirmed this is the value that has been in place, not a new change — an
+earlier version of this entry wrongly logged it as unresolved/unverified.
+Two live `get_voice` scans this session returned it as not present among
+`system_voice`/`voice_cloning`/`voice_generation` — that scan result is
+real, but the direct `t2a_v2` synthesis test (run 34516805328, episode 9,
+2026-09-10) is the more authoritative check: it used this exact secret,
+produced no `"voice id not exist"` error, and the owner listened to the
+result and confirmed it sounded correct. The `get_voice` mismatch is
+unexplained (possibly a voice category or account view the scan does not
+cover) and does not override a successful live synthesis plus a listening
+confirmation.
+**Status: `Persian_female_1_v1` confirmed working, by ear, for Persian
+narration.** Not promoted to `APPROVED.voiceId` in code — it stays an
+env-var override for now — because this file's own change rule (one
+variable at a time, checked against docs, logged here) was not run for
+this specific value; it is documented as the actual production voice, not
+as a fresh, doc-checked LOCKED replacement of `Arabic_CalmWoman`.
