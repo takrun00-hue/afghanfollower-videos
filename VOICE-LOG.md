@@ -461,3 +461,43 @@ fatha, «دَه» (/dah/), or the engine says /deh/ (village) — the wrong numb
 Added «ده دقیقه»/«ده بار»/«ده ثانیه» only. **Rejected:** a bare «ده»→«دَه»
 replace — bare «ده» is also the imperative «ده» (give, «نشان ده») which is /deh/
 and must stay. Verified «نشان ده» is untouched.
+
+### German word clips read with an English-accented voice — FIXED, 2026-09-10
+Reported live: the German A1 series' German word/phrase clip was carrying
+`APPROVED.voiceId` (`Arabic_CalmWoman`) with only `language_boost=German` —
+language_boost changes reading rules, not the underlying voice, so it still
+sounded English/Arabic-accented, not German.
+**Action:** `music/minimax-voices.mjs` generalised to accept `--lang <name>`
+(was Persian-only); a live `get_voice` scan for German confirmed real system
+voices exist (`German_FriendlyMan`, `German_SweetLady`, `German_PlayfulMan`).
+Picked `German_SweetLady` (female, matching `APPROVED`'s gender) and wired it
+into `german-lesson-build.mjs` via `ttsSynthesize(..., GERMAN_WORD_VOICE_ID)`
+for the German-word clip only — every other clip in the pack (hook, Persian
+explanation, outro) stays on the Persian-approved voice.
+**Test:** episode 9 (a1-01-greetings) rebuilt and sent live, run 34516805328 —
+job log confirms `German_SweetLady` was the voice used for the German word
+clip, build completed with 0 errors. Owner listened and confirmed: "ویدیو را
+دیدم درست بود".
+**Status: LOCKED.** `GERMAN_WORD_VOICE_ID = "German_SweetLady"` in
+`lib/voice-settings.mjs`, next to `APPROVED`.
+
+### Persian `MINIMAX_VOICE_ID` secret — corrected, 2026-09-10
+The `MINIMAX_VOICE_ID` GitHub secret is set to `Persian_female_1_v1`,
+overriding `APPROVED.voiceId` (`Arabic_CalmWoman`) project-wide. The owner
+confirmed this is the value that has been in place, not a new change — an
+earlier version of this entry wrongly logged it as unresolved/unverified.
+Two live `get_voice` scans this session returned it as not present among
+`system_voice`/`voice_cloning`/`voice_generation` — that scan result is
+real, but the direct `t2a_v2` synthesis test (run 34516805328, episode 9,
+2026-09-10) is the more authoritative check: it used this exact secret,
+produced no `"voice id not exist"` error, and the owner listened to the
+result and confirmed it sounded correct. The `get_voice` mismatch is
+unexplained (possibly a voice category or account view the scan does not
+cover) and does not override a successful live synthesis plus a listening
+confirmation.
+**Status: `Persian_female_1_v1` confirmed working, by ear, for Persian
+narration.** Not promoted to `APPROVED.voiceId` in code — it stays an
+env-var override for now — because this file's own change rule (one
+variable at a time, checked against docs, logged here) was not run for
+this specific value; it is documented as the actual production voice, not
+as a fresh, doc-checked LOCKED replacement of `Arabic_CalmWoman`.

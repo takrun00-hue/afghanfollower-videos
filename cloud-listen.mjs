@@ -90,6 +90,16 @@ for (const u of updates) {
     photoFileId = msg.photo[msg.photo.length - 1].file_id;
     continue; // a photo carries no further text command to parse
   }
+  // Telegram sends an uncompressed image as `document` instead of `photo`
+  // whenever the sender picks "send without compression" (or the file-picker
+  // route on some clients) — same real screenshot, different update shape.
+  // Missing this meant a screenshot sent that way got no response at all.
+  if (msg.document && /^image\//.test(msg.document.mime_type || "")) {
+    action = "user-photo"; label = "ذخیرهٔ عکس واقعی";
+    payloadText = msg.caption || "";
+    photoFileId = msg.document.file_id;
+    continue;
+  }
   if (!msg.text) continue;
   const radarPick = shownRadar && matchRadarPick(msg.text, shownRadar);
   if (radarPick) {
