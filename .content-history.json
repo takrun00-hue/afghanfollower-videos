@@ -270,5 +270,21 @@
     "hook": "هر چیز اضافی را از عکست پاک کن، بدون نصب",
     "messageId": 1721,
     "sentAt": "2026-09-09T15:30:43.479Z"
+  },
+  {
+    "id": "photo-mode",
+    "platform": "tiktok",
+    "topic": "Photo Mode",
+    "hook": "بدون دوربین و بدون ادیت، پستِ پرویو بساز",
+    "messageId": 1723,
+    "sentAt": "2026-09-10T07:02:47.681Z"
+  },
+  {
+    "id": "close-friends",
+    "platform": "instagram",
+    "topic": "close-friends",
+    "hook": "با این قابلیت اینستاگرام، از فالوورت مشتری همیشگی بساز",
+    "messageId": 1724,
+    "sentAt": "2026-09-10T07:06:25.874Z"
   }
 ]

@@ -68,5 +68,19 @@
     "packId": "cleanup-pictures",
     "messageId": 1721,
     "at": 1788967843479
+  },
+  {
+    "kind": "daily",
+    "platform": "tiktok",
+    "packId": "photo-mode",
+    "messageId": 1723,
+    "at": 1789023767681
+  },
+  {
+    "kind": "daily",
+    "platform": "instagram",
+    "packId": "close-friends",
+    "messageId": 1724,
+    "at": 1789023985874
   }
 ]
