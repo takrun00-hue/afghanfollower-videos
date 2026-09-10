@@ -2494,5 +2494,53 @@
     "sentAt": "2026-09-10T07:06:25.874Z",
     "messageId": 1724,
     "kind": "daily"
+  },
+  {
+    "id": "google-vids-product-demo",
+    "platform": "instagram",
+    "feature": "Google Vids",
+    "topic": "ویدیوی محصول با Google Vids",
+    "question": "برای محصولت ویدیو می‌خواهی، اما دوربین و بازیگر نداری؟",
+    "angle": "یک عکس محصول",
+    "hookConcept": "یک عکس محصول چطور ویدیوی معرفی می‌شود؟",
+    "keyPoints": [
+      "Google Vids را باز کن و New video را بزن",
+      "در Help me create، محصول و پیام کوتاهت را بنویس",
+      "عکس محصولت را Add media کن و Preview را ببین",
+      "پیام و تصویر را یک‌بار چک کن، بعد Share کن"
+    ],
+    "claim": "وقتی نمونهٔ محصول و پیام فروش روشن باشد، ساخت پیش‌نویس ویدیو سریع‌تر می‌شود.",
+    "keywords": [
+      "ویدیو",
+      "محصول",
+      "google",
+      "vids",
+      "gapmedia",
+      "محصولت",
+      "خواه",
+      "اما",
+      "دوربین",
+      "بازیگر",
+      "ندار",
+      "باز",
+      "new",
+      "video",
+      "بزن",
+      "help",
+      "create",
+      "پیام",
+      "کوتاهت",
+      "بنویس",
+      "عکس",
+      "add",
+      "media",
+      "preview"
+    ],
+    "sources": [
+      "https://workspace.google.com/products/vids/"
+    ],
+    "sentAt": "2026-09-10T15:21:23.135Z",
+    "messageId": 1732,
+    "kind": "daily"
   }
 ]
