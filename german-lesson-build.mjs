@@ -30,6 +30,7 @@ import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.
 import { fingerprint, check, register } from "./lib/dedupe.mjs";
 import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
+import { GERMAN_WORD_VOICE_ID } from "./lib/voice-settings.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -162,12 +163,11 @@ console.log(`\n=== german-lesson episode ${episodeNo}: ${unit.topic} (${unit.id}
 // German clips still came out sounding English-accented) — every clip, the
 // German word included, was still synthesised with the project's approved
 // Persian narration voice ("Arabic_CalmWoman"), which was never auditioned
-// for German at all. Confirmed via a live `get_voice` API call (through the
-// generalized music/minimax-voices.mjs --lang) that MiniMax has real
-// German-native system voices; GERMAN_VOICE_ID picks one of them
-// specifically for the German-word clip, leaving the approved Persian
-// voice (used for every other clip, hook, and outro) untouched.
-const GERMAN_VOICE_ID = "German_SweetLady"; // female, matches the Persian narrator's voice gender
+// for German at all. GERMAN_WORD_VOICE_ID (lib/voice-settings.mjs, next to
+// the Persian APPROVED settings — every language this project's narration
+// uses lives in that one file) picks a real German-native voice for the
+// German-word clip specifically, leaving the approved Persian voice (used
+// for every other clip, hook, and outro) untouched.
 function ttsSynthesize(text, languageBoost, outFile, voiceId) {
   const env = { ...process.env };
   if (languageBoost) env.MINIMAX_LANGUAGE_BOOST = languageBoost;
@@ -203,7 +203,7 @@ try {
       for (let i = 0; i < unit.items.length; i++) {
         const deFile = `${voiceDir}/german-${pack.id}-de${i}.mp3`;
         const faFile = `${voiceDir}/german-${pack.id}-fa${i}.mp3`;
-        ttsSynthesize(unit.items[i].de, "German", deFile, GERMAN_VOICE_ID);
+        ttsSynthesize(unit.items[i].de, "German", deFile, GERMAN_WORD_VOICE_ID);
         ttsSynthesize(minimaxSpeakable(vo.steps[i]), null, faFile);
         tips.push({ deFile, faFile, deDur: ffprobeDuration(deFile), faDur: ffprobeDuration(faFile) });
       }
