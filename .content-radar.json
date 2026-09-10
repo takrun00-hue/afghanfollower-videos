@@ -1,0 +1,163 @@
+{
+  "at": "2026-09-10T17:07:49.319Z",
+  "rows": [
+    {
+      "cat": "instagram",
+      "title": "Instagram Now Lets You Add Tagged Photos To Your Profile Grid",
+      "url": "https://www.engadget.com/2254580/instagram-lets-you-add-tagged-photos-to-profile-grid/",
+      "date": "2026-09-10",
+      "sources": 8,
+      "clear": true,
+      "score": 29
+    },
+    {
+      "cat": "instagram",
+      "title": "Instagram Is Testing Automatic Offline Downloads for Reels – TechPathy",
+      "url": "https://techpathy.com/instagram-is-testing-automatic-offline-downloads-for-reels/",
+      "date": "2026-09-09",
+      "sources": 8,
+      "clear": true,
+      "score": 28
+    },
+    {
+      "cat": "instagram",
+      "title": "Instagram Unveils 'First Draft' AI Editing Tool, Streamlining Reels Creation Amidst Legal Scrutiny",
+      "url": "https://mrsinternet.com/instagram-unveils-first-draft-ai-editing-tool-streamlining-reels-creation-amidst-legal-scrutiny/",
+      "date": "2026-09-09",
+      "sources": 7,
+      "clear": true,
+      "score": 28
+    },
+    {
+      "cat": "tools",
+      "title": "I Tried OpenAI’s Images 2.5. My Results, Plus How It Changes Work",
+      "url": "https://www.forbes.com/sites/rachelwells/2026/09/09/i-tried-openais-images-25-my-results-plus-how-it-changes-work/",
+      "date": "2026-09-09",
+      "sources": 7,
+      "clear": true,
+      "score": 28
+    },
+    {
+      "cat": "tools",
+      "title": "GPT Image 2.5 Review: What Changed and Is It Worth Using? | Seedance",
+      "url": "https://www.seedance.tv/blog/gpt-image-2-5-review",
+      "date": "2026-09-09",
+      "sources": 6,
+      "clear": true,
+      "score": 28
+    },
+    {
+      "cat": "instagram",
+      "title": "Introducing Muse: Your Personal AI Agent | Instagram for Creators",
+      "url": "https://creators.instagram.com/blog/introducing-muse-personal-ai-agent/",
+      "date": "2026-09-08",
+      "sources": 8,
+      "clear": true,
+      "score": 27
+    },
+    {
+      "cat": "tools",
+      "title": "Adobe Puts a Prompt Layer Across Pro Video | DIGITAL PRODUCTION",
+      "url": "https://digitalproduction.com/2026/09/08/adobe-puts-a-prompt-layer-across-pro-video/",
+      "date": "2026-09-08",
+      "sources": 8,
+      "clear": true,
+      "score": 27
+    },
+    {
+      "cat": "tools",
+      "title": "ChatGPT Images 2.5 is out — I’ve been testing it for 24 hours, and these are the 3 new features you’ll actually use | TechRadar",
+      "url": "https://www.techradar.com/ai-platforms-assistants/chatgpt/chatgpt-images-2-5-is-out-ive-been-testing-it-for-24-hours-and-these-are-the-3-new-features-youll-actually-use",
+      "date": "2026-09-08",
+      "sources": 7,
+      "clear": false,
+      "score": 24
+    },
+    {
+      "cat": "tools",
+      "title": "Art List AI Flows and Seedance 2.5: What's New for Video Creators | MindStudio",
+      "url": "https://www.mindstudio.ai/blog/artlist-ai-flows-seedance-2-5",
+      "date": "2026-09-05",
+      "sources": 8,
+      "clear": true,
+      "score": 24
+    },
+    {
+      "cat": "tiktok",
+      "title": "TikTok’s comments section is getting audio messages. | The Verge",
+      "url": "https://www.theverge.com/tech/989929/tiktoks-comments-section-is-getting-audio-messages",
+      "date": "2026-09-03",
+      "sources": 7,
+      "clear": true,
+      "score": 23
+    },
+    {
+      "cat": "tiktok",
+      "title": "TikTok Introduces Voice Comments And Simplified Polls",
+      "url": "https://www.engadget.com/2250517/tiktok-introduces-voice-comments-and-simplified-polls/",
+      "date": "2026-09-03",
+      "sources": 8,
+      "clear": true,
+      "score": 23
+    },
+    {
+      "cat": "instagram",
+      "title": "TECHSHOTS | <!-- -->Instagram Trials Comment Highlighting Feature for Creators' Stories",
+      "url": "https://www.techshotsapp.com/technology/instagram-trials-comment-highlighting-feature-for-creators--stories",
+      "date": "2026-09-05",
+      "sources": 4,
+      "clear": true,
+      "score": 20
+    }
+  ],
+  "shown": [
+    {
+      "n": 1,
+      "cat": "instagram",
+      "title": "Instagram Now Lets You Add Tagged Photos To Your Profile Grid",
+      "url": "https://www.engadget.com/2254580/instagram-lets-you-add-tagged-photos-to-profile-grid/"
+    },
+    {
+      "n": 2,
+      "cat": "instagram",
+      "title": "Instagram Is Testing Automatic Offline Downloads for Reels – TechPathy",
+      "url": "https://techpathy.com/instagram-is-testing-automatic-offline-downloads-for-reels/"
+    },
+    {
+      "n": 3,
+      "cat": "instagram",
+      "title": "Instagram Unveils 'First Draft' AI Editing Tool, Streamlining Reels Creation Amidst Legal Scrutiny",
+      "url": "https://mrsinternet.com/instagram-unveils-first-draft-ai-editing-tool-streamlining-reels-creation-amidst-legal-scrutiny/"
+    },
+    {
+      "n": 4,
+      "cat": "tools",
+      "title": "I Tried OpenAI’s Images 2.5. My Results, Plus How It Changes Work",
+      "url": "https://www.forbes.com/sites/rachelwells/2026/09/09/i-tried-openais-images-25-my-results-plus-how-it-changes-work/"
+    },
+    {
+      "n": 5,
+      "cat": "tools",
+      "title": "GPT Image 2.5 Review: What Changed and Is It Worth Using? | Seedance",
+      "url": "https://www.seedance.tv/blog/gpt-image-2-5-review"
+    },
+    {
+      "n": 6,
+      "cat": "tools",
+      "title": "Adobe Puts a Prompt Layer Across Pro Video | DIGITAL PRODUCTION",
+      "url": "https://digitalproduction.com/2026/09/08/adobe-puts-a-prompt-layer-across-pro-video/"
+    },
+    {
+      "n": 7,
+      "cat": "tiktok",
+      "title": "TikTok’s comments section is getting audio messages. | The Verge",
+      "url": "https://www.theverge.com/tech/989929/tiktoks-comments-section-is-getting-audio-messages"
+    },
+    {
+      "n": 8,
+      "cat": "tiktok",
+      "title": "TikTok Introduces Voice Comments And Simplified Polls",
+      "url": "https://www.engadget.com/2250517/tiktok-introduces-voice-comments-and-simplified-polls/"
+    }
+  ]
+}
