@@ -89,5 +89,19 @@
     "packId": "google-vids-product-demo",
     "messageId": 1735,
     "at": 1789056805063
+  },
+  {
+    "kind": "daily",
+    "platform": "tiktok",
+    "packId": "playlists",
+    "messageId": 1774,
+    "at": 1789109976190
+  },
+  {
+    "kind": "daily",
+    "platform": "instagram",
+    "packId": "ig-ai-translate",
+    "messageId": 1775,
+    "at": 1789110321640
   }
 ]

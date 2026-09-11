@@ -294,5 +294,21 @@
     "hook": "برای محصولت ویدیو می‌خواهی، اما دوربین و بازیگر نداری؟",
     "messageId": 1735,
     "sentAt": "2026-09-10T16:13:25.063Z"
+  },
+  {
+    "id": "playlists",
+    "platform": "tiktok",
+    "topic": "playlists",
+    "hook": "با این قابلیت تیک‌تاک، از هر بیننده چند برابر ویو بگیر",
+    "messageId": 1774,
+    "sentAt": "2026-09-11T06:59:36.191Z"
+  },
+  {
+    "id": "ig-ai-translate",
+    "platform": "instagram",
+    "topic": "AI Translation",
+    "hook": "با این قابلیت اینستاگرام، از چند کشور فالوور بگیر",
+    "messageId": 1775,
+    "sentAt": "2026-09-11T07:05:21.640Z"
   }
 ]
