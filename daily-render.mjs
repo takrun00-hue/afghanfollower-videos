@@ -66,7 +66,25 @@ if (featIdxEarly < 0) {
   // one exhausted category — every one of its ids already tried — does not
   // stop the others from still swapping to a fresh pick. A round that adds no
   // new id means every category has hit its own wall, so it stops there.
+  //
+  // Owner report 2026-09-11: a run hung a full 60 minutes (the job's own
+  // timeout, "The operation was canceled") stuck alternating between two
+  // AI-tools candidates that both lack a committed real photo (rely
+  // entirely on live rescuePackPhotos()) while a live-photo pipeline issue
+  // meant rescue kept failing for them — the round<60 cap alone did not
+  // bound this, because OTHER slots (tiktok/instagram) kept finding
+  // genuinely new failing ids each round, so `progressed` stayed true and
+  // the loop kept running even though the AI slot itself was stuck. A wall-
+  // clock budget bounds the worst case regardless of which slot is stuck or
+  // why, so the render step still gets a chance to run with whatever was
+  // resolved instead of burning the entire job timeout on pre-scanning.
+  const PRE_SCAN_BUDGET_MS = 8 * 60 * 1000;
+  const preScanDeadline = Date.now() + PRE_SCAN_BUDGET_MS;
   for (let round = 0; round < 60; round++) {
+    if (Date.now() > preScanDeadline) {
+      console.error(`   ⚠ pre-scan hit its ${PRE_SCAN_BUDGET_MS / 60000}-minute budget after round ${round} — proceeding with whatever each slot currently resolves to instead of continuing to retry.`);
+      break;
+    }
     let progressed = false;
     for (const d of deliveries) {
       // The Visual Truth Gate exists to stop a real screenshot being faked.
