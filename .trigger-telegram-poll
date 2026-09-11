@@ -1,6 +1,7 @@
-Pushing a new line to this file fires .github/workflows/telegram.yml
-through its `push` trigger, so a real Telegram command/photo does not have
-to wait for the flaky "*/5 * * * *" schedule to happen to fire. See the
-comment at the top of telegram.yml for the full reason.
+Pushing a new line to this file fires .github/workflows/telegram.yml through
+its `push` trigger. It exists only because the GitHub App connected to
+this repo has "contents: write" but not "actions: write" — a plain commit
+here is what a workflow_dispatch call would otherwise be used for, and
+telegram.yml's own "*/5 * * * *" cron is confirmed unreliable for this repo.
 
-last touch: 2026-09-11T03:20:18Z
+last touch: 2026-09-11T04:19:31Z
