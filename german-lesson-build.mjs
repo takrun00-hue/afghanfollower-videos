@@ -129,23 +129,31 @@ const lessonCounter = `A1 • ${String(episodeNo).padStart(3, "0")}/${COURSE_TOT
 const HOOK_DUR = 4, TIP_DUR = 4, OUTRO_DUR = 5;
 const pack = {
   id: unit.id,
-  // Distinguishes this series from every other "news"-platform pack for
-  // lib/retention.mjs's hook nudge line (NEWS_NUDGES talks about "خبر" —
-  // a news story — which reads as nonsense under a vocabulary lesson;
-  // owner report 2026-09-10) without touching the news pipeline's own
-  // platform value or layout.
+  // `kind` is this series' own discriminator — every renderer/brief/mood
+  // helper that needs to treat a German-lesson pack differently checks
+  // `pack.kind === "german-lesson"` directly (lib/brand.mjs, lib/build-ink.mjs,
+  // lib/scene-art.mjs, lib/retention.mjs). Until 2026-09-11 this pack also set
+  // `platform: "news"` to borrow the (then still-shipping) German Insider news
+  // channel's unbranded layout — the news channel was retired that day (owner:
+  // "News دیگر نمی‌سازیم"), and the borrowed label had already caused real
+  // bugs by accident: the Visual Truth Gate was silently skipped for every
+  // episode (assertVisualProof exempted platform "news"), the "A1 • 0XX/100"
+  // lesson counter was suppressed on every slide but the hook, and the outro
+  // CTA read "برای خبرهای بعدی" (follow for the next NEWS). `platform` now
+  // names this series for what it is.
   kind: "german-lesson",
-  platform: "news", // unbranded layout, same as the news channel this replaces
+  platform: "german-lesson",
   feature: `آموزش آلمانی A1 — قسمت ${episodeNo}`,
   title: `آموزش آلمانی هوشمند — قسمت ${episodeNo}: ${unit.topic}`,
   hook: { ask: unit.hook, l1: "آموزش آلمانی هوشمند" },
-  // build-ink.mjs's hook scene renders this in the `.kick` slot at the very
-  // top of the hook — it was defaulting to the generic "قابلیت" ("Feature"),
-  // a leftover from the app-tutorial template this renderer was built for,
+  // build-ink.mjs's hook scene AND every step scene render this in the
+  // `.kick` slot — it was defaulting to the generic "قابلیت" ("Feature"), a
+  // leftover from the app-tutorial template this renderer was built for,
   // which read as meaningless over a language lesson (owner report
-  // 2026-09-10). This is also the on-screen home for the "A1 • 0XX/100"
-  // lesson counter (MASTER SYSTEM spec sec. 17) — there is no other slot
-  // that renders it.
+  // 2026-09-10). This is the on-screen home for the "A1 • 0XX/100" lesson
+  // counter (MASTER SYSTEM spec sec. 17) on every slide, not just the hook
+  // (fixed 2026-09-11 — the borrowed "news" platform label used to suppress
+  // it on every slide but the hook without anyone noticing).
   kicker: lessonCounter,
   // Each on-screen card shows the German word/phrase AND its Persian
   // meaning (with register — رسمی/غیررسمی — spelled out where it matters);
