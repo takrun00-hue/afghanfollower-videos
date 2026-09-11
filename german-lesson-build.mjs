@@ -10,6 +10,13 @@
 // and — only once the send actually confirms — advances the index so the
 // next run picks up where this one left off, never repeating or skipping.
 //
+// --unit <id> rebuilds and resends ONE already-taught unit by id (a real
+// defect fix on a past episode, e.g. `node german-lesson-build.mjs --unit
+// a1-12-haben`) — never advances the progress pointer and never runs the
+// duplicate check, since a correction is meant to match its own original
+// content. Everything else about the build (visual gate, voice, render) is
+// identical to a normal run.
+//
 // Real, topic-matched photos (build-ink.mjs, the same real-photo renderer
 // the rest of this project's tutorials use) — owner correction 2026-09-08:
 // no mascot/cartoon animation. Each vocabulary item gets its own photo via
@@ -30,7 +37,7 @@ import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.
 import { fingerprint, check, register } from "./lib/dedupe.mjs";
 import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
-import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE } from "./lib/voice-settings.mjs";
+import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS } from "./lib/voice-settings.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -39,6 +46,18 @@ const localEnv = loadEnv();
 Object.assign(process.env, localEnv);
 const tg = telegramConfig(localEnv);
 const noTelegram = process.argv.includes("--no-telegram");
+// --unit <id>: rebuild ONE already-taught unit by id and resend it, instead
+// of building whatever the sequential progress pointer says is next. For a
+// real defect report on an episode already sent (owner report 2026-09-11:
+// A1-012/"haben" had a broken German-pronunciation clip) — the normal path
+// has no way to redo a specific past episode; it only ever moves forward.
+// Never advances .german-lesson-progress.json and never runs the duplicate
+// check below (a correction is EXPECTED to match its own original content;
+// that is not the "same content shipped twice by accident" this project's
+// dedupe check exists to catch).
+const unitArgIdx = process.argv.indexOf("--unit");
+const correctionUnitId = unitArgIdx >= 0 ? process.argv[unitArgIdx + 1] : null;
+const isCorrection = !!correctionUnitId;
 
 const HF = "npx --yes hyperframes@0.8.16";
 const iso = new Date().toISOString().slice(0, 10);
@@ -51,7 +70,16 @@ function saveProgress(i) {
   writeFileSync(PROGRESS, JSON.stringify({ nextIndex: i, lastBuiltAt: new Date().toISOString() }, null, 2));
 }
 
-const idx = nextIndex();
+let idx;
+if (isCorrection) {
+  idx = GERMAN_A1.findIndex((u) => u.id === correctionUnitId);
+  if (idx < 0) {
+    console.error(`   ✗ --unit "${correctionUnitId}" is not a known unit id in lib/german-a1.mjs.`);
+    process.exit(1);
+  }
+} else {
+  idx = nextIndex();
+}
 // germanUnitAt() wraps with a modulo once idx reaches the end of GERMAN_A1 —
 // needed so a bad/stale progress index never crashes, but it means the
 // curriculum silently re-teaches a1-01 onward under a NEW episode number
@@ -60,7 +88,7 @@ const idx = nextIndex();
 // the same day to push this much further out, but the real fix is this
 // guard: refuse outright, the same way any other content gate in this
 // project fails loud, instead of silently sending recycled material.
-if (idx >= GERMAN_A1.length) {
+if (!isCorrection && idx >= GERMAN_A1.length) {
   console.error(`   ✗ curriculum exhausted: GERMAN_A1 has ${GERMAN_A1.length} units, next index is ${idx}.`);
   if (telegramConfig(localEnv).enabled) {
     try {
@@ -141,7 +169,7 @@ const pack = {
   payoff: "واژه، مکالمه و نکتهٔ گرامری تازه یاد گرفتی — سطح A1.",
   // Hashtags in English (owner instruction, 2026-09-11) — everything else in
   // the caption stays Persian; only the tag list changed.
-  tgTitle: `🇩🇪 آموزش آلمانی هوشمند | ${lessonCode} — ${unit.topic}\n\n#German #A1 #LearnGerman #GermanLessons #Vocabulary #Grammar`,
+  tgTitle: `🇩🇪 آموزش آلمانی هوشمند | ${lessonCode} — ${unit.topic}${isCorrection ? " (اصلاح‌شده)" : ""}\n\n#German #A1 #LearnGerman #GermanLessons #Vocabulary #Grammar`,
   // No mascot/character illustration — owner correction 2026-09-08, reaffirmed
   // 2026-09-10 (MASTER SYSTEM spec sec. 5: CHARACTER_MODE=DISABLED, no AI
   // avatar; real contextual images + typography + motion graphics only).
@@ -208,6 +236,12 @@ function ttsSynthesize(text, languageBoost, outFile, voiceId) {
   if (!voiceId) {
     env.MINIMAX_VOICE_PITCH = String(GERMAN_LESSON_NARRATION_OVERRIDE.pitch);
     env.VOICE_SPEED = String(GERMAN_LESSON_NARRATION_OVERRIDE.speed);
+  } else if (voiceId === GERMAN_WORD_VOICE_ID) {
+    // Owner report 2026-09-11: the German-word clip read too fast and too
+    // quiet — see GERMAN_WORD_VOICE_SETTINGS's own comment
+    // (lib/voice-settings.mjs) for the values and the docs-checked ranges.
+    env.VOICE_SPEED = String(GERMAN_WORD_VOICE_SETTINGS.speed);
+    env.MINIMAX_VOICE_VOL = String(GERMAN_WORD_VOICE_SETTINGS.vol);
   }
   execFileSync("node", ["music/minimax-tts.mjs", text, "-o", outFile], { env, stdio: "inherit" });
 }
@@ -372,23 +406,27 @@ try {
   // Same 30-day duplicate control every other daily video goes through —
   // a fixed curriculum should never actually collide, but the check is
   // cheap insurance against a progress-counter bug repeating an episode.
+  // Skipped for a correction resend (--unit): it is SUPPOSED to match its
+  // own original content, unlike an accidental repeat.
   const print = fingerprint(pack);
-  const dup = check(print);
-  if (dup.verdict === "DUPLICATE" && process.env.ALLOW_DUPLICATE !== "1") {
-    throw Object.assign(new Error(`تکراری (${dup.score}) — قسمت «${dup.closest?.id}» قبلاً رفته است`), { kind: "duplicate" });
+  if (!isCorrection) {
+    const dup = check(print);
+    if (dup.verdict === "DUPLICATE" && process.env.ALLOW_DUPLICATE !== "1") {
+      throw Object.assign(new Error(`تکراری (${dup.score}) — قسمت «${dup.closest?.id}» قبلاً رفته است`), { kind: "duplicate" });
+    }
   }
 
   if (tg.enabled) {
     const res = await sendVideo({ token: tg.token, chatId: tg.chatId, file: final, caption: pack.tgTitle });
     console.log("   ✈ sent to Telegram");
-    if (res && res.message_id) {
+    if (res && res.message_id && !isCorrection) {
       register({ ...print, messageId: res.message_id, kind: "german-lesson", sentAt: new Date().toISOString() });
       saveProgress(idx + 1);
       console.log(`   → next episode: ${idx + 2} (${germanUnitAt(idx + 1).topic})`);
     }
   } else if (!noTelegram) {
     throw new Error("Telegram is not configured; refusing to mark a local-only render as delivered.");
-  } else {
+  } else if (!isCorrection) {
     saveProgress(idx + 1);
   }
 
