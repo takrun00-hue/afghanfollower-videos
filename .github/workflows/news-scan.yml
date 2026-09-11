@@ -35,6 +35,11 @@ on:
         required: true
         default: false
         type: boolean
+      unit:
+        description: "Optional: id of an already-taught unit (e.g. a1-12-haben) to REBUILD AND RESEND as a correction for a real defect, bypassing the gate entirely -- never advances the curriculum, never counts as today's morning/evening episode. Leave empty for normal behavior (force still applies as above)."
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: german-lesson
@@ -61,6 +66,20 @@ jobs:
           already_sent() {
             [ -f .german-lesson-batch-sent.json ] && grep -q "\"$1\"" .german-lesson-batch-sent.json
           }
+
+          # A correction (--unit) always bypasses the gate outright — it is
+          # fixing a real defect on a past episode, not today's schedule, and
+          # german-lesson-build.mjs itself never advances the curriculum or
+          # marks a batch delivered for one (see that script's own --unit
+          # comment). Tagged "correction-HHMM" so it can never collide with
+          # a real morning/evening marker either.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.unit }}" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=correction-$(TZ=Europe/Berlin date '+%H%M')" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
+            echo "Manual correction: rebuilding unit '${{ inputs.unit }}', bypassing the gate."
+            exit 0
+          fi
 
           # Explicit manual override only — never the schedule or the hourly
           # push trigger, so this can never turn into a silent extra episode.
@@ -119,7 +138,12 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: node german-lesson-build.mjs
+        run: |
+          if [ -n "${{ inputs.unit }}" ]; then
+            node german-lesson-build.mjs --unit "${{ inputs.unit }}"
+          else
+            node german-lesson-build.mjs
+          fi
 
       # Marks today's batch (morning/evening) delivered so a later poll the
       # same day — however much later — does not send a second episode for
