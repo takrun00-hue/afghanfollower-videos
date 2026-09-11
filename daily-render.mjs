@@ -93,12 +93,11 @@ if (featIdxEarly < 0) {
 }
 let generated = null;
 if (featureId) {
-  // One-off news and user-supplied tutorials live in generated files rather
-  // than in the permanent feature banks.
-  if (args.includes("--news-generated")) {
-    const mod = await import("./lib/generated/news-current.mjs?t=" + Date.now());
-    generated = mod.CURRENT_NEWS;
-  } else if (args.includes("--custom-generated")) {
+  // One-off user-supplied tutorials live in a generated file rather than in
+  // the permanent feature banks. The German Insider news channel this used
+  // to also cover is retired (owner request 2026-09-11) — its own
+  // --news-generated path imported a file that no longer exists.
+  if (args.includes("--custom-generated")) {
     const mod = await import("./lib/generated/custom-current.mjs?t=" + Date.now());
     generated = mod.CURRENT_CUSTOM;
   }
@@ -110,12 +109,8 @@ if (featureId) {
   sel[p.platform] = p;
   deliveries = [{ slot: p.platform, sourceCategory: p.platform, deliveryChannel: p.platform, role: "feature", mirrorOf: null, pack: p }];
 }
-// A news run is a separate channel: separate folder, separate filename, and a
-// separate manifest, so it can never overwrite the tutorials' record for the day.
-const isNewsRun = !!featureId && (args.includes("--news-generated") || generated?.category === "news" ||
-  ["bverfg-ruling", "legal-route-works"].includes(featureId) || /^news-/.test(featureId));
-const compDir = isNewsRun ? `compositions/news/${iso}` : `compositions/daily/${iso}`;
-const outDir = isNewsRun ? `renders/news/${iso}` : `renders/daily/${iso}`;
+const compDir = `compositions/daily/${iso}`;
+const outDir = `renders/daily/${iso}`;
 mkdirSync(compDir, { recursive: true });
 mkdirSync(outDir, { recursive: true });
 
@@ -328,10 +323,7 @@ for (const firstDelivery of deliveries) {
   }
 
   const silent = `${outDir}/${platform}-silent.mp4`;
-  const stamp = isNewsRun ? new Date().toISOString().slice(11, 16).replace(":", "") : "";
-  const final = isNewsRun
-    ? `${outDir}/khabar-${iso}-${stamp}.mp4`
-    : `${outDir}/gapmedia-${platform}-${iso}.mp4`;
+  const final = `${outDir}/gapmedia-${platform}-${iso}.mp4`;
   console.log(`\n=== ${platform} (${pack.id}) — ${is4k ? "4K" : "1080p"} — ${music} ===`);
   execSync(`${HF} render -c "${comp}" --quality high --fps 30 ${resFlag} --skill=faceless-explainer -o "${silent}"`, { stdio: "inherit" });
   if (voice) {
@@ -378,7 +370,7 @@ for (const firstDelivery of deliveries) {
       // remember the message so it can be taken back; Telegram allows a bot to
       // delete its own messages for 48 hours and nothing else
       if (res && res.message_id) {
-        const delivery = { kind: isNewsRun ? "news" : "daily", platform, packId: pack.id, messageId: res.message_id, at: Date.now() };
+        const delivery = { kind: "daily", platform, packId: pack.id, messageId: res.message_id, at: Date.now() };
         recordSent(delivery);
         // This is the editorial memory for both channels.  A story counts as
         // published only after Telegram confirms a message id; drafts and
@@ -455,7 +447,7 @@ for (const firstDelivery of deliveries) {
   }
 }
 
-writeFileSync(`${outDir}/${isNewsRun ? "news-manifest" : "manifest"}.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
+writeFileSync(`${outDir}/manifest.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
 console.log(`\n✅ ${iso}: ${results.length} videos ready in ${outDir}\n` + results.map((r) => "   " + r.file).join("\n"));
 
 // A Telegram-facing failure used to be caught above so the operator received

@@ -40,7 +40,6 @@ export const MOODS = {
 
 // Which mood a video gets, read from what it actually teaches.
 export function moodFor(pack) {
-  if (pack.platform === "news" || /bverfg|legal-route|deport|asylum/.test(String(pack.id))) return "news";
   const id = String(pack.id || "").toLowerCase();
   const text = (
     (pack.feature || "") + " " + (pack.hook?.l1 || "") + " " + (pack.hook?.l2 || "") + " " +
