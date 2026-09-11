@@ -116,12 +116,44 @@ jobs:
             fs.writeFileSync(".german-lesson-batch-sent.json", JSON.stringify(merged, null, 2));
           '
 
+      # A silent `|| true` on this push used to mean: if the push lost a race
+      # against another workflow's commit to main (daily.yml/telegram.yml all
+      # commit to the same branch), the episode-index advance made by
+      # german-lesson-build.mjs a few steps up — the ONLY thing standing
+      # between "next run builds episode N+1" and "next run rebuilds the
+      # exact same episode N and sends it to Telegram again" — was silently
+      # lost, with the job still reporting green. Owner report 2026-09-11:
+      # an already-sent A1 episode went out a second time. Retrying once
+      # (rebase, then push again) covers the ordinary race; if it still
+      # fails, fail the job loudly instead of hiding it, so this stops being
+      # invisible.
       - name: Remember the next episode
         if: steps.gate.outputs.go == 'yes'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f .german-lesson-progress.json .german-lesson-batch-sent.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "german-lesson: advance to the next episode"
-          git pull --rebase --autostash || true
-          git push || true
+          if git push; then
+            echo "progress pushed"
+          else
+            echo "push rejected, retrying once after rebase"
+            git pull --rebase --autostash
+            if git push; then
+              echo "progress pushed after retry"
+            else
+              echo "::error::german-lesson-build.mjs's episode-index advance could not be pushed — the next run will rebuild and resend the SAME episode."
+              node -e '
+                const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;
+                if (!token || !chatId) process.exit(0);
+                fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                  method: "POST", headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ chat_id: chatId, text: "⚠ پیشرفت قسمت آموزش آلمانی ذخیره نشد — قسمت بعد ممکن است تکراری ارسال شود. نیاز به بررسی دستی." }),
+                }).catch(() => {});
+              '
+              exit 1
+            fi
+          fi

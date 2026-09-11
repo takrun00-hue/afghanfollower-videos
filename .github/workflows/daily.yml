@@ -247,13 +247,43 @@ jobs:
       # source of truth (checked out fresh every run) and the cache a pure
       # speed optimization on top of it, the same pattern news-scan.yml
       # already uses for .german-lesson-progress.json.
+      # A silent `|| true` here used to mean: if this push lost a race against
+      # another workflow's commit to main (news-scan.yml/telegram.yml all
+      # commit to the same branch), today's delivery memory — the ONLY thing
+      # stopping a later poll the same day, or tomorrow's rotation, from
+      # re-picking and resending what just went out — was silently lost, with
+      # the job still reporting green. Same class of bug as
+      # news-scan.yml's identical pattern (owner report 2026-09-11: a repeat
+      # send), fixed the same way here: retry once after a rebase, and fail
+      # the job loudly instead of hiding it if that still doesn't push.
       - name: Persist delivery memory to git
         if: steps.gate.outputs.go == 'yes'
         shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f .content-history.json .content-registry.json .daily-batch-sent.json .telegram-sent.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "daily: record today's ${{ steps.gate.outputs.batch }} send(s)"
-          git pull --rebase --autostash || true
-          git push || true
+          if git push; then
+            echo "delivery memory pushed"
+          else
+            echo "push rejected, retrying once after rebase"
+            git pull --rebase --autostash
+            if git push; then
+              echo "delivery memory pushed after retry"
+            else
+              echo "::error::today's delivery memory could not be pushed — a later poll or tomorrow's rotation may resend/repeat what just went out."
+              node -e '
+                const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;
+                if (!token || !chatId) process.exit(0);
+                fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                  method: "POST", headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ chat_id: chatId, text: "⚠ حافظهٔ ارسال امروز ذخیره نشد — ممکن است ویدیویی تکراری ارسال شود. نیاز به بررسی دستی." }),
+                }).catch(() => {});
+              '
+              exit 1
+            fi
+          fi
