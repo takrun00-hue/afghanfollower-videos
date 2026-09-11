@@ -188,6 +188,20 @@ for (const firstDelivery of deliveries) {
     const { slot: platform, pack, mirrorOf } = delivery;
     triedIds.add(String(pack.id).toLowerCase());
     try {
+      // Reject a known duplicate before any image rescue, TTS charge or video
+      // render begins.  The delivery-time check below remains as the final
+      // race-condition guard, but this preflight is the normal path: a topic
+      // that the 30-day registry already knows about must not spend minutes
+      // rendering only to be rejected at the end.
+      if (!mirrorOf && process.env.ALLOW_DUPLICATE !== "1") {
+        const earlyDuplicate = check(fingerprint(pack), { alsoAgainst: batchPrints });
+        if (earlyDuplicate.verdict === "DUPLICATE") {
+          throw Object.assign(
+            new Error(`تکراری (${earlyDuplicate.score}) — همان محتوای «${earlyDuplicate.closest?.id}» در ۳۰ روز اخیر رفته است`),
+            { kind: "duplicate", dup: earlyDuplicate },
+          );
+        }
+      }
       // Do this before HTML/audio/render work. A missing real visual is a
       // research failure, not a reason to ship a generic illustration. Most
       // of the older rotation banks predate this gate and were never fitted
