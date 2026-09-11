@@ -560,3 +560,28 @@ clips or any other video). Two variables changed together because both
 problems (fast AND quiet) came from the same single listen.
 **Status: NOT LOCKED.** Needs a real listen on the `--unit a1-12-haben`
 correction rebuild before this counts as confirmed.
+
+### Update, 2026-09-11 — real root cause found: German word named in PERSIAN narration, wrong bug fixed twice
+Owner heard the `--unit a1-12-haben` correction rebuild and reported it
+*still* mispronounced — specifically, "sein" came out sounding like "ساین"
+(English/Persian, unvoiced s) instead of correct German "زاین" (voiced z,
+the real German rule for word-initial s before a vowel). The two fixes
+above (German-word clip pitch/speed regression, then its pace/loudness)
+were both real but did not touch this — this is a THIRD, separate bug in
+the same episode. Root cause: `lib/narration.mjs`'s `a1-12-haben` entry
+named the German verb "sein" in Latin script directly inside its PERSIAN
+hook and outro lines ("بعد از sein، ..." / "...مثل sein..."). Those lines
+are spoken by the PERSIAN voice (no `language_boost="German"`) — so of
+course German orthography read with Persian/English phonetics. This has
+nothing to do with `GERMAN_WORD_VOICE_ID`/`GERMAN_WORD_VOICE_SETTINGS`,
+which only ever apply to the SEPARATE per-item German-word clip, not the
+hook/outro. Every other unit's narration already avoids this (checked all
+24 — only this one embedded a raw German word in Persian text); rewrote
+both lines to refer to "فعل قبلی" instead of naming "sein".
+**Lesson for narration.mjs entries generally:** never write a foreign
+(German) word in Latin script inside a hook/step/outro string — those are
+always spoken by the Persian voice with no language override. If a lesson
+needs to reference another unit's word by name, describe it ("فعل قبلی",
+"کلمهٔ قبلی") rather than spelling it.
+**Status: NOT LOCKED.** Needs a real listen on the next `--unit
+a1-12-haben` correction rebuild.
