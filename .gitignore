@@ -24,6 +24,11 @@ lib/generated/
 .media-cache/
 renders/news/
 compositions/news/
+# german-lesson-build.mjs writes here every episode (renders/ above already
+# covers the render itself); was missing from this list unlike daily/ and
+# news/ above — owner report 2026-09-11: build-stage files should not
+# linger after a video ships.
+compositions/german/
 .topic-proposals.json
 public/broll/*.mp4
 !public/broll/*-thread.mp4

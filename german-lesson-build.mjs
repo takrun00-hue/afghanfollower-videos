@@ -52,6 +52,26 @@ function saveProgress(i) {
 }
 
 const idx = nextIndex();
+// germanUnitAt() wraps with a modulo once idx reaches the end of GERMAN_A1 —
+// needed so a bad/stale progress index never crashes, but it means the
+// curriculum silently re-teaches a1-01 onward under a NEW episode number
+// once exhausted. Owner report 2026-09-11: exactly this happened (episode
+// A1-011 re-taught a1-03's content word-for-word). GERMAN_A1 was expanded
+// the same day to push this much further out, but the real fix is this
+// guard: refuse outright, the same way any other content gate in this
+// project fails loud, instead of silently sending recycled material.
+if (idx >= GERMAN_A1.length) {
+  console.error(`   ✗ curriculum exhausted: GERMAN_A1 has ${GERMAN_A1.length} units, next index is ${idx}.`);
+  if (telegramConfig(localEnv).enabled) {
+    try {
+      await sendMessage({
+        token: telegramConfig(localEnv).token, chatId: telegramConfig(localEnv).chatId,
+        text: `⚠ دورهٔ آلمانی به آخر بانک محتوای فعلی رسید (${GERMAN_A1.length} قسمت). قسمت تازه ساخته نشد تا از تکرار جلوگیری شود — به lib/german-a1.mjs واحدهای بیشتر اضافه کن.`,
+      });
+    } catch {}
+  }
+  process.exit(1);
+}
 const unit = germanUnitAt(idx);
 const episodeNo = idx + 1;
 const nextUnit = germanUnitAt(idx + 1);
