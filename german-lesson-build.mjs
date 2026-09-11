@@ -194,11 +194,21 @@ function ttsSynthesize(text, languageBoost, outFile, voiceId) {
   const env = { ...process.env };
   if (languageBoost) env.MINIMAX_LANGUAGE_BOOST = languageBoost;
   if (voiceId) env.MINIMAX_VOICE_ID = voiceId;
-  // See GERMAN_LESSON_NARRATION_OVERRIDE's own comment (lib/voice-settings.mjs)
-  // — applies to every clip in this series (hook, German word, Persian
-  // explanation, outro), never to the global APPROVED settings other videos use.
-  env.MINIMAX_VOICE_PITCH = String(GERMAN_LESSON_NARRATION_OVERRIDE.pitch);
-  env.VOICE_SPEED = String(GERMAN_LESSON_NARRATION_OVERRIDE.speed);
+  // Regression, owner report 2026-09-11: episode A1-012 built "without
+  // German pronunciation". Root cause — GERMAN_LESSON_NARRATION_OVERRIDE was
+  // applied unconditionally, including to the German-word clip
+  // (voiceId=GERMAN_WORD_VOICE_ID, languageBoost="German"), a combination
+  // that was never tested. The only combination actually tested and
+  // confirmed by ear (VOICE-LOG.md, episode 9, 2026-09-10) is
+  // GERMAN_WORD_VOICE_ID at the DEFAULT pitch/speed. The owner's "کمی
+  // بالاتر و آهسته‌تر" request was about the narration explaining each
+  // word, not the German pronunciation itself — so the override now only
+  // applies when this call is NOT the German-word voice (i.e. every other
+  // clip in the series: hook, Persian explanation, outro).
+  if (!voiceId) {
+    env.MINIMAX_VOICE_PITCH = String(GERMAN_LESSON_NARRATION_OVERRIDE.pitch);
+    env.VOICE_SPEED = String(GERMAN_LESSON_NARRATION_OVERRIDE.speed);
+  }
   execFileSync("node", ["music/minimax-tts.mjs", text, "-o", outFile], { env, stdio: "inherit" });
 }
 function ffprobeDuration(file) {
