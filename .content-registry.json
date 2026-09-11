@@ -2539,8 +2539,53 @@
     "sources": [
       "https://workspace.google.com/products/vids/"
     ],
-    "sentAt": "2026-09-10T16:13:25.063Z",
-    "messageId": 1735,
+    "sentAt": "2026-09-10T15:21:23.135Z",
+    "messageId": 1732,
+    "kind": "daily"
+  },
+  {
+    "id": "playlists",
+    "platform": "tiktok",
+    "feature": "",
+    "topic": "playlists",
+    "question": "با این قابلیت تیک‌تاک، از هر بیننده چند برابر ویو بگیر",
+    "angle": "کاری کن بیننده",
+    "hookConcept": "کاری کن بیننده پشت‌سرهم تماشا کند",
+    "keyPoints": [
+      "به پروفایلت برو",
+      "یک پلی‌لیست جدید بساز",
+      "ویدیوهای هم‌موضوع را داخلش بگذار",
+      "حالا بیننده زنجیره‌وار تماشا می‌کند"
+    ],
+    "claim": "بیننده به‌جای یک ویدیو، چند ویدیو را پشت‌سرهم می‌بیند.",
+    "keywords": [
+      "قابلیت",
+      "تیک",
+      "تاک",
+      "بیننده",
+      "چند",
+      "برابر",
+      "ویو",
+      "پروفایلت",
+      "برو",
+      "لیست",
+      "جدید",
+      "بساز",
+      "ویدیو",
+      "موضوع",
+      "داخلش",
+      "بگذار",
+      "حالا",
+      "زنجیره",
+      "وار",
+      "تماشا",
+      "کند"
+    ],
+    "sources": [
+      "https://newsroom.spotify.com/2025-06-11/spotify-rolls-out-playlist-cover-art-tool-in-more-markets-and-new-languages-plus-summer-stickers-are-here/"
+    ],
+    "sentAt": "2026-09-11T07:41:31.367Z",
+    "messageId": 1776,
     "kind": "daily"
   }
 ]
