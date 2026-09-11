@@ -539,3 +539,24 @@ clip is back on its tested default. **Status: German-word clip LOCKED as
 before (untouched); the Persian pitch/speed change is still NOT LOCKED**
 — still needs a real listen on the next episode to judge "کمی بالاتر و
 آهسته‌تر" against "childish", now that it's isolated to the right clips.
+
+### Update, 2026-09-11 — the fix above still needed a second pass: German word too fast/quiet
+Owner heard episode A1-012 (haben) again after the fix above and reported the
+German word clip specifically read too fast and too quiet — described as
+coming across accented/unclear ("لهجهٔ فارسی"). Considered and rejected the
+owner's own suggested fix (switch `language_boost` to English): that is the
+exact bug already found and fixed 2026-09-10 ("German word clips read with
+an English-accented voice") — reverting it would reintroduce a worse,
+already-solved problem. The voice_id/language_boost are correct; this is a
+pace/loudness issue specific to a short foreign word or phrase, distinct
+from `APPROVED.speed` (tuned by ear for flowing Persian sentences).
+**Action:** checked MiniMax's own t2a_v2 docs for valid ranges (speed
+0.5–2.0, vol 0–10, both default 1) before picking values — added
+`GERMAN_WORD_VOICE_SETTINGS = { speed: 0.85, vol: 1.4 }` in
+`lib/voice-settings.mjs`, applied only to the German-word clip in
+`german-lesson-build.mjs`'s `ttsSynthesize()` (checked via
+`voiceId === GERMAN_WORD_VOICE_ID`, so it can never leak onto the Persian
+clips or any other video). Two variables changed together because both
+problems (fast AND quiet) came from the same single listen.
+**Status: NOT LOCKED.** Needs a real listen on the `--unit a1-12-haben`
+correction rebuild before this counts as confirmed.
