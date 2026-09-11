@@ -444,5 +444,19 @@ for (const firstDelivery of deliveries) {
 writeFileSync(`${outDir}/${isNewsRun ? "news-manifest" : "manifest"}.json`, JSON.stringify({ date: iso, dayIndex: sel.dayIndex, resolution: is4k ? "2160x3840" : "1080x1920", videos: results }, null, 2));
 console.log(`\n✅ ${iso}: ${results.length} videos ready in ${outDir}\n` + results.map((r) => "   " + r.file).join("\n"));
 
+// A Telegram-facing failure used to be caught above so the operator received
+// a useful Persian explanation, but the process still exited 0. GitHub then
+// displayed a green run even though no video had been delivered.  Preserve the
+// manifest and the Telegram explanation, then make the job itself truthful so
+// dashboards, retries and human checks never mistake a failed send/QC gate for
+// a completed delivery.
+// `--no-telegram` is intentionally a local preview mode, where a missing
+// delivery confirmation is expected rather than an error.
+const failedResults = results.filter((r) => r.buildFailed || (!noTelegram && (r.telegram === false || r.sent === false)));
+if (failedResults.length) {
+  const details = failedResults.map((r) => `${r.platform}/${r.packId}: ${r.buildFailed || "Telegram delivery was not confirmed"}`).join(" | ");
+  throw new Error(`Render did not complete delivery for ${failedResults.length} video(s): ${details}`);
+}
+
 
 
