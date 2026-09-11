@@ -30,7 +30,7 @@ import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.
 import { fingerprint, check, register } from "./lib/dedupe.mjs";
 import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
-import { GERMAN_WORD_VOICE_ID } from "./lib/voice-settings.mjs";
+import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE } from "./lib/voice-settings.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -119,7 +119,9 @@ const pack = {
   tips: unit.items.map((it, i) => ({ head: `${colorArticle(it.de)} — ${it.fa}`, step: i + 1 })),
   outroAsk: `قسمت بعد: ${nextUnit.topic}`,
   payoff: "واژه، مکالمه و نکتهٔ گرامری تازه یاد گرفتی — سطح A1.",
-  tgTitle: `🇩🇪 آموزش آلمانی هوشمند | ${lessonCode} — ${unit.topic}\n\n#آلمانی #A1 #زبان_آلمانی #مکالمه #واژگان #گرامر`,
+  // Hashtags in English (owner instruction, 2026-09-11) — everything else in
+  // the caption stays Persian; only the tag list changed.
+  tgTitle: `🇩🇪 آموزش آلمانی هوشمند | ${lessonCode} — ${unit.topic}\n\n#German #A1 #LearnGerman #GermanLessons #Vocabulary #Grammar`,
   // No mascot/character illustration — owner correction 2026-09-08, reaffirmed
   // 2026-09-10 (MASTER SYSTEM spec sec. 5: CHARACTER_MODE=DISABLED, no AI
   // avatar; real contextual images + typography + motion graphics only).
@@ -172,6 +174,11 @@ function ttsSynthesize(text, languageBoost, outFile, voiceId) {
   const env = { ...process.env };
   if (languageBoost) env.MINIMAX_LANGUAGE_BOOST = languageBoost;
   if (voiceId) env.MINIMAX_VOICE_ID = voiceId;
+  // See GERMAN_LESSON_NARRATION_OVERRIDE's own comment (lib/voice-settings.mjs)
+  // — applies to every clip in this series (hook, German word, Persian
+  // explanation, outro), never to the global APPROVED settings other videos use.
+  env.MINIMAX_VOICE_PITCH = String(GERMAN_LESSON_NARRATION_OVERRIDE.pitch);
+  env.VOICE_SPEED = String(GERMAN_LESSON_NARRATION_OVERRIDE.speed);
   execFileSync("node", ["music/minimax-tts.mjs", text, "-o", outFile], { env, stdio: "inherit" });
 }
 function ffprobeDuration(file) {

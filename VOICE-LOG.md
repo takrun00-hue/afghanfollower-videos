@@ -501,3 +501,25 @@ env-var override for now — because this file's own change rule (one
 variable at a time, checked against docs, logged here) was not run for
 this specific value; it is documented as the actual production voice, not
 as a fresh, doc-checked LOCKED replacement of `Arabic_CalmWoman`.
+
+### German-lesson narration — pitch/speed override, PENDING a real listen, 2026-09-11
+Owner request: the A1 series' narration should sound "کمی بالاتر" (a bit
+higher-pitched) and "اندکی آهسته" (slightly slower).
+**Action:** added `GERMAN_LESSON_NARRATION_OVERRIDE = { pitch: 3, speed: 0.88 }`
+in `lib/voice-settings.mjs`, applied only inside `german-lesson-build.mjs`'s
+`ttsSynthesize()` (every clip in that series: hook, German word, Persian
+explanation, outro). `APPROVED` above — used by every other video — is
+untouched.
+**Flag, not a clean approval:** pitch 3 is the exact value this same file
+already documents as auditioned and REJECTED for `APPROVED.voiceId` reading
+Persian ("heard as childish", see the comment on `APPROVED.pitch` above).
+That test was for the general narration voice used everywhere; this is a
+narrower, explicitly different context the owner asked for — but it is the
+same voice engine reading the same kind of Persian line, so the earlier
+finding may well repeat here too. Two changed variables at once (pitch AND
+speed) also does not follow this file's own "one variable at a time" rule —
+done anyway because the owner asked for both together in one instruction,
+and holding one back would not have answered what was asked.
+**Status: NOT LOCKED.** Needs a real listen on the next A1 episode. If it
+reproduces "childish", pitch goes back to 2 here and a different voice_id
+(not pitch) is the next thing to audition for "sounds higher".
