@@ -28,7 +28,13 @@ on:
   push:
     paths:
       - ".trigger-daily-dispatch"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "true = build and send the next episode right now, bypassing the Berlin time/already-sent gate below (owner request 2026-09-11: daily.yml already has this exact override, this file didn't). Leave false for a normal manual test run that still respects the gate."
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: german-lesson
@@ -55,6 +61,21 @@ jobs:
           already_sent() {
             [ -f .german-lesson-batch-sent.json ] && grep -q "\"$1\"" .german-lesson-batch-sent.json
           }
+
+          # Explicit manual override only — never the schedule or the hourly
+          # push trigger, so this can never turn into a silent extra episode.
+          # Tagged "manual-HHMM" (not "-morning"/"-evening"), so a forced send
+          # never marks today's real morning/evening threshold as delivered —
+          # the normal twice-daily schedule still fires its own episode later
+          # untouched. Mirrors daily.yml's existing non-auto workflow_dispatch
+          # bypass (owner request 2026-09-11: this file didn't have one yet).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=manual-$(TZ=Europe/Berlin date '+%H%M')" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
+            echo "Manual override: forcing an episode now, bypassing the time/already-sent gate."
+            exit 0
+          fi
 
           if [[ "$local_hm" > "07:00" || "$local_hm" == "07:00" ]] && ! already_sent "$local_date-morning"; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
