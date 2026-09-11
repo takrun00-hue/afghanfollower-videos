@@ -523,3 +523,19 @@ and holding one back would not have answered what was asked.
 **Status: NOT LOCKED.** Needs a real listen on the next A1 episode. If it
 reproduces "childish", pitch goes back to 2 here and a different voice_id
 (not pitch) is the next thing to audition for "sounds higher".
+
+### Update, 2026-09-11 — regression: German pronunciation broke, root cause found and fixed
+Live result from the episode built right after the change above (A1-012):
+owner reported the video came out "بدون تلفظ آلمانی" — no German pronunciation
+at all. Root cause: the override above was applied unconditionally in
+`ttsSynthesize()`, including to the German-word clip
+(`GERMAN_WORD_VOICE_ID` + `language_boost="German"`) — a combination that
+had never been tested. The only combination actually confirmed by ear is
+`GERMAN_WORD_VOICE_ID` at the DEFAULT pitch/speed (episode 9, above).
+**Fix:** `ttsSynthesize()` now only applies
+`GERMAN_LESSON_NARRATION_OVERRIDE` when no `voiceId` override is passed —
+i.e. the Persian clips only (hook, explanation, outro). The German-word
+clip is back on its tested default. **Status: German-word clip LOCKED as
+before (untouched); the Persian pitch/speed change is still NOT LOCKED**
+— still needs a real listen on the next episode to judge "کمی بالاتر و
+آهسته‌تر" against "childish", now that it's isolated to the right clips.
