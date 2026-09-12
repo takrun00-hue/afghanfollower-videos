@@ -37,6 +37,8 @@ assert.match(readFileSync("music/plan-voice.mjs", "utf8"), /MAX_NARRATION_ATTEMP
   "narration must use bounded recovery instead of stopping at its first rejected take");
 assert.match(readFileSync("daily-render.mjs", "utf8"), /dailyDeliveriesForDate\(date, new Set\(\[\.\.\.avoidIds, \.\.\.triedIds\]\)\)/,
   "a duplicate or failed automatic candidate must seek a different unused topic");
+assert.match(readFileSync("daily-render.mjs", "utf8"), /MAX_ATTEMPTS_PER_SLOT = isRerender \? 1 : 6/,
+  "only an explicit correction rerender may stay pinned to its original subject");
 
 const germanWorkflow = readFileSync(".github/workflows/news-scan.yml", "utf8");
 assert.match(germanWorkflow, /\.german-correction-request\.json/);

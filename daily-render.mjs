@@ -224,10 +224,11 @@ const batchPrints = [];
 // FRESH candidate for the same slot before giving up, so a single bad topic
 // (missing photo, already covered, a crash specific to its script) does not
 // cost the day a video when the category has other untried topics left.
-// A manually-approved "--feature <id>" build is the one exception: swapping
-// its content silently would defeat the point of a human having picked it
-// (matches the existing rule that a direct feature request is never
-// silently substituted), so it gets exactly one attempt, same as before.
+// A direct feature request is still protected from duplicate publication. If
+// that subject has already gone out, a normal build now seeks a new verified
+// topic in the same slot instead of stopping on a rejection. The one exception
+// is `--rerender`: it is a repair of a known video and must never silently turn
+// into a different subject.
 //
 // Verified live 2026-09-08: a duplicate rejection (a full, expensive render
 // that only fails at the very last dup-check) can be followed by several
@@ -236,7 +237,7 @@ const batchPrints = [];
 // requirement). 6 gives real room to clear a short run of cheap QC misses
 // after one expensive miss, without letting a slot stuck on QC failures
 // alone eat the whole job's time budget re-rendering repeatedly.
-const MAX_ATTEMPTS_PER_SLOT = featureId ? 1 : 6;
+const MAX_ATTEMPTS_PER_SLOT = isRerender ? 1 : 6;
 for (const firstDelivery of deliveries) {
   let delivery = firstDelivery;
   const triedIds = new Set();
