@@ -1,1 +1,1 @@
-{"action":"rerender-feature","payload":"tts-voice","voice_mode":"on","note":"retry: trace safe dispatched catalogue identifier"}
+{"action":"rerender-feature","payload":"tts-voice","voice_mode":"on","note":"retry: trim transport whitespace; correction only, do not register as new content"}
