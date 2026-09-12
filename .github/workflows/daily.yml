@@ -146,11 +146,37 @@ jobs:
           # workflow_dispatch poll arriving 5 hours late still catches it —
           # see the note at the top of this file for why a tight window
           # cannot be relied on to ever see a poll land inside it.
+          #
+          # morning/evening used to be an if/elif chain, so a morning batch
+          # stuck on one persistently-failing slot (already_sent only flips
+          # once BOTH its slots succeed) meant the elif for evening was
+          # NEVER reached, all day, every poll — confirmed live 2026-09-12:
+          # .daily-batch-sent.json shows no "evening" entry since 2026-09-11,
+          # because the morning "instagram" slot kept failing on a real
+          # content-pool shortage and silently starved the entire evening
+          # batch (ai-tiktok/ai-instagram) of ever being attempted. Checking
+          # both thresholds independently and using the existing "all" batch
+          # when both are due fixes this: each slot still checkpoints via
+          # slot_done()/mark_done() in .daily-delivery-progress.json, so a
+          # slot that already succeeded is skipped instantly either way.
+          morning_due=false
+          evening_due=false
           if [[ "$local_hm" > "08:30" || "$local_hm" == "08:30" ]] && ! already_sent "$local_date-morning"; then
+            morning_due=true
+          fi
+          if [[ "$local_hm" > "17:00" || "$local_hm" == "17:00" ]] && ! already_sent "$local_date-evening"; then
+            evening_due=true
+          fi
+
+          if [ "$morning_due" = true ] && [ "$evening_due" = true ]; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=all" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
+          elif [ "$morning_due" = true ]; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=morning" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
-          elif [[ "$local_hm" > "17:00" || "$local_hm" == "17:00" ]] && ! already_sent "$local_date-evening"; then
+          elif [ "$evening_due" = true ]; then
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=evening" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
@@ -298,24 +324,36 @@ jobs:
           fi
 
       # Marks today's batch delivered so a later poll the same day — however
-      # much later — does not send it a second time.
+      # much later — does not send it a second time. Derived from the actual
+      # per-slot checkpoint (.daily-delivery-progress.json), not the whole
+      # run's pass/fail — a "batch=all" run where instagram is still stuck
+      # but ai-tiktok/ai-instagram both succeeded must still mark "evening"
+      # sent, or the gate fix above would keep re-selecting "all" and
+      # silently re-running the already-successful evening slots forever
+      # alongside every future retry of the stuck morning slot.
       - name: Record delivery marker
-        if: steps.gate.outputs.go == 'yes' && steps.produce.outputs.complete == 'yes'
+        if: steps.gate.outputs.go == 'yes'
         shell: bash
         run: |
-          case "${{ steps.gate.outputs.batch }}" in
-            morning) markers=("${{ steps.gate.outputs.date }}-morning") ;;
-            evening) markers=("${{ steps.gate.outputs.date }}-evening") ;;
-            all) markers=("${{ steps.gate.outputs.date }}-morning" "${{ steps.gate.outputs.date }}-evening") ;;
-          esac
           node -e '
             const fs = require("fs");
+            const date = process.argv[1];
+            let progress = {};
+            try { progress = JSON.parse(fs.readFileSync(".daily-delivery-progress.json", "utf8")); } catch {}
+            // Checked by real slot sets, not the requested batch value —
+            // "all" spans both, and each is only "sent" once its own two
+            // slots are actually checkpointed done.
+            const REQUIRED = { morning: ["tiktok", "instagram"], evening: ["ai-tiktok", "ai-instagram"] };
+            const add = [];
+            for (const [name, slots] of Object.entries(REQUIRED)) {
+              const done = new Set(progress?.[date]?.[name] || []);
+              if (slots.every((s) => done.has(s))) add.push(`${date}-${name}`);
+            }
             let existing = [];
             try { existing = JSON.parse(fs.readFileSync(".daily-batch-sent.json", "utf8")); } catch {}
-            const add = process.argv.slice(1);
             const merged = [...new Set([...existing, ...add])].slice(-60);
             fs.writeFileSync(".daily-batch-sent.json", JSON.stringify(merged, null, 2));
-          ' "${markers[@]}"
+          ' "${{ steps.gate.outputs.date }}"
 
       # The dedup record (.content-registry.json / .content-history.json /
       # .daily-batch-sent.json / .telegram-sent.json) previously lived ONLY in

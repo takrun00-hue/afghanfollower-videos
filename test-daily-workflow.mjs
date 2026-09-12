@@ -16,8 +16,23 @@ assert.match(workflow, /\.daily-delivery-progress\.json/);
 assert.match(workflow, /run_slot tiktok\s+run_slot instagram/s);
 assert.match(workflow, /run_slot ai-tiktok\s+run_slot ai-instagram/s);
 assert.match(workflow, /timeout --preserve-status 24m node daily-render\.mjs --only/);
-assert.match(workflow, /steps\.produce\.outputs\.complete == 'yes'/);
 assert.match(workflow, /Mark incomplete delivery for retry/);
+
+// Regression guard for the production failure observed 2026-09-11 through
+// 2026-09-12: the gate was an if/elif chain, so a morning batch stuck on one
+// persistently-failing slot (already_sent only flips once BOTH its slots
+// succeed) meant the elif for evening was never reached — .daily-batch-sent
+// showed no "evening" entry for over a day while ai-tiktok/ai-instagram sat
+// completely unattempted. Both thresholds must be checked independently and
+// "all" used when both are due, and the delivered-marker must be recorded
+// per real slot completion (not the whole run's pass/fail), so a stuck
+// morning slot never again blocks evening from ever being marked sent.
+assert.match(workflow, /morning_due=true/);
+assert.match(workflow, /evening_due=true/);
+assert.match(workflow, /if \[ "\$morning_due" = true \] && \[ "\$evening_due" = true \]; then\s*\n\s*echo "go=yes" >> "\$GITHUB_OUTPUT"\s*\n\s*echo "batch=all"/,
+  "both thresholds due at once must select the combined \"all\" batch, not just morning");
+assert.match(workflow, /REQUIRED = \{ morning: \["tiktok", "instagram"\], evening: \["ai-tiktok", "ai-instagram"\] \}/,
+  "the delivered marker must be derived from actual per-slot completion, not the run's overall pass/fail");
 assert.match(workflow, /Install Persian narration quality gate/);
 assert.match(workflow, /NARRATION_QC: "on"/);
 assert.match(workflow, /ASR_MODEL: "medium"/);
