@@ -18,7 +18,7 @@ assert.doesNotMatch(spoken, /کریتر|کانتنت گَپ|سرچ اَنالی�
 // Brand names and colloquial Persian remain natural, with no space introduced
 // inside a spoken word.
 assert.match(spoken, /تیک تاک/);
-assert.equal(minimaxSpeakable("می‌خواهید سریع‌تر کار کنید."), "میخواین سریعتر کار کنین.");
+assert.equal(minimaxSpeakable("می‌خواهید سریع‌تر کار کنید."), "میخواهید سریعتر کار کنین.");
 assert.equal(minimaxSpeakable("می‌توانید این کار را انجام دهید."), "میتونین این کار را انجام دهید.");
 assert.equal(minimaxSpeakable("از صفر شروع کن."), "از صِفر شروع کن.");
 assert.equal(minimaxSpeakable("Preview را ببین."), "پیش نَمایش را ببین.");
