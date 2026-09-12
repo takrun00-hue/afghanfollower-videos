@@ -1,1 +1,1 @@
-{"action":"rerender-feature","payload":"tts-voice","voice_mode":"on","note":"retry: strict measured voice planning; correction only, do not register as new content"}
+{"action":"rerender-feature","payload":"tts-voice","voice_mode":"on","note":"retry: identify and correct the rejected narration line; correction only, do not register as new content"}
