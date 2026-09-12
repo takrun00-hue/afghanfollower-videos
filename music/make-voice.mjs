@@ -16,10 +16,10 @@ process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
 const argv = process.argv.slice(2);
 const diagnosticFile = process.env.VOICE_DIAGNOSTIC_FILE || "";
-function timingDiagnostic(reason) {
+function timingDiagnostic(reason, timing = null) {
   if (!diagnosticFile) return;
   try {
-    writeFileSync(diagnosticFile, JSON.stringify({ stage: "narration-mixing", reason, at: new Date().toISOString() }, null, 2));
+    writeFileSync(diagnosticFile, JSON.stringify({ stage: "narration-mixing", reason, timing, at: new Date().toISOString() }, null, 2));
   } catch {}
 }
 // --tips a,b,c,d gives each scene its own measured length
@@ -93,7 +93,7 @@ try {
   // No raw text here: it can contain a user-provided feature label. This fixed
   // reason lets the cloud reporter distinguish a real timing rejection from
   // an API, renderer or Telegram failure.
-  timingDiagnostic("voice-timing-guard");
+  timingDiagnostic("voice-timing-guard", error.voiceTiming || null);
   throw error;
 }
 

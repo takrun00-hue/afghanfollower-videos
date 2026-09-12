@@ -57,14 +57,19 @@ let lastStage = "started";
 function checkpoint(stage, reason = null) {
   lastStage = stage;
   if (!diagnosticFile) return;
-  let priorReason = null;
-  try { priorReason = JSON.parse(readFileSync(diagnosticFile, "utf8")).reason || null; } catch {}
+  let priorReason = null, priorTiming = null;
+  try {
+    const prior = JSON.parse(readFileSync(diagnosticFile, "utf8"));
+    priorReason = prior.reason || null;
+    priorTiming = prior.timing || null;
+  } catch {}
   writeFileSync(diagnosticFile, JSON.stringify({
     stage,
     featureId: featureId || null,
     rerender: isRerender,
     // Fixed internal labels only — never raw runner output or user copy.
     reason: reason || priorReason || null,
+    timing: priorTiming,
     at: new Date().toISOString(),
   }, null, 2));
 }
