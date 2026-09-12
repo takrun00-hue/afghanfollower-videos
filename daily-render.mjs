@@ -377,8 +377,11 @@ for (const firstDelivery of deliveries) {
   if (voice) {
     execSync(
       `ffmpeg -y -hide_banner -loglevel error -i "${silent}" -i "${music}" -i "${voice}" ` +
-      `-filter_complex "[1:a]volume=0.85[m];[m][2:a]sidechaincompress=threshold=0.02:ratio=20:attack=8:release=260:makeup=1[duck];[duck][2:a]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5[a]" ` +
-      `-map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart "${final}"`,
+      // `-shortest` can terminate the whole delivery on an encoder-duration
+      // discrepancy. The voice scheduler already proves every sentence fits;
+      // pad the bed and produce the composition's exact duration instead.
+      `-filter_complex "[1:a]volume=0.85[m];[m][2:a]sidechaincompress=threshold=0.02:ratio=20:attack=8:release=260:makeup=1[duck];[duck][2:a]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-14:TP=-1.5,apad,atrim=duration=${pack.duration}[a]" ` +
+      `-map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -t ${pack.duration} -movflags +faststart "${final}"`,
       { stdio: "inherit" }
     );
   } else {

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
 import { minimaxSpeakable, pocketSpeakable } from "../lib/pronounce.mjs";
+import { assertVoiceSchedule } from "../lib/voice-timing.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -70,8 +71,16 @@ for (let i = 0; i < lines.length; i++) {
       stdio: ["ignore", "ignore", "inherit"],
     });
   }
-  parts.push({ file: f, at: lines[i].at });
+  const duration = Number(execFileSync("ffprobe", [
+    "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f,
+  ]).toString().trim());
+  parts.push({ file: f, at: lines[i].at, duration });
 }
+
+// Do not rely on the visual clock alone. If a TTS take is longer than the
+// scene measured during planning, publishing it would cut a word or collide
+// with the next card. Fail before render instead.
+assertVoiceSchedule(parts, TOTAL);
 
 // place each line at its scene on one bed of the video's exact length
 const inputs = parts.flatMap((p) => ["-i", p.file]);
