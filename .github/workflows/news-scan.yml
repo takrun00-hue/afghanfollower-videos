@@ -16,6 +16,9 @@ name: German A1 lesson series
 # this file inherits the same already-proven behaviour instead of a new,
 # untested one.
 #
+# Owner request 2026-09-12: a third episode a day, at 20:30 Berlin — same
+# open-ended-threshold gate pattern as the two above, batch="night".
+#
 # Fires on BOTH this file's own schedule AND a push to
 # .trigger-daily-dispatch — the same reliable, already-proven hourly
 # trigger daily.yml uses (see that file's header for why: GitHub's own
@@ -133,9 +136,13 @@ jobs:
             echo "go=yes" >> "$GITHUB_OUTPUT"
             echo "batch=evening" >> "$GITHUB_OUTPUT"
             echo "date=$local_date" >> "$GITHUB_OUTPUT"
+          elif [[ "$local_hm" > "20:30" || "$local_hm" == "20:30" ]] && ! already_sent "$local_date-night"; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+            echo "batch=night" >> "$GITHUB_OUTPUT"
+            echo "date=$local_date" >> "$GITHUB_OUTPUT"
           else
             echo "go=no" >> "$GITHUB_OUTPUT"
-            echo "Before today's next threshold (07:00/16:30 Berlin), or today's episode(s) already sent — skipping."
+            echo "Before today's next threshold (07:00/16:30/20:30 Berlin), or today's episode(s) already sent — skipping."
           fi
 
       - uses: actions/setup-node@v4
