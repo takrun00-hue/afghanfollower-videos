@@ -57,12 +57,14 @@ let lastStage = "started";
 function checkpoint(stage, reason = null) {
   lastStage = stage;
   if (!diagnosticFile) return;
-  let priorReason = null, priorTiming = null, priorLine = null;
+  let priorReason = null, priorTiming = null, priorLine = null, priorFaultKind = null, priorWordIndex = null;
   try {
     const prior = JSON.parse(readFileSync(diagnosticFile, "utf8"));
     priorReason = prior.reason || null;
     priorTiming = prior.timing || null;
     priorLine = Number.isInteger(prior.line) ? prior.line : null;
+    priorFaultKind = prior.faultKind || null;
+    priorWordIndex = Number.isInteger(prior.wordIndex) ? prior.wordIndex : null;
   } catch {}
   writeFileSync(diagnosticFile, JSON.stringify({
     stage,
@@ -72,6 +74,8 @@ function checkpoint(stage, reason = null) {
     reason: reason || priorReason || null,
     timing: priorTiming,
     line: priorLine,
+    faultKind: priorFaultKind,
+    wordIndex: priorWordIndex,
     at: new Date().toISOString(),
   }, null, 2));
 }

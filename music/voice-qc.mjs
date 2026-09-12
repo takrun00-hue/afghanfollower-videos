@@ -14,11 +14,16 @@ import { faults } from "../lib/hear.mjs";
 // line number are enough to repair a TTS failure without committing spoken
 // copy, ASR output, paths, or credentials.
 const diagnosticFile = process.env.RENDER_DIAGNOSTIC_FILE || "";
-function diagnostic(reason, line = null) {
+function diagnostic(reason, line = null, fault = null) {
   if (!diagnosticFile) return;
   try {
     writeFileSync(diagnosticFile, JSON.stringify({
-      stage: "narration-planning", reason, line, at: new Date().toISOString(),
+      stage: "narration-planning", reason, line,
+      // A type and ordinal identify the defective word without committing
+      // written copy or ASR output to the repository.
+      faultKind: fault?.kind || null,
+      wordIndex: Number.isInteger(fault?.wantIndex) ? fault.wantIndex + 1 : null,
+      at: new Date().toISOString(),
     }, null, 2));
   } catch {}
 }
@@ -67,7 +72,7 @@ const out = { checkedAt: new Date().toISOString(), model, report };
 writeFileSync(resolve(dirname(manifestFile), "voice-qc-report.json"), JSON.stringify(out, null, 2));
 const errors = report.flatMap((line) => line.faults.map((fault) => ({ line: line.line, ...fault })));
 if (errors.length) {
-  diagnostic("voice-asr-mismatch", errors[0].line);
+  diagnostic("voice-asr-mismatch", errors[0].line, errors[0]);
   for (const fault of errors) console.error(`Narration QC line ${fault.line}: ${fault.kind} «${fault.want || "—"}» → «${fault.got || "—"}»`);
   process.exit(1);
 }
