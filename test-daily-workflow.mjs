@@ -27,6 +27,10 @@ const telegramWorkflow = readFileSync(".github/workflows/telegram.yml", "utf8");
 assert.match(telegramWorkflow, /group: gapmedia-production/);
 assert.match(telegramWorkflow, /rerender-feature/);
 assert.match(telegramWorkflow, /RENDER_DIAGNOSTIC_FILE/);
+assert.match(readFileSync("daily-render.mjs", "utf8"), /REQUIRE_VOICE === "on"[\s\S]{0,180}narration-planning/,
+  "a required voice run must not fall back to an unmeasured beat grid");
+assert.match(readFileSync("music/voice-qc.mjs", "utf8"), /voice-asr-mismatch/,
+  "a rejected narration take must leave a safe, actionable category");
 
 const germanWorkflow = readFileSync(".github/workflows/news-scan.yml", "utf8");
 assert.match(germanWorkflow, /\.german-correction-request\.json/);

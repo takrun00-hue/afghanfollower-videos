@@ -305,7 +305,15 @@ for (const firstDelivery of deliveries) {
         console.log(`   timing follows speech: ${pack.duration}s`);
       }
     } catch (e) {
-      console.error("   ✗ voice planning failed, using the beat grid:", String(e.message).split(String.fromCharCode(10))[0]);
+      console.error("   ✗ voice planning failed:", String(e.message).split(String.fromCharCode(10))[0]);
+      // A required narrated delivery may never fall back to an unmeasured beat
+      // grid. That was the root of a later timing-guard failure: the real TTS
+      // line was longer than a default scene and the video could not be sent.
+      // Local music-only design previews may still intentionally continue.
+      if (process.env.REQUIRE_VOICE === "on") {
+        e.kind = "narration-planning";
+        throw e;
+      }
     }
   }
 

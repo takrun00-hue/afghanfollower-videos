@@ -10,9 +10,23 @@ import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { faults } from "../lib/hear.mjs";
 
+// The cloud keeps diagnostics intentionally small: a fixed category and a
+// line number are enough to repair a TTS failure without committing spoken
+// copy, ASR output, paths, or credentials.
+const diagnosticFile = process.env.RENDER_DIAGNOSTIC_FILE || "";
+function diagnostic(reason, line = null) {
+  if (!diagnosticFile) return;
+  try {
+    writeFileSync(diagnosticFile, JSON.stringify({
+      stage: "narration-planning", reason, line, at: new Date().toISOString(),
+    }, null, 2));
+  } catch {}
+}
+
 const at = process.argv.indexOf("--manifest");
 const manifestFile = at >= 0 ? process.argv[at + 1] : "";
 if (!manifestFile || !existsSync(manifestFile)) {
+  diagnostic("voice-qc-manifest");
   console.error("voice QC needs --manifest <existing-json-file>");
   process.exit(2);
 }
@@ -20,6 +34,7 @@ if (!manifestFile || !existsSync(manifestFile)) {
 const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
 const entries = Array.isArray(manifest.entries) ? manifest.entries : [];
 if (!entries.length || entries.some((e) => !e?.spoken || !e?.file || !existsSync(e.file))) {
+  diagnostic("voice-qc-input");
   console.error("voice QC manifest has no complete spoken/file entries");
   process.exit(2);
 }
@@ -34,6 +49,7 @@ try {
   });
   results = JSON.parse(raw.toString()).results || [];
 } catch (err) {
+  diagnostic("voice-asr-unavailable");
   console.error(`Narration ASR QC could not run: ${String(err.message).split("\n")[0]}`);
   process.exit(2);
 }
@@ -51,6 +67,7 @@ const out = { checkedAt: new Date().toISOString(), model, report };
 writeFileSync(resolve(dirname(manifestFile), "voice-qc-report.json"), JSON.stringify(out, null, 2));
 const errors = report.flatMap((line) => line.faults.map((fault) => ({ line: line.line, ...fault })));
 if (errors.length) {
+  diagnostic("voice-asr-mismatch", errors[0].line);
   for (const fault of errors) console.error(`Narration QC line ${fault.line}: ${fault.kind} «${fault.want || "—"}» → «${fault.got || "—"}»`);
   process.exit(1);
 }
