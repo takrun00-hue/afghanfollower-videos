@@ -2,5 +2,12 @@
   "stage": "failed-narration-mixing",
   "featureId": "tts-voice",
   "reason": "voice-timing-guard",
-  "at": "2026-09-12T09:15:33.015Z"
+  "timing": {
+    "line": 1,
+    "reason": "crosses-next-scene",
+    "start": 0.3,
+    "duration": 4.78,
+    "limit": 2.601
+  },
+  "at": "2026-09-12T09:25:06.005Z"
 }
