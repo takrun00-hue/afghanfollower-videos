@@ -1,1 +1,1 @@
-{"action":"rerender-feature","payload":"tts-voice","voice_mode":"on","note":"correction: rebuild today's TikTok narration after Persian pronunciation QC"}
+{"action":"rerender-feature","payload":"tts-voice","voice_mode":"on","note":"correction: real Text-to-Speech screen plus natural Persian narration, no automatic mid-sentence pauses"}

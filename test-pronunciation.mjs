@@ -22,7 +22,9 @@ assert.equal(minimaxSpeakable("می‌خواهید سریع‌تر کار کنی
 assert.equal(minimaxSpeakable("می‌توانید این کار را انجام دهید."), "میتونین این کار را انجام دهید.");
 assert.equal(minimaxSpeakable("از صفر شروع کن."), "از صِفر شروع کن.");
 assert.equal(minimaxSpeakable("Preview را ببین."), "پیش نَمایش را ببین.");
+assert.equal(minimaxSpeakable("پرویو را ببین."), "پیش نَمایش را ببین.");
 assert.equal(minimaxSpeakable("بدون میکروفون ضبط کن."), "بدون مایک ضبط کن.");
+assert.equal(minimaxSpeakable("بدون مایک و بدون صدای خودت ضبط کن."), "بدون مایک و بدون صدای خودت ضبط کن.");
 assert.match(narrationLineCheck("Preview را ببین.").join(" "), /unsafe UI label/);
 assert.match(narrationLineCheck("بدون میکروفون ضبط کن.").join(" "), /unsafe UI label/);
 
