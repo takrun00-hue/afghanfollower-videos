@@ -123,6 +123,12 @@ if (featIdxEarly < 0) {
     }
     let progressed = false;
     for (const d of deliveries) {
+      // The budget above is only checked between ROUNDS; a single slow-but-
+      // not-quite-hung rescuePackPhotos() call for one delivery inside this
+      // loop could still run the round itself well past the budget before
+      // that check runs again. Checking here too bounds the worst case to
+      // "one more in-flight rescue attempt", not "one more full round".
+      if (Date.now() > preScanDeadline) break; // the round-start check above logs and stops the outer loop next iteration
       // The Visual Truth Gate exists to stop a real screenshot being faked.
       // STYLE=cartoon never claims a real screenshot at all — every scene is
       // an illustrated mascot + a symbolic icon by design (owner-directed
