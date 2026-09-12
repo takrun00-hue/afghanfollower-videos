@@ -22,8 +22,17 @@ const emitted = [...new Set(
   [...worker.matchAll(/action:\s*"([a-z0-9-]+)"/g)].map((m) => m[1]),
 )].sort();
 
-// The guard is the pipe-separated case list that decides what is allowed past.
-const guard = (flow.match(/approved-feature\|[^)]*/) || [""])[0]
+// The guard is the pipe-separated case list that decides what a real
+// Telegram command (INPUT_ACTION) is allowed to dispatch. Anchored to that
+// specific `case` line, not just the first "approved-feature|" in the file —
+// a second, deliberately narrower guard for the .video-request.json push
+// path (only custom-content|content-radar|approved-feature|rerender-feature)
+// was added earlier in the file and also starts with "approved-feature|",
+// which made the old un-anchored regex grab that short list instead and
+// report every other real command as unguarded (confirmed live 2026-09-12:
+// all 28 false positives were exactly the actions missing from that other,
+// unrelated guard).
+const guard = (flow.match(/case "\$INPUT_ACTION" in\s*\n\s*([a-z0-9-|]+)\)/) || [, ""])[1]
   .split("|").map((s) => s.trim()).filter(Boolean);
 
 // Answered inside the worker, so they never reach GitHub.
