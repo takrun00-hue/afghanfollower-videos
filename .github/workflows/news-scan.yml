@@ -42,7 +42,8 @@ on:
         type: string
 
 concurrency:
-  group: german-lesson
+  # Shared with daily/Telegram production so delivery state cannot race.
+  group: gapmedia-production
   cancel-in-progress: false
 
 permissions:
@@ -114,6 +115,19 @@ jobs:
         with:
           node-version: "22"
 
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          path: ~/.cache/whisper
+          key: whisper-medium-v1
+      - name: Install Persian narration quality gate
+        if: steps.gate.outputs.go == 'yes'
+        run: python -m pip install --disable-pip-version-check --quiet openai-whisper
+
       - name: System packages for video rendering
         if: steps.gate.outputs.go == 'yes'
         run: |
@@ -132,6 +146,8 @@ jobs:
           MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
           VOICE: "on"
           REQUIRE_VOICE: "on"
+          NARRATION_QC: "on"
+          ASR_MODEL: "medium"
           # Real per-word photos (lib/lesson-image.mjs), not the cartoon
           # mascot style — owner correction 2026-09-08.
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}

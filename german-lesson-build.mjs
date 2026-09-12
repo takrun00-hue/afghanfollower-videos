@@ -25,7 +25,7 @@
 // applies here too — no photo found for a word means that episode does not
 // ship, same as any other feature with no real evidence.
 import { execSync, execFileSync } from "node:child_process";
-import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync } from "node:fs";
+import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { buildInkHTML } from "./lib/build-ink.mjs";
@@ -37,7 +37,7 @@ import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.
 import { fingerprint, check, register } from "./lib/dedupe.mjs";
 import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
-import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS } from "./lib/voice-settings.mjs";
+import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS, narrationLineCheck } from "./lib/voice-settings.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -227,6 +227,12 @@ console.log(`\n=== german-lesson episode ${episodeNo}: ${unit.topic} (${unit.id}
 // German-word clip specifically, leaving the approved Persian voice (used
 // for every other clip, hook, and outro) untouched.
 function ttsSynthesize(text, languageBoost, outFile, voiceId) {
+  // Persian explanatory lines must be validated before their text ever reaches
+  // the engine. German vocabulary uses a separate native-German voice.
+  if (!languageBoost) {
+    const issues = narrationLineCheck(text);
+    if (issues.length) throw new Error(`Persian narration preflight: ${issues.join(", ")}`);
+  }
   const env = { ...process.env };
   if (languageBoost) env.MINIMAX_LANGUAGE_BOOST = languageBoost;
   if (voiceId) env.MINIMAX_VOICE_ID = voiceId;
@@ -274,21 +280,53 @@ try {
     const voiceDir = "music/voice";
     mkdirSync(voiceDir, { recursive: true });
     try {
+      const persianEntries = [];
+      const makePersian = (written, file) => {
+        const spoken = minimaxSpeakable(written);
+        ttsSynthesize(spoken, null, file);
+        persianEntries.push({ written, spoken, file });
+      };
       const hookFile = `${voiceDir}/german-${pack.id}-hook.mp3`;
-      ttsSynthesize(minimaxSpeakable(vo.hook), null, hookFile);
-      const hookDur = ffprobeDuration(hookFile);
+      makePersian(vo.hook, hookFile);
 
       const tips = [];
       for (let i = 0; i < unit.items.length; i++) {
         const deFile = `${voiceDir}/german-${pack.id}-de${i}.mp3`;
         const faFile = `${voiceDir}/german-${pack.id}-fa${i}.mp3`;
         ttsSynthesize(unit.items[i].de, "German", deFile, GERMAN_WORD_VOICE_ID);
-        ttsSynthesize(minimaxSpeakable(vo.steps[i]), null, faFile);
-        tips.push({ deFile, faFile, deDur: ffprobeDuration(deFile), faDur: ffprobeDuration(faFile) });
+        makePersian(vo.steps[i], faFile);
+        tips.push({ deFile, faFile });
       }
 
       const outroFile = `${voiceDir}/german-${pack.id}-outro.mp3`;
-      ttsSynthesize(minimaxSpeakable(vo.outro), null, outroFile);
+      makePersian(vo.outro, outroFile);
+
+      // These are the exact Persian clips that will be mixed into the final
+      // bilingual episode. One fresh take is permitted after an ASR rejection;
+      // the second failure blocks rendering rather than shipping bad speech.
+      if (process.env.NARRATION_QC !== "off") {
+        const manifest = `${voiceDir}/german-${pack.id}-persian-qc.json`;
+        const runQC = () => {
+          writeFileSync(manifest, JSON.stringify({ featureId: pack.id, entries: persianEntries }, null, 2));
+          execFileSync("node", ["music/voice-qc.mjs", "--manifest", manifest], { stdio: "inherit" });
+        };
+        try {
+          runQC();
+        } catch {
+          console.error("German lesson Persian narration rejected; synthesizing one fresh take.");
+          for (const entry of persianEntries) {
+            rmSync(entry.file, { force: true });
+            ttsSynthesize(entry.spoken, null, entry.file);
+          }
+          runQC();
+        }
+      }
+
+      const hookDur = ffprobeDuration(hookFile);
+      for (const tip of tips) {
+        tip.deDur = ffprobeDuration(tip.deFile);
+        tip.faDur = ffprobeDuration(tip.faFile);
+      }
       const outroDur = ffprobeDuration(outroFile);
 
       voiceParts = { hookFile, hookDur, tips, outroFile, outroDur };
@@ -419,7 +457,7 @@ try {
   const print = fingerprint(pack);
   if (!isCorrection) {
     const dup = check(print);
-    if (dup.verdict === "DUPLICATE" && process.env.ALLOW_DUPLICATE !== "1") {
+    if (dup.verdict === "DUPLICATE") {
       throw Object.assign(new Error(`تکراری (${dup.score}) — قسمت «${dup.closest?.id}» قبلاً رفته است`), { kind: "duplicate" });
     }
   }

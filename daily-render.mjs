@@ -48,6 +48,14 @@ const resFlag = is4k ? "--resolution portrait-4k" : "";
 // says. A freshly researched update is worth shipping the day it lands.
 const featIdx = args.indexOf("--feature");
 const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
+// A correction is the only legitimate exception to the no-repeat rule. It
+// must name the exact failed feature, so a broad daily batch can never bypass
+// editorial memory by accident.
+const isRerender = args.includes("--rerender");
+if (isRerender && !featureId) {
+  console.error("✗ --rerender requires --feature <id>; a normal daily batch may never bypass duplicate protection.");
+  process.exit(1);
+}
 
 const sel = packsForDate(date);
 const featIdxEarly = args.indexOf("--feature");
@@ -206,7 +214,7 @@ for (const firstDelivery of deliveries) {
       // race-condition guard, but this preflight is the normal path: a topic
       // that the 30-day registry already knows about must not spend minutes
       // rendering only to be rejected at the end.
-      if (!mirrorOf && process.env.ALLOW_DUPLICATE !== "1") {
+      if (!mirrorOf && !isRerender) {
         const earlyDuplicate = check(fingerprint(pack), { alsoAgainst: batchPrints });
         if (earlyDuplicate.verdict === "DUPLICATE") {
           throw Object.assign(
@@ -367,8 +375,10 @@ for (const firstDelivery of deliveries) {
   // counterpart, while the first package still checks published history.
   const dup = mirrorOf
     ? { verdict: "MIRROR", score: 0, checked: true, sameSubstance: true, mirrorOf }
-    : check(print, { alsoAgainst: batchPrints });
-  if (dup.verdict === "DUPLICATE" && process.env.ALLOW_DUPLICATE !== "1") {
+    : isRerender
+      ? { verdict: "RERENDER", score: 0, checked: true, sameSubstance: true }
+      : check(print, { alsoAgainst: batchPrints });
+  if (dup.verdict === "DUPLICATE") {
     throw Object.assign(
       new Error(`تکراری (${dup.score}) — همان محتوای «${dup.closest?.id}» در ۳۰ روز اخیر رفته است`),
       { kind: "duplicate", dup },
@@ -393,8 +403,12 @@ for (const firstDelivery of deliveries) {
         // This is the editorial memory for both channels.  A story counts as
         // published only after Telegram confirms a message id; drafts and
         // aborted renders must never suppress a future story.
-        recordPublishedTopic(pack, delivery);
-        register({ ...print, messageId: res.message_id, kind: delivery.kind, sentAt: new Date().toISOString() });
+        // A correction replaces a defective delivery; it must not become a
+        // second editorial subject in the anti-repeat history.
+        if (!isRerender) {
+          recordPublishedTopic(pack, delivery);
+          register({ ...print, messageId: res.message_id, kind: delivery.kind, sentAt: new Date().toISOString() });
+        }
       }
     } catch (e) {
       console.error(`   ✗ Telegram send failed: ${e.message}`);

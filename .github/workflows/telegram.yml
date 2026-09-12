@@ -54,7 +54,9 @@ on:
         type: string
 
 concurrency:
-  group: telegram-listen
+  # Shared with daily.yml: only one path can render while it updates the
+  # editorial ledger, preventing a scheduler/Telegram duplicate race.
+  group: gapmedia-production
   cancel-in-progress: false
 
 permissions:

@@ -15,5 +15,9 @@ assert.match(workflow, /Mark incomplete delivery for retry/);
 assert.match(workflow, /Install Persian narration quality gate/);
 assert.match(workflow, /NARRATION_QC: "on"/);
 assert.match(workflow, /ASR_MODEL: "medium"/);
+assert.match(workflow, /group: gapmedia-production/);
+
+const telegramWorkflow = readFileSync(".github/workflows/telegram.yml", "utf8");
+assert.match(telegramWorkflow, /group: gapmedia-production/);
 
 console.log("daily workflow keeps each native format resumable after a sibling failure");

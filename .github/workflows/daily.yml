@@ -78,7 +78,9 @@ on:
 
 # Do not cancel a morning render just because a later poll begins.
 concurrency:
-  group: gapmedia-scheduled-production
+  # Shared with Telegram renders. Per-workflow locks allowed a phone command
+  # and the scheduler to render from two stale editorial ledgers at once.
+  group: gapmedia-production
   cancel-in-progress: false
 
 permissions:
