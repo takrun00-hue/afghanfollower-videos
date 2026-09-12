@@ -3,8 +3,8 @@
   "featureId": "tts-voice",
   "reason": "voice-asr-mismatch",
   "timing": null,
-  "line": 1,
+  "line": 2,
   "faultKind": "wrong",
-  "wordIndex": 6,
-  "at": "2026-09-12T14:11:39.766Z"
+  "wordIndex": 3,
+  "at": "2026-09-12T14:19:16.659Z"
 }
