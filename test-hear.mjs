@@ -38,6 +38,8 @@ const cases = [
     "آیا ویوهای تکتاکت اصلن برای درامد واجد شرایت هستند"],
   ["pass", "«جمله» heard with an Arabic ة instead of ه — real episode-16 false alarm",
     "این جمله یعنی باران می‌بارد.", "این جملة یعنی باران می‌بارد."],
+  ["pass", "a word-final ع elided into the next word — real episode-17 false alarm",
+    "و این دو کلمه یعنی سریع و آهسته.", "و این دو کلمه یعنی سری و آهسته."],
 
   // Sounds that actually changed. Each one alters the sentence.
   ["fail", "an ezafe the grammar has no room for",
