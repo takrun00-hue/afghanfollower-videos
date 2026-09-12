@@ -60,4 +60,18 @@ assert.match(germanWorkflow, /\.german-correction-request\.json/);
 assert.match(germanWorkflow, /steps\.gate\.outputs\.unit/);
 assert.match(germanWorkflow, /NARRATION_QC: "on"/);
 
+// Regression guard for the production incident observed 2026-09-12: the
+// hourly news-scan.yml cron fired while the previous run was still in
+// progress in the same "gapmedia-production" concurrency group, queued
+// behind it as designed, and actually started executing AFTER that run had
+// already pushed episode 17 and advanced nextIndex — but checkout defaults
+// to `github.sha`, frozen at the moment the run was QUEUED, not when it
+// actually executes, so the queued run silently rebuilt the exact same
+// episode all over again instead of seeing the advanced state. Every
+// workflow sharing this concurrency group needs an explicit `ref`.
+for (const [name, wf] of [["daily.yml", workflow], ["news-scan.yml", germanWorkflow], ["telegram.yml", telegramWorkflow]]) {
+  assert.match(wf, /uses: actions\/checkout@v4\s*\n\s*with:\s*\n\s*ref: main/,
+    `${name}'s checkout must pin an explicit ref, not the stale github.sha a queued run was frozen at`);
+}
+
 console.log("production workflows keep delivery state serialized and correction paths explicit");

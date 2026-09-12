@@ -58,7 +58,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Explicit ref, not the implicit github.sha: for a schedule-triggered
+      # run, github.sha is frozen at the moment GitHub queued the run, not
+      # when it actually starts executing. This job shares the
+      # "gapmedia-production" concurrency group with daily.yml/telegram.yml,
+      # so a run can sit queued for many minutes behind another — confirmed
+      # live 2026-09-12: the hourly cron fired at 21:22, queued behind the
+      # in-progress episode-17 build, then actually started at ~21:25 (after
+      # episode 17 had already succeeded and pushed nextIndex:17 to main),
+      # but still checked out the STALE pre-episode-17 commit pinned at
+      # 21:22 — so it read the old nextIndex and rebuilt episode 17 all over
+      # again. `ref: main` always checks out the CURRENT tip at the moment
+      # this step actually runs, regardless of how long the job was queued.
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Check the twice-daily Berlin-time gate
         id: gate
