@@ -36,6 +36,8 @@ const cases = [
   ["pass", "short vowel left out of the brand — «تکتاکت»",
     "آیا ویوهایِ تیک تاکَت، اَصلَن برای درآمد، واجِدِ شَرایِط هستند؟",
     "آیا ویوهای تکتاکت اصلن برای درامد واجد شرایت هستند"],
+  ["pass", "«جمله» heard with an Arabic ة instead of ه — real episode-16 false alarm",
+    "این جمله یعنی باران می‌بارد.", "این جملة یعنی باران می‌بارد."],
 
   // Sounds that actually changed. Each one alters the sentence.
   ["fail", "an ezafe the grammar has no room for",
