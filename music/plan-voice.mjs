@@ -4,6 +4,7 @@
 //
 // Usage: node music/plan-voice.mjs <feature-id>   -> JSON on stdout
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
@@ -49,7 +50,11 @@ function dur(file) {
 // cards wastes MiniMax balance and makes a short bulletin needlessly slow.
 const texts = [vo.hook, ...vo.steps.slice(0, requestedTips), vo.outro];
 const spokenLines = texts.map(speakable);
-const files = spokenLines.map((_, i) => `music/voice/${featureId}-${voiceKey}-${ENGINE}-line${i}.mp3`);
+// The spoken-copy hash belongs in the cache key.  A pronunciation correction
+// must always create fresh audio; reusing a line by feature ID alone would
+// silently ship yesterday's mispronounced MP3 with today's corrected text.
+const copyKey = createHash("sha256").update(spokenLines.join("\n")).digest("hex").slice(0, 12);
+const files = spokenLines.map((_, i) => `music/voice/${featureId}-${voiceKey}-${ENGINE}-${copyKey}-line${i}.mp3`);
 
 function synthesizeMissing() {
   for (let i = 0; i < texts.length; i++) {
@@ -75,7 +80,7 @@ synthesizeMissing();
 // non-deterministic; a second ASR failure is a release failure, never a silent
 // music-only fallback.
 if (process.env.NARRATION_QC !== "off") {
-  const manifest = `music/voice/${featureId}-${voiceKey}-${ENGINE}-qc.json`;
+  const manifest = `music/voice/${featureId}-${voiceKey}-${ENGINE}-${copyKey}-qc.json`;
   const writeManifest = () => writeFileSync(manifest, JSON.stringify({
     featureId,
     entries: texts.map((written, i) => ({ written, spoken: spokenLines[i], file: files[i] })),

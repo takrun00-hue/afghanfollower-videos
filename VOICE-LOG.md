@@ -108,6 +108,22 @@ Read English-like, and bled an ezafe backwards. Written with a space:
 «۲۰۰» was read as «دو هزار». `persianNumberWords()` converts rather than looking
 up — a lookup table produced «چهل و هشت۹۳» for «۴۸۹۳». **Status: LOCKED.**
 
+### «Preview» و «میکروفون» — ورودی خصوصیِ امن برای TTS، 2026-09-12
+
+**گزارش شنیداری صاحب کانال:** در ویدیوی TikTok، «Preview» و «میکروفون» نادرست
+خوانده شدند. علت: برچسب انگلیسی رابط کاربری و وام‌واژهٔ چندبخشی بدون تبدیل
+گفتاری وارد MiniMax شده بودند.
+
+**اصلاح قطعی:** متن روی اسکرین همچنان برچسب واقعی `Preview` یا `Microphone`
+است، اما نریشن خصوصی آن‌ها را به‌ترتیب «پیش نَمایش» و «مایک» می‌فرستد. هر
+ورودی خامِ این سه شکل (`Preview`، `Microphone`، «میکروفون») در گیت پیش از TTS
+رد می‌شود. فایل صوتی نیز اکنون هشِ متن گفتاری را در نام خود دارد؛ بنابراین
+هیچ MP3 قدیمی پس از تغییر تلفظ قابل استفاده نیست.
+
+**وضعیت شنیداری:** تغییر متن و گیت کد تست شده‌اند؛ آزمون شنیداریِ همین خروجی
+تازه باید روی نخستین رندر Cloud ثبت شود. گزارش شنیداری صاحب کانال همچنان بر
+ASR اولویت دارد.
+
 ### «صفر» — corrected to the standard Persian reading «صِفر», 2026-09-12
 **Reported by listener:** the latest video pronounced the number incorrectly.
 The converter expanded digits to the plain written form «صفر», but this TTS

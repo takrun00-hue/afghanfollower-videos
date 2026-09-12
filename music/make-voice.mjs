@@ -4,6 +4,7 @@
 //
 // Usage: node music/make-voice.mjs <feature-id> <hookDur> <tipDur> <tipCount> <outroAt> <total> <out.m4a>
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
@@ -53,15 +54,19 @@ const lines = [
   })),
   { text: vo.outro, at: OUT_AT + 0.35 },
 ];
+const spokenLines = lines.map((line) => speakable(line.text));
+// Must match plan-voice.mjs.  The cache is keyed by the exact private spoken
+// copy, so a pronunciation correction can never reuse an older bad take.
+const copyKey = createHash("sha256").update(spokenLines.join("\n")).digest("hex").slice(0, 12);
 
 const parts = [];
 for (let i = 0; i < lines.length; i++) {
   // Reuse the exact audio that plan-voice measured for the scene duration.
   // Re-synthesising here can vary the length slightly and makes a sentence run
   // into the next slide.
-  const f = `music/voice/${featureId}-${voiceKey}-${ENGINE}-line${i}.mp3`;
+  const f = `music/voice/${featureId}-${voiceKey}-${ENGINE}-${copyKey}-line${i}.mp3`;
   if (!existsSync(f)) {
-    execFileSync("node", [TTS, speakable(lines[i].text), "-o", f], {
+    execFileSync("node", [TTS, spokenLines[i], "-o", f], {
       stdio: ["ignore", "ignore", "inherit"],
     });
   }
