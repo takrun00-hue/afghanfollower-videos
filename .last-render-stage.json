@@ -4,5 +4,7 @@
   "reason": "voice-asr-mismatch",
   "timing": null,
   "line": 1,
-  "at": "2026-09-12T13:52:17.972Z"
+  "faultKind": "wrong",
+  "wordIndex": 1,
+  "at": "2026-09-12T14:04:23.264Z"
 }
