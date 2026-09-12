@@ -108,6 +108,19 @@ Read English-like, and bled an ezafe backwards. Written with a space:
 «۲۰۰» was read as «دو هزار». `persianNumberWords()` converts rather than looking
 up — a lookup table produced «چهل و هشت۹۳» for «۴۸۹۳». **Status: LOCKED.**
 
+### «صفر» — corrected to the standard Persian reading «صِفر», 2026-09-12
+**Reported by listener:** the latest video pronounced the number incorrectly.
+The converter expanded digits to the plain written form «صفر», but this TTS
+voice needs the short-vowel cue for the standard reading /sefr/. The on-screen
+word remains «صفر»; only the private spoken copy is now `صِفر`.
+
+**Release control added:** `music/plan-voice.mjs` now writes the exact
+per-line audio used by the render, runs `music/voice-qc.mjs` (Whisper plus the
+project's phonetic comparator) on those files, and permits one fresh take only.
+A second failed ASR comparison blocks the video before visual rendering. This
+is machine verification, not a substitute for the listener; any listener
+report remains a release bug and is handled before the next output.
+
 ### Breath placement
 A breath every one or two phrases, never mid-phrase. `breathe()` refuses to
 break a compound verb, a number phrase or a bound pair; NBSP marks a multi-word

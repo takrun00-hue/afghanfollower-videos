@@ -12,5 +12,8 @@ assert.match(workflow, /run_slot ai-tiktok\s+run_slot ai-instagram/s);
 assert.match(workflow, /timeout --preserve-status 24m node daily-render\.mjs --only/);
 assert.match(workflow, /steps\.produce\.outputs\.complete == 'yes'/);
 assert.match(workflow, /Mark incomplete delivery for retry/);
+assert.match(workflow, /Install Persian narration quality gate/);
+assert.match(workflow, /NARRATION_QC: "on"/);
+assert.match(workflow, /ASR_MODEL: "medium"/);
 
 console.log("daily workflow keeps each native format resumable after a sibling failure");

@@ -91,7 +91,10 @@ permissions:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+      # First use may download the ASR model; two native formats also each have
+      # their own render ceiling. Do not let infrastructure time out before the
+      # narration quality gate can make a truthful pass/fail decision.
+      timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -159,6 +162,22 @@ jobs:
         with:
           node-version: "22"
 
+      # Persian narration must be checked on the exact clips before render.
+      # Cache the model so this quality gate does not make every daily run
+      # download it again.
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          path: ~/.cache/whisper
+          key: whisper-medium-v1
+      - name: Install Persian narration quality gate
+        if: steps.gate.outputs.go == 'yes'
+        run: python -m pip install --disable-pip-version-check --quiet openai-whisper
+
       - name: System packages for video rendering
         if: steps.gate.outputs.go == 'yes'
         run: |
@@ -178,6 +197,8 @@ jobs:
           MINIMAX_VOICE_ID: ${{ secrets.MINIMAX_VOICE_ID }}
           VOICE: "on"
           REQUIRE_VOICE: "on"
+          NARRATION_QC: "on"
+          ASR_MODEL: "medium"
           # daily-render.mjs's Visual QC retry loop calls lib/auto-image.mjs's
           # rescuePackPhotos() to auto-source a real photo for a rotation
           # feature that has none (confirmed live 2026-09-06: the evening

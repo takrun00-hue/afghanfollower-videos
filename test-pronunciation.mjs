@@ -19,5 +19,6 @@ assert.doesNotMatch(spoken, /کریتر|کانتنت گَپ|سرچ اَنالی�
 assert.match(spoken, /تیک تاک/);
 assert.equal(minimaxSpeakable("می‌خواهید سریع‌تر کار کنید."), "میخواین سریعتر کار کنین.");
 assert.equal(minimaxSpeakable("می‌توانید این کار را انجام دهید."), "میتونین این کار را انجام دهید.");
+assert.equal(minimaxSpeakable("از صفر شروع کن."), "از صِفر شروع کن.");
 
 console.log("Persian TTS copy keeps UI labels clear and Persian words connected");

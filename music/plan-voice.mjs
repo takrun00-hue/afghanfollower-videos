@@ -4,7 +4,7 @@
 //
 // Usage: node music/plan-voice.mjs <feature-id>   -> JSON on stdout
 import { execFileSync } from "node:child_process";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
@@ -48,21 +48,60 @@ function dur(file) {
 // Only synthesise lines that will actually be on screen. Generating unseen
 // cards wastes MiniMax balance and makes a short bulletin needlessly slow.
 const texts = [vo.hook, ...vo.steps.slice(0, requestedTips), vo.outro];
-const files = [], durs = [];
-for (let i = 0; i < texts.length; i++) {
-  const spoken = speakable(texts[i]);
-  const issues = narrationLineCheck(spoken);
-  if (issues.length) {
-    console.error(`Narration QC failed for line ${i + 1}: ${issues.join(", ")}`);
+const spokenLines = texts.map(speakable);
+const files = spokenLines.map((_, i) => `music/voice/${featureId}-${voiceKey}-${ENGINE}-line${i}.mp3`);
+
+function synthesizeMissing() {
+  for (let i = 0; i < texts.length; i++) {
+    const spoken = spokenLines[i];
+    const issues = narrationLineCheck(spoken);
+    if (issues.length) {
+      console.error(`Narration QC failed for line ${i + 1}: ${issues.join(", ")}`);
+      process.exit(1);
+    }
+    const f = files[i];
+    if (!existsSync(f)) {
+      execFileSync("node", [TTS, spoken, "-o", f], {
+        stdio: ["ignore", "ignore", "inherit"],
+      });
+    }
+  }
+}
+
+synthesizeMissing();
+
+// This gate examines the exact per-line audio cached above — not a separately
+// generated audition. A single retry is allowed because MiniMax synthesis is
+// non-deterministic; a second ASR failure is a release failure, never a silent
+// music-only fallback.
+if (process.env.NARRATION_QC !== "off") {
+  const manifest = `music/voice/${featureId}-${voiceKey}-${ENGINE}-qc.json`;
+  const writeManifest = () => writeFileSync(manifest, JSON.stringify({
+    featureId,
+    entries: texts.map((written, i) => ({ written, spoken: spokenLines[i], file: files[i] })),
+  }, null, 2));
+  let passed = false;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    writeManifest();
+    try {
+      execFileSync("node", ["music/voice-qc.mjs", "--manifest", manifest], { stdio: "inherit" });
+      passed = true;
+      break;
+    } catch {
+      if (attempt === 2) break;
+      console.error("Narration ASR QC rejected this take; synthesizing one fresh take.");
+      for (const f of files) rmSync(f, { force: true });
+      synthesizeMissing();
+    }
+  }
+  if (!passed) {
+    console.error("Narration ASR QC failed twice; this video is blocked before visual rendering.");
     process.exit(1);
   }
-  const f = `music/voice/${featureId}-${voiceKey}-${ENGINE}-line${i}.mp3`;
-  if (!existsSync(f)) {
-    execFileSync("node", [TTS, spoken, "-o", f], {
-      stdio: ["ignore", "ignore", "inherit"],
-    });
-  }
-  files.push(f);
+}
+
+const durs = [];
+for (const f of files) {
   durs.push(dur(f));
 }
 
