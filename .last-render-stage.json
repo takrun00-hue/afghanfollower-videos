@@ -1,13 +1,7 @@
 {
-  "stage": "failed-narration-mixing",
+  "stage": "failed-narration-planning",
   "featureId": "tts-voice",
-  "reason": "voice-timing-guard",
-  "timing": {
-    "line": 1,
-    "reason": "crosses-next-scene",
-    "start": 0.3,
-    "duration": 4.78,
-    "limit": 2.601
-  },
-  "at": "2026-09-12T09:25:06.005Z"
+  "reason": "voice-asr-mismatch",
+  "timing": null,
+  "at": "2026-09-12T13:29:38.613Z"
 }
