@@ -338,7 +338,7 @@ jobs:
             // featureId is a public catalogue identifier (not a user message
             // or credential). Keeping it tells us whether the dispatch lost
             // the requested id before daily-render could resolve it.
-            fs.writeFileSync(".last-render-stage.json", JSON.stringify({ stage: String(x.stage || "unknown"), featureId: x.featureId || null, at: new Date().toISOString() }, null, 2));
+            fs.writeFileSync(".last-render-stage.json", JSON.stringify({ stage: String(x.stage || "unknown"), featureId: x.featureId || null, reason: x.reason || null, at: new Date().toISOString() }, null, 2));
           '
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

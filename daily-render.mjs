@@ -53,12 +53,18 @@ const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
 // editorial memory by accident.
 const isRerender = args.includes("--rerender");
 const diagnosticFile = process.env.RENDER_DIAGNOSTIC_FILE || "";
-function checkpoint(stage) {
+let lastStage = "started";
+function checkpoint(stage, reason = null) {
+  lastStage = stage;
   if (!diagnosticFile) return;
+  let priorReason = null;
+  try { priorReason = JSON.parse(readFileSync(diagnosticFile, "utf8")).reason || null; } catch {}
   writeFileSync(diagnosticFile, JSON.stringify({
     stage,
     featureId: featureId || null,
     rerender: isRerender,
+    // Fixed internal labels only — never raw runner output or user copy.
+    reason: reason || priorReason || null,
     at: new Date().toISOString(),
   }, null, 2));
 }
@@ -345,7 +351,7 @@ for (const firstDelivery of deliveries) {
         `node music/make-voice.mjs ${pack.id} ${pack.hookDuration} ${tipLen.toFixed(3)} ` +
         `${tipList ? `--tips ${tipList} ` : ""}` +
         `${pack.tips.length} ${(pack.duration - pack.outroDuration).toFixed(3)} ${pack.duration} "${vFile}"`,
-        { stdio: "inherit" }
+        { stdio: "inherit", env: { ...process.env, VOICE_DIAGNOSTIC_FILE: diagnosticFile } }
       );
       if (existsSync(vFile)) voice = vFile;
       if (!voice && process.env.REQUIRE_VOICE === "on") {
@@ -447,7 +453,10 @@ for (const firstDelivery of deliveries) {
       checkpoint("complete");
       break; // this attempt succeeded — done with this slot
     } catch (err) {
-      checkpoint(`failed-${err.kind || "runtime"}`);
+      // Preserve the last named production stage in the safe diagnostic. Raw
+      // runner text can contain user content or paths, but this fixed label is
+      // enough to distinguish timing, audio-mix, video-render and delivery.
+      checkpoint(`failed-${err.kind || lastStage || "runtime"}`);
       // Every failure mode above (Visual QC, duplicate, voice/render crash,
       // Telegram send) lands here. avoidIds is shared with the pre-scan so a
       // photo-less id excluded there stays excluded; triedIds additionally

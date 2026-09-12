@@ -26,6 +26,7 @@ assert.match(workflow, /group: gapmedia-production/);
 const telegramWorkflow = readFileSync(".github/workflows/telegram.yml", "utf8");
 assert.match(telegramWorkflow, /group: gapmedia-production/);
 assert.match(telegramWorkflow, /rerender-feature/);
+assert.match(telegramWorkflow, /RENDER_DIAGNOSTIC_FILE/);
 
 const germanWorkflow = readFileSync(".github/workflows/news-scan.yml", "utf8");
 assert.match(germanWorkflow, /\.german-correction-request\.json/);

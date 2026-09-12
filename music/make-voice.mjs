@@ -5,7 +5,7 @@
 // Usage: node music/make-voice.mjs <feature-id> <hookDur> <tipDur> <tipCount> <outroAt> <total> <out.m4a>
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, existsSync, unlinkSync } from "node:fs";
+import { mkdirSync, existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
@@ -15,6 +15,13 @@ import { assertVoiceSchedule } from "../lib/voice-timing.mjs";
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
 const argv = process.argv.slice(2);
+const diagnosticFile = process.env.VOICE_DIAGNOSTIC_FILE || "";
+function timingDiagnostic(reason) {
+  if (!diagnosticFile) return;
+  try {
+    writeFileSync(diagnosticFile, JSON.stringify({ stage: "narration-mixing", reason, at: new Date().toISOString() }, null, 2));
+  } catch {}
+}
 // --tips a,b,c,d gives each scene its own measured length
 let tipList = null;
 const ti = argv.indexOf("--tips");
@@ -80,7 +87,15 @@ for (let i = 0; i < lines.length; i++) {
 // Do not rely on the visual clock alone. If a TTS take is longer than the
 // scene measured during planning, publishing it would cut a word or collide
 // with the next card. Fail before render instead.
-assertVoiceSchedule(parts, TOTAL);
+try {
+  assertVoiceSchedule(parts, TOTAL);
+} catch (error) {
+  // No raw text here: it can contain a user-provided feature label. This fixed
+  // reason lets the cloud reporter distinguish a real timing rejection from
+  // an API, renderer or Telegram failure.
+  timingDiagnostic("voice-timing-guard");
+  throw error;
+}
 
 // place each line at its scene on one bed of the video's exact length
 const inputs = parts.flatMap((p) => ["-i", p.file]);
