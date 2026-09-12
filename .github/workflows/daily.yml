@@ -93,10 +93,10 @@ permissions:
 jobs:
   render:
     runs-on: ubuntu-latest
-      # First use may download the ASR model; two native formats also each have
-      # their own render ceiling. Do not let infrastructure time out before the
-      # narration quality gate can make a truthful pass/fail decision.
-      timeout-minutes: 90
+    # First use may download the ASR model; two native formats also each have
+    # their own render ceiling. Do not let infrastructure time out before the
+    # narration quality gate can make a truthful pass/fail decision.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 

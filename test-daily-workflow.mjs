@@ -3,6 +3,12 @@ import { readFileSync } from "node:fs";
 
 const workflow = readFileSync(".github/workflows/daily.yml", "utf8");
 
+// GitHub rejects the workflow before it creates any job when a job property
+// is nested beneath `runs-on`. This once generated misleading failure emails
+// for unrelated correction pushes.
+assert.match(workflow, /^ {4}runs-on: ubuntu-latest\r?\n(?: {4}#.*\r?\n)* {4}timeout-minutes: 90\r?\n/m,
+  "daily render timeout must align with runs-on");
+
 // Regression guard for the production failure observed on 2026-09-11: a
 // failure in the first native format used to stop the second one entirely.
 assert.match(workflow, /id: produce/);
