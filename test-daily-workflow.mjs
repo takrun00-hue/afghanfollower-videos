@@ -27,6 +27,8 @@ const telegramWorkflow = readFileSync(".github/workflows/telegram.yml", "utf8");
 assert.match(telegramWorkflow, /group: gapmedia-production/);
 assert.match(telegramWorkflow, /rerender-feature/);
 assert.match(telegramWorkflow, /RENDER_DIAGNOSTIC_FILE/);
+assert.match(telegramWorkflow, /line: Number\.isInteger\(x\.line\) \? x\.line : null/,
+  "safe render diagnostics retain only the failing narration line number");
 assert.match(readFileSync("daily-render.mjs", "utf8"), /REQUIRE_VOICE === "on"[\s\S]{0,180}narration-planning/,
   "a required voice run must not fall back to an unmeasured beat grid");
 assert.match(readFileSync("music/voice-qc.mjs", "utf8"), /voice-asr-mismatch/,
