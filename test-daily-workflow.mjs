@@ -33,6 +33,10 @@ assert.match(readFileSync("daily-render.mjs", "utf8"), /REQUIRE_VOICE === "on"[\
   "a required voice run must not fall back to an unmeasured beat grid");
 assert.match(readFileSync("music/voice-qc.mjs", "utf8"), /voice-asr-mismatch/,
   "a rejected narration take must leave a safe, actionable category");
+assert.match(readFileSync("music/plan-voice.mjs", "utf8"), /MAX_NARRATION_ATTEMPTS = 3/,
+  "narration must use bounded recovery instead of stopping at its first rejected take");
+assert.match(readFileSync("daily-render.mjs", "utf8"), /dailyDeliveriesForDate\(date, new Set\(\[\.\.\.avoidIds, \.\.\.triedIds\]\)\)/,
+  "a duplicate or failed automatic candidate must seek a different unused topic");
 
 const germanWorkflow = readFileSync(".github/workflows/news-scan.yml", "utf8");
 assert.match(germanWorkflow, /\.german-correction-request\.json/);

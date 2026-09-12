@@ -5,11 +5,12 @@
 // Usage: node music/make-voice.mjs <feature-id> <hookDur> <tipDur> <tipCount> <outroAt> <total> <out.m4a>
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, existsSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, existsSync, unlinkSync, writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
 import { minimaxSpeakable, pocketSpeakable } from "../lib/pronounce.mjs";
+import { narrationLineCheck } from "../lib/voice-settings.mjs";
 import { assertVoiceSchedule } from "../lib/voice-timing.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -62,7 +63,22 @@ const lines = [
   })),
   { text: vo.outro, at: OUT_AT + 0.35 },
 ];
-const spokenLines = lines.map((line) => speakable(line.text));
+const sourceKey = createHash("sha256").update(lines.map((line) => line.text).join("\n")).digest("hex").slice(0, 12);
+const speechPlan = `music/voice/${featureId}-${voiceKey}-${ENGINE}-${sourceKey}-speech-plan.json`;
+let spokenLines = lines.map((line) => speakable(line.text));
+// Planning may have safely repaired one TTS-hostile word after ASR rejected it.
+// Reuse exactly that approved spoken copy and its measured files; never revert
+// to the original line during mixing.
+if (existsSync(speechPlan)) {
+  try {
+    const saved = JSON.parse(readFileSync(speechPlan, "utf8"));
+    if (saved?.featureId === featureId && saved.engine === ENGINE && saved.voiceKey === voiceKey &&
+      saved.sourceKey === sourceKey && Array.isArray(saved.spokenLines) &&
+      saved.spokenLines.length === lines.length && saved.spokenLines.every((line) => !narrationLineCheck(line).length)) {
+      spokenLines = saved.spokenLines;
+    }
+  } catch {}
+}
 // Must match plan-voice.mjs.  The cache is keyed by the exact private spoken
 // copy, so a pronunciation correction can never reuse an older bad take.
 const copyKey = createHash("sha256").update(spokenLines.join("\n")).digest("hex").slice(0, 12);

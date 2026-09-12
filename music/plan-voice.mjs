@@ -5,12 +5,13 @@
 // Usage: node music/plan-voice.mjs <feature-id>   -> JSON on stdout
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, existsSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, existsSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { narrationFor } from "../lib/narration.mjs";
 import { minimaxSpeakable, pocketSpeakable } from "../lib/pronounce.mjs";
 import { narrationLineCheck } from "../lib/voice-settings.mjs";
+import { recoverSpokenLine } from "../lib/narration-recovery.mjs";
 
 process.chdir(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -49,12 +50,33 @@ function dur(file) {
 // Only synthesise lines that will actually be on screen. Generating unseen
 // cards wastes MiniMax balance and makes a short bulletin needlessly slow.
 const texts = [vo.hook, ...vo.steps.slice(0, requestedTips), vo.outro];
-const spokenLines = texts.map(speakable);
+const sourceKey = createHash("sha256").update(texts.join("\n")).digest("hex").slice(0, 12);
+let spokenLines = texts.map(speakable);
 // The spoken-copy hash belongs in the cache key.  A pronunciation correction
 // must always create fresh audio; reusing a line by feature ID alone would
 // silently ship yesterday's mispronounced MP3 with today's corrected text.
-const copyKey = createHash("sha256").update(spokenLines.join("\n")).digest("hex").slice(0, 12);
-const files = spokenLines.map((_, i) => `music/voice/${featureId}-${voiceKey}-${ENGINE}-${copyKey}-line${i}.mp3`);
+let copyKey = "";
+let files = [];
+const speechPlan = `music/voice/${featureId}-${voiceKey}-${ENGINE}-${sourceKey}-speech-plan.json`;
+function refreshCacheKey() {
+  copyKey = createHash("sha256").update(spokenLines.join("\n")).digest("hex").slice(0, 12);
+  files = spokenLines.map((_, i) => `music/voice/${featureId}-${voiceKey}-${ENGINE}-${copyKey}-line${i}.mp3`);
+}
+refreshCacheKey();
+
+function readDiagnostic() {
+  const file = process.env.RENDER_DIAGNOSTIC_FILE || "";
+  if (!file || !existsSync(file)) return null;
+  try { return JSON.parse(readFileSync(file, "utf8")); } catch { return null; }
+}
+
+function writeSpeechPlan() {
+  // This transient file lets make-voice reuse the exact corrected clips that
+  // planning measured. It is keyed to the source narration and never committed.
+  writeFileSync(speechPlan, JSON.stringify({
+    featureId, engine: ENGINE, voiceKey, sourceKey, spokenLines,
+  }, null, 2));
+}
 
 function synthesizeMissing() {
   for (let i = 0; i < texts.length; i++) {
@@ -76,34 +98,53 @@ function synthesizeMissing() {
 synthesizeMissing();
 
 // This gate examines the exact per-line audio cached above — not a separately
-// generated audition. A single retry is allowed because MiniMax synthesis is
-// non-deterministic; a second ASR failure is a release failure, never a silent
-// music-only fallback.
+// generated audition. It gets at most three bounded attempts: a fresh take,
+// then one approved spoken-only repair for the exact ASR-reported word, then a
+// fresh take of that repair. Unknown words are never guessed or shipped.
 if (process.env.NARRATION_QC !== "off") {
-  const manifest = `music/voice/${featureId}-${voiceKey}-${ENGINE}-${copyKey}-qc.json`;
-  const writeManifest = () => writeFileSync(manifest, JSON.stringify({
-    featureId,
-    entries: texts.map((written, i) => ({ written, spoken: spokenLines[i], file: files[i] })),
-  }, null, 2));
+  let manifest = "";
+  const writeManifest = () => {
+    manifest = `music/voice/${featureId}-${voiceKey}-${ENGINE}-${copyKey}-qc.json`;
+    writeFileSync(manifest, JSON.stringify({
+      featureId,
+      entries: texts.map((written, i) => ({ written, spoken: spokenLines[i], file: files[i] })),
+    }, null, 2));
+  };
   let passed = false;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  const MAX_NARRATION_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_NARRATION_ATTEMPTS; attempt++) {
     writeManifest();
     try {
       execFileSync("node", ["music/voice-qc.mjs", "--manifest", manifest], { stdio: "inherit" });
       passed = true;
       break;
     } catch {
-      if (attempt === 2) break;
-      console.error("Narration ASR QC rejected this take; synthesizing one fresh take.");
+      if (attempt === MAX_NARRATION_ATTEMPTS) break;
+      const diagnostic = readDiagnostic();
+      const lineIndex = Number(diagnostic?.line) - 1;
+      const repair = diagnostic?.reason === "voice-asr-mismatch" && lineIndex >= 0
+        ? recoverSpokenLine(spokenLines[lineIndex], diagnostic.wordIndex)
+        : null;
+      if (repair?.changed) {
+        // No user text is logged: the line number and fixed reason are enough
+        // to diagnose a repair without leaking a custom submission to Actions.
+        console.error(`Narration ASR QC rejected line ${lineIndex + 1}; applying approved spoken-only recovery.`);
+        spokenLines[lineIndex] = repair.text;
+        refreshCacheKey();
+      } else {
+        console.error("Narration ASR QC rejected this take; synthesizing one fresh take.");
+      }
       for (const f of files) rmSync(f, { force: true });
       synthesizeMissing();
     }
   }
   if (!passed) {
-    console.error("Narration ASR QC failed twice; this video is blocked before visual rendering.");
+    console.error("Narration ASR QC failed after bounded recovery; this video is blocked before visual rendering.");
     process.exit(1);
   }
 }
+
+writeSpeechPlan();
 
 const durs = [];
 for (const f of files) {
