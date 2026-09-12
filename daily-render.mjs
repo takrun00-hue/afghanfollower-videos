@@ -52,6 +52,17 @@ const featureId = featIdx >= 0 ? args[featIdx + 1] : null;
 // must name the exact failed feature, so a broad daily batch can never bypass
 // editorial memory by accident.
 const isRerender = args.includes("--rerender");
+const diagnosticFile = process.env.RENDER_DIAGNOSTIC_FILE || "";
+function checkpoint(stage) {
+  if (!diagnosticFile) return;
+  writeFileSync(diagnosticFile, JSON.stringify({
+    stage,
+    featureId: featureId || null,
+    rerender: isRerender,
+    at: new Date().toISOString(),
+  }, null, 2));
+}
+checkpoint("started");
 if (isRerender && !featureId) {
   console.error("✗ --rerender requires --feature <id>; a normal daily batch may never bypass duplicate protection.");
   process.exit(1);
@@ -129,10 +140,12 @@ if (featureId) {
   }
   const p = packForFeature(featureId, date, generated);
   if (!p) {
+    checkpoint("feature-not-found");
     console.error(`✗ unknown feature "${featureId}".`);
     process.exit(1);
   }
   sel[p.platform] = p;
+  checkpoint("feature-resolved");
   deliveries = [{ slot: p.platform, sourceCategory: p.platform, deliveryChannel: p.platform, role: "feature", mirrorOf: null, pack: p }];
 }
 const compDir = `compositions/daily/${iso}`;
@@ -246,6 +259,7 @@ for (const firstDelivery of deliveries) {
           throw Object.assign(new Error(stillErr.message), { kind: "visualQc" });
         }
       }
+      checkpoint("visual-proof-passed");
       // Generate the topic-specific creative contract before any sound, HTML
       // or render work. It is saved beside the composition for review and
       // prevents a generic visual decision from being made after the script
@@ -256,7 +270,8 @@ for (const firstDelivery of deliveries) {
   // Measure the narration FIRST, then let each scene last as long as its own
   // spoken line (padded, and never shorter than a readable beat). Without this
   // the voice drifts past the caption it belongs to.
-  if (process.env.VOICE === "on") {
+      if (process.env.VOICE === "on") {
+        checkpoint("narration-planning");
     try {
       const plan = JSON.parse(
         execSync(`node music/plan-voice.mjs ${pack.id} ${pack.tips.length}`, { encoding: "utf8" }).trim().split(String.fromCharCode(10)).pop()
@@ -321,6 +336,7 @@ for (const firstDelivery of deliveries) {
   // under it so the words stay intelligible. VOICE=off skips it.
   let voice = null;
   if (process.env.VOICE === "on") {
+    checkpoint("narration-mixing");
     const tipLen = (pack.duration - pack.hookDuration - pack.outroDuration) / pack.tips.length;
     const tipList = (pack.tipDurations || []).join(",");
     const vFile = `music/voice/${platform}-${pack.id}.m4a`;
@@ -356,6 +372,7 @@ for (const firstDelivery of deliveries) {
   const silent = `${outDir}/${platform}-silent.mp4`;
   const final = `${outDir}/gapmedia-${platform}-${iso}.mp4`;
   console.log(`\n=== ${platform} (${pack.id}) — ${is4k ? "4K" : "1080p"} — ${music} ===`);
+  checkpoint("video-rendering");
   execSync(`${HF} render -c "${comp}" --quality high --fps 30 ${resFlag} --skill=faceless-explainer -o "${silent}"`, { stdio: "inherit" });
   if (voice) {
     execSync(
@@ -397,6 +414,7 @@ for (const firstDelivery of deliveries) {
 
   if (tg.enabled) {
     try {
+      checkpoint("telegram-delivery");
       const res = await sendVideo({ token: tg.token, chatId: tg.chatId, file: final, caption: pack.tgTitle });
       console.log(`   ✈ sent to Telegram`);
       sent = true;
@@ -423,8 +441,10 @@ for (const firstDelivery of deliveries) {
     throw new Error("Telegram is not configured; refusing to mark a local-only render as delivered.");
   }
       results.push({ platform, packId: pack.id, topicLane: delivery.sourceCategory, mirrorOf, file: resolve(final), telegram: sent });
+      checkpoint("complete");
       break; // this attempt succeeded — done with this slot
     } catch (err) {
+      checkpoint(`failed-${err.kind || "runtime"}`);
       // Every failure mode above (Visual QC, duplicate, voice/render crash,
       // Telegram send) lands here. avoidIds is shared with the pre-scan so a
       // photo-less id excluded there stays excluded; triedIds additionally

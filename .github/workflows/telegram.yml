@@ -286,6 +286,8 @@ jobs:
           fi
 
       - name: Build a requested tutorial
+        id: tutorial_build
+        continue-on-error: true
         if: contains(fromJSON('["approved-feature","rerender-feature","content-approve","build-tiktok","build-instagram","build-tools","build-all","build-tomorrow","build-app-pair","resend","custom-content","custom-content-media"]'), steps.cmd.outputs.ACTION)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -297,6 +299,7 @@ jobs:
           VOICE_MODE: ${{ steps.cmd.outputs.VOICE_MODE }}
           NARRATION_QC: "on"
           ASR_MODEL: "medium"
+          RENDER_DIAGNOSTIC_FILE: ".last-render-stage.json"
           # custom-content.mjs's lib/auto-image.mjs needs these to search and
           # relevance-check a real image when the Telegram message was plain
           # text with no attached photo/video.
@@ -318,6 +321,28 @@ jobs:
             build-tomorrow)   TZ=Europe/Berlin node daily-render.mjs "$(TZ=Europe/Berlin date -d tomorrow +%F)" ;;
             *)                node daily-render.mjs --only tiktok ;;
           esac
+
+      # Keep only a non-sensitive stage label, never raw logs or user text.
+      # It makes an opaque cloud failure actionable without exporting runner
+      # output or credentials into the repository.
+      - name: Record safe build failure stage
+        if: steps.tutorial_build.outcome == 'failure'
+        run: |
+          node -e '
+            const fs = require("fs");
+            let x = { stage: "unknown-before-render" };
+            try { x = JSON.parse(fs.readFileSync(".last-render-stage.json", "utf8")); } catch {}
+            fs.writeFileSync(".last-render-stage.json", JSON.stringify({ stage: String(x.stage || "unknown"), at: new Date().toISOString() }, null, 2));
+          '
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f .last-render-stage.json
+          git diff --staged --quiet || git commit -m "diagnostic: record safe render stage"
+          git push || { git pull --rebase --autostash && git push; }
+
+      - name: Mark failed tutorial build as failed
+        if: steps.tutorial_build.outcome == 'failure'
+        run: exit 1
 
       - name: Preview or edit tutorial draft
         if: contains(fromJSON('["topic-pick","content-preview","content-edit-hook","content-edit-steps"]'), steps.cmd.outputs.ACTION)
