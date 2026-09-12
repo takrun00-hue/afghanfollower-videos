@@ -103,9 +103,13 @@ jobs:
         with:
           path: |
             .telegram-sent.json
-            .content-history.json
-            .content-registry.json
-            .daily-batch-sent.json
+              .content-history.json
+              .content-registry.json
+              .daily-batch-sent.json
+              # A batch may send one native format and fail on the other. Keep
+              # that checkpoint so the next poll resumes the missing format
+              # instead of resending the completed video.
+              .daily-delivery-progress.json
           key: scheduled-delivery-${{ github.run_id }}
           restore-keys: scheduled-delivery-
 
@@ -165,6 +169,7 @@ jobs:
             libgbm1 libasound2t64 libpango-1.0-0 libcairo2 fonts-liberation
 
       - name: Produce and send the scheduled pair
+        id: produce
         if: steps.gate.outputs.go == 'yes'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -185,24 +190,77 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         shell: bash
         run: |
+          set -uo pipefail
+          batch="${{ steps.gate.outputs.batch }}"
+          date="${{ steps.gate.outputs.date }}"
+          progress_file=".daily-delivery-progress.json"
+
+          # A successful Telegram send is durable work.  Record it per native
+          # format before moving on, so a retry can safely resume after a
+          # failed sibling format without creating a duplicate post.
+          slot_done() {
+            node -e '
+              const fs = require("fs");
+              const [file, date, batch, slot] = process.argv.slice(1);
+              try {
+                const state = JSON.parse(fs.readFileSync(file, "utf8"));
+                process.exit(state?.[date]?.[batch]?.includes(slot) ? 0 : 1);
+              } catch { process.exit(1); }
+            ' "$progress_file" "$date" "$batch" "$1"
+          }
+
+          mark_done() {
+            node -e '
+              const fs = require("fs");
+              const [file, date, batch, slot] = process.argv.slice(1);
+              let state = {};
+              try { state = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+              state[date] ??= {};
+              const prior = Array.isArray(state[date][batch]) ? state[date][batch] : [];
+              state[date][batch] = [...new Set([...prior, slot])];
+              const dates = Object.keys(state).sort();
+              while (dates.length > 60) delete state[dates.shift()];
+              fs.writeFileSync(file, JSON.stringify(state, null, 2));
+            ' "$progress_file" "$date" "$batch" "$1"
+          }
+
+          failed=0
+          run_slot() {
+            local slot="$1"
+            if slot_done "$slot"; then
+              echo "✓ $slot was already delivered in this $batch batch; resuming only the missing format."
+              return 0
+            fi
+            echo "▶ Producing $slot"
+            # A stuck renderer must not consume the whole 60-minute job and
+            # prevent its sibling format from being attempted.
+            if timeout --preserve-status 24m node daily-render.mjs --only "$slot"; then
+              mark_done "$slot"
+              echo "✓ $slot delivered and checkpointed."
+            else
+              echo "::error::$slot did not complete. Its sibling format will still be attempted; a later run will resume only this missing format."
+              failed=1
+            fi
+          }
+
           case "${{ steps.gate.outputs.batch }}" in
             morning)
               # Two native delivery formats. The research topic itself is not
               # restricted to TikTok or Instagram.
-              node daily-render.mjs --only tiktok
-              node daily-render.mjs --only instagram
+              run_slot tiktok
+              run_slot instagram
               ;;
             evening)
               # A second independently researched topic, adapted as two native
               # delivery formats; it may be any useful app, service or trend.
-              node daily-render.mjs --only ai-tiktok
-              node daily-render.mjs --only ai-instagram
+              run_slot ai-tiktok
+              run_slot ai-instagram
               ;;
             all)
-              node daily-render.mjs --only tiktok
-              node daily-render.mjs --only instagram
-              node daily-render.mjs --only ai-tiktok
-              node daily-render.mjs --only ai-instagram
+              run_slot tiktok
+              run_slot instagram
+              run_slot ai-tiktok
+              run_slot ai-instagram
               ;;
             *)
               echo "Unknown batch: ${{ steps.gate.outputs.batch }}" >&2
@@ -210,10 +268,16 @@ jobs:
               ;;
           esac
 
+          if [ "$failed" -eq 0 ]; then
+            echo "complete=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=no" >> "$GITHUB_OUTPUT"
+          fi
+
       # Marks today's batch delivered so a later poll the same day — however
       # much later — does not send it a second time.
       - name: Record delivery marker
-        if: steps.gate.outputs.go == 'yes'
+        if: steps.gate.outputs.go == 'yes' && steps.produce.outputs.complete == 'yes'
         shell: bash
         run: |
           case "${{ steps.gate.outputs.batch }}" in
@@ -265,7 +329,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f .content-history.json .content-registry.json .daily-batch-sent.json .telegram-sent.json 2>/dev/null || true
+          git add -f .content-history.json .content-registry.json .daily-batch-sent.json .daily-delivery-progress.json .telegram-sent.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "daily: record today's ${{ steps.gate.outputs.batch }} send(s)"
           if git push; then
             echo "delivery memory pushed"
@@ -284,6 +348,15 @@ jobs:
                   body: JSON.stringify({ chat_id: chatId, text: "⚠ حافظهٔ ارسال امروز ذخیره نشد — ممکن است ویدیویی تکراری ارسال شود. نیاز به بررسی دستی." }),
                 }).catch(() => {});
               '
-              exit 1
+                exit 1
+              fi
             fi
-          fi
+
+      # Preserve checkpoints and send records first; only then mark the run
+      # failed. This makes GitHub truthful while keeping the next safe retry
+      # idempotent.
+      - name: Mark incomplete delivery for retry
+        if: steps.gate.outputs.go == 'yes' && steps.produce.outputs.complete != 'yes'
+        run: |
+          echo "::error::One or more native formats were not delivered. Completed formats were checkpointed; the next trigger will resume the missing one."
+          exit 1
