@@ -152,7 +152,10 @@ jobs:
           fi
           if [ "$EVENT_NAME" = "push" ] && [ "$IS_VIDEO_REQUEST_PUSH" = "true" ]; then
             request_action=$(jq -r '.action // "none"' .video-request.json)
-            request_payload=$(jq -r '.payload // ""' .video-request.json | tr '\r\n' ' ' | cut -c1-900)
+            # jq emits a final newline.  Trim after flattening it, otherwise
+            # a catalogue id such as "tts-voice" reaches the renderer as
+            # "tts-voice " and an edit fails before it can start.
+            request_payload=$(jq -r '.payload // ""' .video-request.json | tr '\r\n' ' ' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | cut -c1-900)
             request_voice=$(jq -r '.voice_mode // "on"' .video-request.json)
             # content-radar is read-only research (scored shortlist sent to
             # Telegram, nothing built or published) — safe to allow from this
