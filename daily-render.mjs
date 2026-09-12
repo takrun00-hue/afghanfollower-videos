@@ -176,7 +176,12 @@ function recordPublishedTopic(pack, entry) {
     messageId: entry.messageId || null,
     sentAt: new Date().toISOString(),
   });
-  writeFileSync(CONTENT_HISTORY, JSON.stringify(history.slice(-180), null, 2) + "\n");
+  // Editorial memory is intentionally permanent.  A rolling log made an
+  // older topic eligible again after 180 posts, which is the opposite of the
+  // owner's "never publish the same subject twice" rule.  This small JSON
+  // ledger is committed by the runner and is the authoritative publication
+  // history for all future topic selection.
+  writeFileSync(CONTENT_HISTORY, JSON.stringify(history, null, 2) + "\n");
 }
 
 const results = [];

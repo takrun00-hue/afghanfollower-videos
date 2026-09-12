@@ -19,5 +19,11 @@ assert.match(workflow, /group: gapmedia-production/);
 
 const telegramWorkflow = readFileSync(".github/workflows/telegram.yml", "utf8");
 assert.match(telegramWorkflow, /group: gapmedia-production/);
+assert.match(telegramWorkflow, /rerender-feature/);
 
-console.log("daily workflow keeps each native format resumable after a sibling failure");
+const germanWorkflow = readFileSync(".github/workflows/news-scan.yml", "utf8");
+assert.match(germanWorkflow, /\.german-correction-request\.json/);
+assert.match(germanWorkflow, /steps\.gate\.outputs\.unit/);
+assert.match(germanWorkflow, /NARRATION_QC: "on"/);
+
+console.log("production workflows keep delivery state serialized and correction paths explicit");
