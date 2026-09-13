@@ -175,3 +175,61 @@ process.env.PIXABAY_KEY = "pixabay-test-key";
 
 delete process.env.PIXABAY_KEY;
 restore();
+
+// ============================================================
+// Wikipedia/Wikimedia — the only keyless provider in the stack (owner
+// directive 2026-09-13). de.wikipedia.org is also refused by this
+// environment's gateway: the proxy reports connect_rejected / "gateway
+// answered 403 to CONNECT (policy denial)" for it, exactly as for
+// api.pexels.com, pixabay.com and lite.duckduckgo.com. That is this
+// sandbox's network policy, not a property of the endpoint — it is
+// reachable from GitHub Actions, where the pipeline actually runs. So again
+// only the offline half is provable here.
+// ============================================================
+const { wikimediaSearch } = await import("./lib/wikimedia-image.mjs");
+
+{
+  calls.length = 0;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), headers: init?.headers || {} });
+    return { ok: true, status: 200, json: async () => ({ query: { pages: {
+      "111": { title: "Einkaufen", original: { source: "https://upload.wikimedia.org/a/einkaufen.jpg" } },
+      "222": { title: "Supermarkt", original: { source: "https://upload.wikimedia.org/b/supermarkt.jpg" } },
+      "333": { title: "Ohne Bild" },
+    } } }) };
+  };
+  const hits = await wikimediaSearch("Einkaufen");
+  restore();
+
+  const { url, headers } = calls[0];
+  assert.match(url, /^https:\/\/de\.wikipedia\.org\/w\/api\.php\?/, "German Wikipedia — the concept is a German word");
+  assert.match(url, /generator=search/, "generator=search, so one keyless request also returns each article's image");
+  assert.match(url, /prop=pageimages/);
+  assert.match(url, /gsrsearch=Einkaufen/);
+  assert.doesNotMatch(url, /[?&]key=|Authorization/, "this provider must never need a key");
+  assert.ok(headers["user-agent"], "Wikimedia asks API clients to identify themselves");
+
+  assert.equal(hits.length, 2, "an article with no lead image is not a candidate — there is nothing to show");
+  assert.match(hits[0].image, /einkaufen\.jpg$/);
+  assert.match(hits[0].url, /de\.wikipedia\.org\/wiki\/Einkaufen/, "each candidate carries its article as the source URL");
+  console.log("ok   Wikipedia: keyless, German, image-bearing articles only, client identified");
+}
+
+{
+  calls.length = 0;
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ query: { pages: {
+    "1": { title: "A", original: { source: "https://upload.wikimedia.org/same.jpg" } },
+    "2": { title: "B", original: { source: "https://upload.wikimedia.org/same.jpg" } },
+  } } }) });
+  const hits = await wikimediaSearch("Brot");
+  restore();
+  assert.equal(hits.length, 1, "two articles sharing one image are one candidate, not two");
+  console.log("ok   Wikipedia candidates dedupe on the image itself");
+}
+
+{
+  globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
+  await assert.rejects(() => wikimediaSearch("Kasse"), /Wikipedia 503/, "an outage must surface as itself, never as 'nothing found'");
+  restore();
+  console.log("ok   Wikipedia reports its real status too");
+}
