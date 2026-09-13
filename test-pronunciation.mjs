@@ -28,4 +28,12 @@ assert.equal(minimaxSpeakable("بدون مایک و بدون صدای خودت �
 assert.match(narrationLineCheck("Preview را ببین.").join(" "), /unsafe UI label/);
 assert.match(narrationLineCheck("بدون میکروفون ضبط کن.").join(" "), /unsafe UI label/);
 
+// Production incident 2026-09-13 (a1-18-shopping): «خریدت» (your shopping —
+// خرید + enclitic ـت) was heard as «خریده» (has bought, a different word) on
+// every one of 6 independent MiniMax takes across two builds. Same fault as
+// every other unmarked possessive-ـت case in PERSIAN_TTS_FIXES: mark the
+// connecting vowel, do not touch the word.
+assert.equal(minimaxSpeakable("اولین خریدت در آلمان را با همین جمله‌ها انجام بده."), "اولین خریدِت در آلمان را با همین جملهها انجام بده.");
+assert.equal(minimaxSpeakable("با این چهار جمله، خریدت را کامل به آلمانی انجام بده."), "با این چهار جمله، خریدِت را کامل به آلمانی انجام بده.");
+
 console.log("Persian TTS copy keeps UI labels clear and Persian words connected");

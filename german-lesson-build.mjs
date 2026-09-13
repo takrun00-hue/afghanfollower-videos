@@ -39,7 +39,7 @@ import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
 import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS, narrationLineCheck } from "./lib/voice-settings.mjs";
 import { runWithRecovery, RecoveryExhausted } from "./lib/recovery-engine.mjs";
-import { rewordPersistentWord, patchSourceText } from "./lib/narration-recovery.mjs";
+import { rewordPersistentWord, patchSourceText, proposePronunciationFix, patchPronunciationTable } from "./lib/narration-recovery.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -335,6 +335,7 @@ try {
       if (process.env.NARRATION_QC !== "off") {
         const manifest = `${voiceDir}/german-${pack.id}-persian-qc.json`;
         const reportFile = resolve(dirname(manifest), "voice-qc-report.json");
+        const exhaustedMarker = ".german-recovery-exhausted.json";
         const runQC = () => {
           writeFileSync(manifest, JSON.stringify({ featureId: pack.id, entries: persianEntries }, null, 2));
           execFileSync("node", ["music/voice-qc.mjs", "--manifest", manifest], { stdio: "inherit" });
@@ -345,6 +346,14 @@ try {
             ttsSynthesize(entry.spoken, null, entry.file);
           }
         };
+        // Tier-1 pronunciation fixes are only PROVEN correct once the whole
+        // build actually passes QC afterward — a wrong guess (a genuine
+        // ت-final word that only looks like an unmarked possessive) must
+        // never be written into the shared lib/pronounce.mjs table just for
+        // having been tried, or it silently mispronounces that word for
+        // every future narration line project-wide. Collected here, applied
+        // for real only after runWithRecovery() resolves successfully.
+        const pendingPronunciationFixes = [];
         try {
           await runWithRecovery({
             maxLocalRetries: 3,
@@ -377,6 +386,26 @@ try {
                 console.error("   German lesson narration recovery: no single word failed on every attempt this cycle — looks like synthesis noise, not a fixable wording issue. No further recovery strategy available.");
                 return null;
               }
+
+              // Tier 1: a known TTS pronunciation pattern (owner directive
+              // 2026-09-13 — check pronunciation before touching wording).
+              // Applied to EVERY entry carrying the word, not just one: it's
+              // the same sound fix wherever the word occurs.
+              for (const word of persistent) {
+                const fix = proposePronunciationFix(word);
+                if (!fix) continue;
+                const already = pendingPronunciationFixes.some((p) => p.pattern === fix.pattern);
+                if (already) continue; // already tried this exact fix in an earlier cycle — it didn't resolve things alone, don't loop on it
+                const matches = persianEntries.filter((e) => e.spoken.includes(fix.pattern));
+                if (!matches.length) continue;
+                console.error(`   German lesson narration recovery (pronunciation): «${fix.pattern}» → «${fix.fixed}» — same unmarked-possessive-ـت pattern as lib/pronounce.mjs's existing fixes.`);
+                for (const entry of matches) entry.spoken = entry.spoken.split(fix.pattern).join(fix.fixed);
+                pendingPronunciationFixes.push(fix);
+                return { context: {} };
+              }
+
+              // Tier 2: reword — for when no known pronunciation pattern
+              // applies, or Tier 1 already ran and the word still failed.
               const escaped = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
               const target = persianEntries.find((entry) =>
                 persistent.some((w) => new RegExp(`(^|\\s)${escaped(w)}(\\s|$)`, "u").test(entry.written)));
@@ -404,9 +433,39 @@ try {
               return { context: {} };
             },
           });
+          // Recovery succeeded (or was never needed) — now, and only now,
+          // any Tier-1 pronunciation guesses are proven correct: persist
+          // them so the next build of ANY narration line never re-fails on
+          // the same word. Also clears a stale cross-run exhaustion marker
+          // (see the catch block below) for this exact unit, so a Recovery
+          // Loop that failed on an earlier attempt but succeeded on this
+          // chained retry doesn't leave a false "still broken" record.
+          for (const fix of pendingPronunciationFixes) patchPronunciationTable(fix.pattern, fix.fixed);
+          try {
+            const prior = JSON.parse(readFileSync(exhaustedMarker, "utf8"));
+            if (prior.unit === pack.id) unlinkSync(exhaustedMarker);
+          } catch { /* no marker, or not for this unit — nothing to clear */ }
         } catch (e) {
           if (e instanceof RecoveryExhausted) {
-            console.error(`   ✗ German lesson narration: local retries and every proposed recovery strategy failed. ${e.lastReason?.faultWords?.length ? `Last rejected word(s): «${e.lastReason.faultWords.join("، ")}».` : ""}`);
+            // Owner directive 2026-09-13: FAILED_ATTEMPT != FAILED_JOB. A
+            // GitHub Actions job that has already exited cannot resume
+            // mid-flight — the only way to keep trying IS a new job run —
+            // so the failure evidence is written here for
+            // .github/workflows/news-scan.yml's "Chain an automatic
+            // Recovery Loop retry" step (if: failure()) to read and decide
+            // whether to push another attempt automatically, with no human
+            // or agent needing to notice first. attempts increments across
+            // chained runs so the chain is bounded (lib/recovery-chain.mjs
+            // enforces the cap), not infinite.
+            let attempts = 1;
+            try {
+              const prior = JSON.parse(readFileSync(exhaustedMarker, "utf8"));
+              if (prior.unit === pack.id) attempts = (prior.attempts || 0) + 1;
+            } catch { /* first exhaustion for this unit, or unreadable — start the chain at 1 */ }
+            writeFileSync(exhaustedMarker, JSON.stringify({
+              unit: pack.id, attempts, history: e.history, lastReason: e.lastReason,
+            }, null, 2));
+            console.error(`   ✗ German lesson narration: local retries and every proposed recovery strategy failed (chain attempt ${attempts}). ${e.lastReason?.faultWords?.length ? `Last rejected word(s): «${e.lastReason.faultWords.join("، ")}».` : ""}`);
           }
           throw e;
         }
