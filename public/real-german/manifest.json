@@ -1,0 +1,26 @@
+{
+  "_readme": [
+    "LAW 7 layer 3 (PROJECT_RULES.md, owner amendment 2026-09-13): the project's OWN licensed real photographs,",
+    "used for German A1 vocabulary slides only when Exa (402) and Gemini (429) are both unavailable.",
+    "",
+    "This file is the provenance record, not a wish list. An entry is only used when ALL of these hold:",
+    "  · the file actually exists in public/real-german/",
+    "  · it is a real image whose long side is >= 1080px and area >= 700,000px (the same bar every other layer passes)",
+    "  · `depicts` says what is really in the photograph",
+    "  · `license` says under what right it may be used (owner-shot, CC0, a purchased stock licence id, ...)",
+    "Anything short of that is skipped and the build STOPS per LAW 7 layer 4, rather than shipping a generic stand-in.",
+    "",
+    "Keys are the vocabulary item's German text exactly as written in lib/german-a1.mjs (`de`),",
+    "e.g. \"Was kostet das?\" — matching is whitespace- and case-insensitive.",
+    "There are 100 vocabulary items across the 24 A1 units; add entries as licensed photographs are acquired.",
+    "",
+    "Example of a complete entry (delete this block when adding the first real one):",
+    "  \"Was kostet das?\": {",
+    "    \"file\": \"was-kostet-das-price-tag.jpg\",",
+    "    \"depicts\": \"a shopper holding a price tag in a supermarket aisle\",",
+    "    \"license\": \"owner-shot, Berlin, 2026-09\",",
+    "    \"source\": \"owner camera\"",
+    "  }"
+  ],
+  "assets": {}
+}
