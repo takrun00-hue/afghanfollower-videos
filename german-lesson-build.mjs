@@ -316,17 +316,43 @@ try {
       // never a bypass of the gate itself.
       if (process.env.NARRATION_QC !== "off") {
         const manifest = `${voiceDir}/german-${pack.id}-persian-qc.json`;
+        const reportFile = resolve(dirname(manifest), "voice-qc-report.json");
         const MAX_NARRATION_ATTEMPTS = 3;
         const runQC = () => {
           writeFileSync(manifest, JSON.stringify({ featureId: pack.id, entries: persianEntries }, null, 2));
           execFileSync("node", ["music/voice-qc.mjs", "--manifest", manifest], { stdio: "inherit" });
         };
+        // Owner directive 2026-09-13 ("recovery loop"): a failure must be
+        // analyzed, not just retried blindly. Track which word(s) each
+        // attempt's rejection actually named — production incident the same
+        // day showed the difference between random per-line synthesis noise
+        // (a different word failing each attempt, where a fresh take is the
+        // right response) and a genuinely broken word (the SAME word failing
+        // on every single attempt, where resynthesizing identical text a
+        // 3rd time changes nothing — a1-17-adjectives' «بد» did this across
+        // 6 independent takes). Never auto-rewrites text — that decision
+        // needs a person or a self-heal routine reading this diagnostic —
+        // but names the recurring word explicitly instead of leaving it
+        // buried in per-attempt logs someone has to cross-reference by hand.
+        const attemptFaultWords = [];
         for (let attempt = 1; attempt <= MAX_NARRATION_ATTEMPTS; attempt++) {
           try {
             runQC();
             break;
           } catch (e) {
-            if (attempt === MAX_NARRATION_ATTEMPTS) throw e;
+            let faultWords = [];
+            try {
+              const report = JSON.parse(readFileSync(reportFile, "utf8"));
+              faultWords = report.report.flatMap((line) => line.faults.map((f) => f.want)).filter(Boolean);
+            } catch { /* diagnostic-only; a missing/unreadable report must not hide the real QC error */ }
+            attemptFaultWords.push(faultWords);
+            if (attempt === MAX_NARRATION_ATTEMPTS) {
+              const persistent = [...new Set(attemptFaultWords[0].filter((w) => attemptFaultWords.every((list) => list.includes(w))))];
+              if (persistent.length) {
+                console.error(`   ⚠ German lesson narration: «${persistent.join("، ")}» failed on ALL ${MAX_NARRATION_ATTEMPTS} attempts — a genuine TTS/ASR mismatch for this exact word, not synthesis noise. Resynthesizing again will not help; the text needs rewording.`);
+              }
+              throw e;
+            }
             console.error(`German lesson Persian narration rejected (attempt ${attempt}/${MAX_NARRATION_ATTEMPTS}); synthesizing one fresh take.`);
             for (const entry of persianEntries) {
               rmSync(entry.file, { force: true });
