@@ -1,6 +1,6 @@
 {
   "unit": "a1-18-shopping",
-  "attempts": 1,
+  "attempts": 2,
   "history": [
     {
       "cycle": 0,
@@ -18,7 +18,7 @@
             null,
             null
           ],
-          "pid": 3984,
+          "pid": 3802,
           "stdout": null,
           "stderr": null
         }
@@ -31,8 +31,7 @@
       "reason": {
         "faultWords": [
           "خریدِت",
-          "میخواهی",
-          "است"
+          "بخری،"
         ],
         "error": {
           "status": 1,
@@ -42,7 +41,7 @@
             null,
             null
           ],
-          "pid": 36045,
+          "pid": 11129,
           "stdout": null,
           "stderr": null
         }
@@ -65,7 +64,7 @@
             null,
             null
           ],
-          "pid": 67989,
+          "pid": 18429,
           "stdout": null,
           "stderr": null
         }
@@ -85,7 +84,7 @@
         null,
         null
       ],
-      "pid": 67989,
+      "pid": 18429,
       "stdout": null,
       "stderr": null
     }
