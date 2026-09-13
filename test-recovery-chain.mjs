@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { decide, MAX_CHAIN_RETRIES } from "./lib/recovery-chain.mjs";
 
 // Owner directive 2026-09-13: FAILED_ATTEMPT != FAILED_JOB. A GitHub Actions
@@ -28,3 +29,26 @@ assert.deepEqual(decide({ unit: "a1-18-shopping", attempts: MAX_CHAIN_RETRIES + 
 assert.deepEqual(decide({ unit: "a1-18-shopping" }), { chain: true, attempts: 1 });
 
 console.log("ok   Recovery Loop cross-run chain decision: chains a bounded number of times, never infinitely, never for an unrelated failure");
+
+// Measured on 2026-09-13, recorded so nobody re-derives it from scratch:
+// the commit this script pushes does NOT start the next run. Commit 48d8c22
+// was pushed by the script as github-actions[bot], modified
+// .trigger-daily-dispatch, and produced zero runs in news-scan.yml or
+// daily.yml — both of which trigger on exactly that path and both of which
+// ran for every equivalent push made with the owner's own credentials.
+// GitHub does not let a GITHUB_TOKEN push trigger further workflows.
+//
+// The mechanism's value is therefore the evidence and the bounded counter,
+// not the push. This test pins the honest contract so a future change does
+// not quietly reintroduce the claim that the chain self-starts.
+{
+  const src = readFileSync("lib/recovery-chain.mjs", "utf8");
+  assert.match(src, /GITHUB_TOKEN/, "the GITHUB_TOKEN limitation must stay documented where the code lives");
+  assert.doesNotMatch(
+    src,
+    /push trigger will start the next attempt/,
+    "must not claim the pushed commit starts the next run — measured false on 2026-09-13",
+  );
+}
+
+console.log("ok   the chain's real contract is recorded: it hands evidence forward, it does not self-start the next run");
