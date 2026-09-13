@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { decide, MAX_CHAIN_RETRIES } from "./lib/recovery-chain.mjs";
 
 // Owner directive 2026-09-13: FAILED_ATTEMPT != FAILED_JOB. A GitHub Actions
@@ -52,3 +52,35 @@ console.log("ok   Recovery Loop cross-run chain decision: chains a bounded numbe
 }
 
 console.log("ok   the chain's real contract is recorded: it hands evidence forward, it does not self-start the next run");
+
+// Regression for the concurrency starvation measured on 2026-09-13. All three
+// production workflows share the "gapmedia-production" concurrency group with
+// cancel-in-progress: false, and GitHub holds only ONE pending run per group —
+// so a single push that creates two runs in it loses one of them. Four runs
+// from two identical pushes proved it is a coin flip which: #223/#228
+// (news-scan survived, daily cancelled) and #229/#230 (daily survived,
+// news-scan cancelled). While TRIGGER was ".trigger-daily-dispatch" — a path
+// BOTH daily.yml and news-scan.yml listen to — a chained retry could be
+// cancelled before running while still having spent an attempt against the
+// marker's budget. The chain's trigger path must therefore stay exclusive to
+// the workflow that actually rebuilds the lesson.
+{
+  const { TRIGGER } = await import("./lib/recovery-chain.mjs");
+  const listeners = readdirSync(".github/workflows")
+    .filter((f) => f.endsWith(".yml"))
+    .filter((f) => readFileSync(`.github/workflows/${f}`, "utf8").includes(TRIGGER));
+
+  assert.deepEqual(
+    listeners,
+    ["news-scan.yml"],
+    `the chain's trigger path must fire the lesson workflow and nothing else, or a retry can lose the one pending concurrency slot — currently listened to by: ${listeners.join(", ")}`,
+  );
+  assert.ok(existsSync(TRIGGER), `${TRIGGER} must exist in the repo — the chain rewrites its "last touch:" line in place and cannot create it`);
+  assert.match(
+    readFileSync(TRIGGER, "utf8"),
+    /^last touch: /m,
+    "the trigger file needs the 'last touch:' line the chain rewrites, or its push would be a no-op diff",
+  );
+}
+
+console.log("ok   the chained retry fires a path no other workflow races it for");

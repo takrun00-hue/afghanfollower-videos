@@ -31,6 +31,12 @@ on:
   push:
     paths:
       - ".trigger-daily-dispatch"
+      # Fires THIS workflow and nothing else. daily.yml does not listen
+      # here, so a push to this path can never lose the single pending
+      # slot in the shared "gapmedia-production" concurrency group to a
+      # daily.yml run created by the same push. lib/recovery-chain.mjs
+      # uses it for exactly that reason — see that file's header.
+      - ".trigger-lesson-dispatch"
       - ".german-correction-request.json"
   workflow_dispatch:
     inputs:
