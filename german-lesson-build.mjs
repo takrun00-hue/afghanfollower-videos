@@ -39,7 +39,7 @@ import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
 import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS, narrationLineCheck } from "./lib/voice-settings.mjs";
 import { runWithRecovery, RecoveryExhausted } from "./lib/recovery-engine.mjs";
-import { rewordPersistentWord, patchSourceText, proposePronunciationFix, patchPronunciationTable } from "./lib/narration-recovery.mjs";
+import { rewordPersistentWord, patchSourceText, proposePronunciationFix, patchPronunciationTable, persistentFaultWords } from "./lib/narration-recovery.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -378,10 +378,7 @@ try {
             recover: async (history) => {
               const lastCycle = history[history.length - 1].cycle;
               const cycleFailures = history.filter((h) => h.cycle === lastCycle && !h.ok);
-              const wordLists = cycleFailures.map((h) => h.reason.faultWords || []);
-              const persistent = wordLists.length
-                ? [...new Set(wordLists[0].filter((w) => wordLists.every((list) => list.includes(w))))]
-                : [];
+              const persistent = persistentFaultWords(cycleFailures);
               if (!persistent.length) {
                 console.error("   German lesson narration recovery: no single word failed on every attempt this cycle — looks like synthesis noise, not a fixable wording issue. No further recovery strategy available.");
                 return null;

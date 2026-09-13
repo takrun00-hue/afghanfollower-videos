@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { recoverSpokenLine, proposePronunciationFix, patchPronunciationTable } from "./lib/narration-recovery.mjs";
+import { recoverSpokenLine, proposePronunciationFix, patchPronunciationTable, persistentFaultWords } from "./lib/narration-recovery.mjs";
 
 const repaired = recoverSpokenLine("روی ویدیو نریشن بگذارید", 3);
 assert.equal(repaired.changed, true);
@@ -72,3 +72,41 @@ assert.equal(proposePronunciationFix("خریدِت"), null, "already carries a d
 }
 
 console.log("Tier-1 pronunciation-fix recovery: proposes only the well-precedented enclitic-ـت pattern, and persists it idempotently");
+
+// Regression for the real production stop recorded in
+// .german-recovery-exhausted.json (a1-18-shopping, chained attempt 1,
+// 2026-09-13). The old "must fail in EVERY attempt" rule found an empty
+// intersection here and declared noise, so recover() never ran and the build
+// stopped while «خریدِت» and «میخواهی» were each failing two takes running —
+// exactly the "stopped although a valid recovery path remained" behaviour the
+// owner rejected.
+{
+  const recorded = [
+    { reason: { faultWords: ["است"] } },
+    { reason: { faultWords: ["خریدِت", "میخواهی", "است"] } },
+    { reason: { faultWords: ["خریدِت", "میخواهی"] } },
+  ];
+  const found = persistentFaultWords(recorded);
+  assert.deepEqual(found.sort(), ["میخواهی", "خریدِت"].sort(), "the two words that failed the last two takes running must be actionable");
+  assert.ok(!found.includes("است"), "«است» also failed twice but has stopped failing — rewording it would change a line that now passes");
+}
+
+// Genuine per-line noise — a different word each take — must still read as
+// noise, or every flaky build would start rewriting healthy narration.
+assert.deepEqual(persistentFaultWords([
+  { reason: { faultWords: ["بزرگ"] } },
+  { reason: { faultWords: ["توصیف"] } },
+  { reason: { faultWords: ["جفت"] } },
+]), [], "a different word failing each attempt is noise, not a fixable wording issue");
+
+// One word failing every take is the clearest case and must stay actionable.
+assert.deepEqual(persistentFaultWords([
+  { reason: { faultWords: ["بد"] } },
+  { reason: { faultWords: ["بد"] } },
+  { reason: { faultWords: ["بد"] } },
+]), ["بد"]);
+
+assert.deepEqual(persistentFaultWords([]), [], "no failures recorded means nothing to act on");
+assert.deepEqual(persistentFaultWords([{ reason: {} }]), [], "a failure with no fault words must not crash or invent one");
+
+console.log("ok   persistent-fault detection acts on a word failing the majority of takes, still ignores per-take noise");
