@@ -302,23 +302,37 @@ try {
       makePersian(vo.outro, outroFile);
 
       // These are the exact Persian clips that will be mixed into the final
-      // bilingual episode. One fresh take is permitted after an ASR rejection;
-      // the second failure blocks rendering rather than shipping bad speech.
+      // bilingual episode. A manifest here has many independent TTS lines
+      // (hook + one per vocabulary item + outro — up to 10 for a 4-item
+      // unit), each with its own small chance of an ASR-flagged take, so a
+      // single retry (2 total attempts) failed repeatedly in production
+      // 2026-09-13 on a1-17-adjectives — four attempts across two runs each
+      // rejected a DIFFERENT word ("بزرگ", "توصیف"+"کلمه", "جفت"+"آسان",
+      // "کوچک"+"جفت"), the signature of per-line synthesis noise across many
+      // lines, not one persistently mispronounced word. Matches
+      // music/plan-voice.mjs's MAX_NARRATION_ATTEMPTS=3 budget already used
+      // by the daily TikTok/Instagram pipeline for the same reason — still a
+      // hard block if genuinely unable to get a clean take in 3 attempts,
+      // never a bypass of the gate itself.
       if (process.env.NARRATION_QC !== "off") {
         const manifest = `${voiceDir}/german-${pack.id}-persian-qc.json`;
+        const MAX_NARRATION_ATTEMPTS = 3;
         const runQC = () => {
           writeFileSync(manifest, JSON.stringify({ featureId: pack.id, entries: persianEntries }, null, 2));
           execFileSync("node", ["music/voice-qc.mjs", "--manifest", manifest], { stdio: "inherit" });
         };
-        try {
-          runQC();
-        } catch {
-          console.error("German lesson Persian narration rejected; synthesizing one fresh take.");
-          for (const entry of persianEntries) {
-            rmSync(entry.file, { force: true });
-            ttsSynthesize(entry.spoken, null, entry.file);
+        for (let attempt = 1; attempt <= MAX_NARRATION_ATTEMPTS; attempt++) {
+          try {
+            runQC();
+            break;
+          } catch (e) {
+            if (attempt === MAX_NARRATION_ATTEMPTS) throw e;
+            console.error(`German lesson Persian narration rejected (attempt ${attempt}/${MAX_NARRATION_ATTEMPTS}); synthesizing one fresh take.`);
+            for (const entry of persianEntries) {
+              rmSync(entry.file, { force: true });
+              ttsSynthesize(entry.spoken, null, entry.file);
+            }
           }
-          runQC();
         }
       }
 
