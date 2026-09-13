@@ -35,6 +35,34 @@ const emitted = [...new Set(
 const guard = (flow.match(/case "\$INPUT_ACTION" in\s*\n\s*([a-z0-9-|]+)\)/) || [, ""])[1]
   .split("|").map((s) => s.trim()).filter(Boolean);
 
+// Regression guard for the 2026-09-12 incident itself, not for any command.
+// Both failure modes of the extraction above look identical from the loop
+// below — a pile of healthy commands reported as "the guard drops it" — so
+// the read has to be checked before it is allowed to accuse anything:
+//   · no match at all: `|| [, ""]` silently yields an empty guard, and then
+//     EVERY command reads as dropped.
+//   · the wrong match: the old un-anchored /approved-feature\|[^)]*/ grabbed
+//     the first "approved-feature|" in the file, which belongs to the narrow
+//     $request_action push-path guard (custom-content|content-radar|
+//     approved-feature|rerender-feature), leaving 2 of 37 actions accepted
+//     and 28 real commands falsely failing.
+// A broken TEST must say so in its own words instead of blaming the pipeline.
+const pushPathGuard = (flow.match(/case "\$request_action" in\s*([a-z0-9-|]+)\)/) || [, ""])[1]
+  .split("|").map((s) => s.trim()).filter(Boolean);
+
+if (!guard.length) {
+  console.log('  ✗ telegram.yml\'s `case "$INPUT_ACTION" in` guard did not match at all — this test can no longer read the workflow, so it cannot judge any command. Fix the extraction here, not the commands.');
+  process.exit(1);
+}
+// The real guard always carries actions the 4-action push-path guard does not
+// (build-tiktok, resend, plan-week, …). If everything extracted also appears
+// in that narrow list, the extraction landed on the wrong `case` — whether it
+// grabbed all four or, as in 2026-09-12, a two-action fragment of them.
+if (pushPathGuard.length && guard.every((a) => pushPathGuard.includes(a))) {
+  console.log(`  ✗ the guard read here (${guard.join("|")}) is the narrow $request_action push-path list, not the $INPUT_ACTION dispatch guard — the 2026-09-12 false-positive bug is back. Fix the extraction here, not the commands.`);
+  process.exit(1);
+}
+
 // Answered inside the worker, so they never reach GitHub.
 const ANSWERED_LOCALLY = ["help", "custom-help", "status"];
 
