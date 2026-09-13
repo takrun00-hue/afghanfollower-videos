@@ -614,3 +614,39 @@ needs to reference another unit's word by name, describe it ("فعل قبلی",
 "کلمهٔ قبلی") rather than spelling it.
 **Status: NOT LOCKED.** Needs a real listen on the next `--unit
 a1-12-haben` correction rebuild.
+
+### German-lesson pitch override reverted 2 → 3 → 2, 2026-09-13
+`GERMAN_LESSON_NARRATION_OVERRIDE`'s pitch (3, since 2026-09-11 above) was
+logged **NOT LOCKED / PENDING a real listen** and never confirmed in the
+five-plus episodes built since (a1-12 through a1-16). That entry named its
+own trigger for reverting: "if it reproduces the same 'childish' read,
+pitch goes back to 2." No human listening test happened either way — this
+revert is instead triggered by the objective condition that entry set as
+the reason to check by ear in the first place, combined with strong new
+production evidence: `a1-17-adjectives` failed `music/voice-qc.mjs` on 12+
+independent synthesis takes across four separate build attempts today
+(runs 34737552669, 34738291448, 34738938113, 34739789826), spanning two
+different rewordings of the hook and step text, misreading unrelated,
+unconnected words each time (بزرگ, توصیف, کلمه, جفت, آسان, کوچک, بد) — a
+failure rate far outside anything else observed in this project's
+narration pipeline. Read MiniMax's own t2a_v2 docs (checked the same page
+`GERMAN_WORD_VOICE_SETTINGS` above cites,
+platform.minimax.io/docs/api-reference/speech-t2a-http) — pitch is
+described as a semitone-equivalent shift with no documented claim that a
+higher value improves ASR/listener intelligibility; nothing there
+contradicts the original by-ear finding that pitch 3 measured a wider
+pitch range but read as **less** natural, not more, for this voice engine
+reading Persian.
+**Action:** reverted ONLY `pitch` (3 → 2) in
+`GERMAN_LESSON_NARRATION_OVERRIDE`, per this file's one-variable-at-a-time
+rule — `speed` (0.88, the owner's separate "کمی آهسته" request) is
+untouched and not implicated by anything above.
+**This is not a substitute for a real listen.** A human should still judge
+the next episode against "کمی بالاتر" (the original ask pitch 3 was
+supposed to satisfy) now that it is back at the confirmed-safe default —
+if pitch 2 reads as not high enough, the right next lever is a different
+`voice_id` (per the original PENDING entry's own suggestion), never pitch
+3 again; that value has now failed by-ear once (2026-08-30, general case)
+and failed by objective production evidence once (2026-09-13, this case).
+**Status: pitch 2 — back to LOCKED value. `speed: 0.88` — still NOT
+LOCKED, unchanged, unaffected by this entry.**
