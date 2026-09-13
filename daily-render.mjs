@@ -304,7 +304,15 @@ for (const firstDelivery of deliveries) {
         checkpoint("narration-planning");
     try {
       const plan = JSON.parse(
-        execSync(`node music/plan-voice.mjs ${pack.id} ${pack.tips.length}`, { encoding: "utf8" }).trim().split(String.fromCharCode(10)).pop()
+        // stderr is PIPED, not inherited: execSync's default sends the child's
+        // stderr straight to the runner log, so the thrown error carried only
+        // "Command failed: node music/plan-voice.mjs <id> 4" and the real
+        // reason underneath it was unreachable from code. On 2026-09-13 that
+        // reason was "MiniMax TTS failed: insufficient credit", which is an
+        // account-level stop affecting every topic and every slot — and the
+        // owner's alert could not say so. It is re-emitted below, so the job
+        // log keeps exactly what it had.
+        execSync(`node music/plan-voice.mjs ${pack.id} ${pack.tips.length}`, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim().split(String.fromCharCode(10)).pop()
       );
       if (plan.ok && plan.durs.length === pack.tips.length + 2) {
         // A clear end-breath is better than the last word colliding with the
@@ -324,13 +332,23 @@ for (const firstDelivery of deliveries) {
         console.log(`   timing follows speech: ${pack.duration}s`);
       }
     } catch (e) {
+      // Put the child's own output back in the log, unchanged — piping it
+      // above is for classification, never to hide it.
+      if (e.stderr) process.stderr.write(e.stderr);
+      const detail = String(e.stderr || "");
+      // A paid provider saying it is out of credit or over quota is not this
+      // topic's problem: the next five topics will hit the identical wall, and
+      // only the owner can clear it. Marked so the give-up alert can say that
+      // instead of reporting a generic technical error.
+      const shortage = detail.match(/^.*(insufficient credit|quota|rate limit|429).*$/im);
+      if (shortage) e.providerShortage = shortage[0].trim().slice(0, 200);
       console.error("   ✗ voice planning failed:", String(e.message).split(String.fromCharCode(10))[0]);
       // A required narrated delivery may never fall back to an unmeasured beat
       // grid. That was the root of a later timing-guard failure: the real TTS
       // line was longer than a default scene and the video could not be sent.
       // Local music-only design previews may still intentionally continue.
       if (process.env.REQUIRE_VOICE === "on") {
-        e.kind = "narration-planning";
+        e.kind = e.providerShortage ? "providerShortage" : "narration-planning";
         throw e;
       }
     }
@@ -498,6 +516,7 @@ for (const firstDelivery of deliveries) {
         id: pack.id,
         kind: err.kind,
         message: err.message,
+        providerShortage: err.providerShortage,
         // Captured here, while this attempt's pack is still in scope: by the
         // time the slot gives up, `pack` is whichever topic failed LAST.
         missingSlides: err.kind === "visualQc"

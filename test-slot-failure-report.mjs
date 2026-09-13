@@ -78,3 +78,43 @@ assert.equal(typeof summariseSlotFailure([{ id: "x", kind: "visualQc" }]), "stri
 }
 
 console.log("ok   a slot's give-up alert reports every attempt's cause, so a fixable missing photo is never hidden by a trailing duplicate");
+
+// The real daily.yml run #224 (2026-09-13). Twelve attempts across both
+// platforms, and FOUR of them died inside music/plan-voice.mjs with the
+// provider's own words underneath: "MiniMax TTS failed: insufficient credit."
+// That is an account-level stop — every remaining topic hits the identical
+// wall and neither a screenshot nor a fresh subject clears it — but the alert
+// reported only «تکراری» from the final attempt, so the owner was sent to
+// think about content while the actual blocker was a billing page.
+{
+  const out = summariseSlotFailure([
+    { id: "tiktok-pay", kind: "duplicate" },
+    { id: "green-screen", kind: "providerShortage", providerShortage: "MiniMax TTS failed: insufficient credit. Please purchase top-up credits" },
+    { id: "tt-story-highlights", kind: "visualQc", missingSlides: [{ n: 4, text: "هایلایت استوری" }] },
+    { id: "tt-ai-dubbing", kind: "visualQc", missingSlides: [{ n: 1, text: "دوبله هوش مصنوعی" }] },
+    { id: "tiktok-first-seconds-signal", kind: "providerShortage", providerShortage: "MiniMax TTS failed: insufficient credit. Please purchase top-up credits" },
+    { id: "search-insights-real-ui", kind: "duplicate" },
+  ]);
+
+  // The account-level stop outranks everything and must lead.
+  assert.match(out.split("\n")[0], /اعتبار یا سهمیه/, "a provider that is out of credit blocks every topic — it cannot be buried under content advice");
+  assert.match(out, /insufficient credit/, "the provider's own words must reach the owner, not a paraphrase");
+  assert.match(out, /۲ مورد به سقف اعتبار سرویس خورد/);
+
+  // The other causes still have to survive alongside it.
+  assert.match(out, /۲ مورد عکس واقعی نداشت/);
+  assert.match(out, /۲ مورد تکراری بود/);
+  assert.ok(out.includes("tt-story-highlights") && out.includes("tt-ai-dubbing"), "the screenshot-fixable topics are still named");
+
+  // A credit failure is not a technical error and must not be filed as one.
+  assert.ok(!out.includes("خطای فنی"), "a known account-level stop must never be reported as an unexplained technical error");
+}
+
+// A shortage with no captured detail still has to say what kind of problem it
+// is — the classification, not the text, is what makes it actionable.
+{
+  const out = summariseSlotFailure([{ id: "a", kind: "providerShortage" }]);
+  assert.match(out, /اعتبار یا سهمیه/);
+}
+
+console.log("ok   an out-of-credit provider leads the alert with its own words — no screenshot or new subject can clear it");
