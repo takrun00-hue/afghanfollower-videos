@@ -22,6 +22,7 @@ import { rescuePackPhotos } from "./lib/auto-image.mjs";
 import { accentSpec } from "./music/mood.mjs";
 import { loadEnv, telegramConfig, sendVideo, sendMessage } from "./lib/telegram.mjs";
 import { fingerprint, check, register, hasHistory } from "./lib/dedupe.mjs";
+import { summariseSlotFailure } from "./lib/slot-failure-report.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -244,9 +245,14 @@ const batchPrints = [];
 // after one expensive miss, without letting a slot stuck on QC failures
 // alone eat the whole job's time budget re-rendering repeatedly.
 const MAX_ATTEMPTS_PER_SLOT = isRerender ? 1 : 6;
+const isRealAsset = (tip) => typeof tip?.photo === "string" && tip.photo.startsWith("public/") && existsSync(tip.photo);
 for (const firstDelivery of deliveries) {
   let delivery = firstDelivery;
   const triedIds = new Set();
+  // Every attempt's reason, not just the last one. The give-up alert below
+  // summarises the whole set — see lib/slot-failure-report.mjs for the real
+  // mixed-cause run that made this necessary.
+  const slotFailures = [];
   for (let attempt = 1; ; attempt++) {
     const { slot: platform, pack, mirrorOf } = delivery;
     triedIds.add(String(pack.id).toLowerCase());
@@ -488,6 +494,18 @@ for (const firstDelivery of deliveries) {
       // photo-less id excluded there stays excluded; triedIds additionally
       // keeps this run from re-picking an id that JUST failed for this slot.
       avoidIds.add(String(pack.id).toLowerCase());
+      slotFailures.push({
+        id: pack.id,
+        kind: err.kind,
+        message: err.message,
+        // Captured here, while this attempt's pack is still in scope: by the
+        // time the slot gives up, `pack` is whichever topic failed LAST.
+        missingSlides: err.kind === "visualQc"
+          ? (pack.tips || [])
+            .map((t, i) => (isRealAsset(t) ? null : { n: i + 1, text: String(t.text || t.head || "").replace(/<[^>]*>/g, "") }))
+            .filter(Boolean)
+          : [],
+      });
       const canRetry = attempt < MAX_ATTEMPTS_PER_SLOT;
       // featureFor()/aiFeatureFor() (lib/features.mjs) fall back to the day's
       // original, unexcluded pick once every candidate in the category is
@@ -518,18 +536,12 @@ for (const firstDelivery of deliveries) {
       console.error(`   ✗ ${platform} (${pack.id}) failed after ${attempt} attempt${attempt === 1 ? "" : "s"}, no more topics to try: ${err.message}`);
       if (tg.enabled) {
         try {
-          const isRealAsset = (tip) => typeof tip?.photo === "string" && tip.photo.startsWith("public/") && existsSync(tip.photo);
-          const label = err.kind === "visualQc"
-            // Names every missing slide, not just the first one the checker
-            // happened to stop on, and gives the exact reply format
-            // save-user-photo.mjs expects — the "address, step by step" the
-            // owner asked for instead of a generic rejection.
-            ? "این قابلیت هنوز عکس واقعیِ همان ویژگی را ندارد.\n\n" +
-              (pack.tips || []).map((t, i) => !isRealAsset(t) ? `مرحلهٔ ${i + 1}: ${String(t.text || t.head || "").replace(/<[^>]*>/g, "")}` : null).filter(Boolean).join("\n") +
-              `\n\nیک اسکرین‌شات واقعی از همین صفحه/قابلیت در اپ بگیر و همینجا به‌صورت عکس (نه فایل) بفرست — کپشن عکس را دقیقاً «${pack.id}» بگذار. رندر بعدی همین موضوع خودکار از آن استفاده می‌کند.`
-            : err.kind === "duplicate"
-              ? "این موضوع اخیراً یک‌بار ساخته شده."
-              : "خطای فنی در ساخت یا ارسال.";
+          // Summarised from EVERY attempt, not just `err` (the last one) —
+          // a slot that lost three topics to a missing screenshot and three
+          // to duplicates used to report only whichever came last, hiding
+          // the half the owner could actually fix. See
+          // lib/slot-failure-report.mjs.
+          const label = summariseSlotFailure(slotFailures);
           await sendMessage({
             token: tg.token, chatId: tg.chatId,
             text: `⚠ ویدیوی ${platform} بعد از ${attempt} تلاش (موضوع‌های مختلف) ساخته نشد.\n\nآخرین علت: ${err.message}\n\n${label}`,
