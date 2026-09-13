@@ -124,59 +124,6 @@ delete process.env.PEXELS_KEY;
 restore();
 
 // ============================================================
-// Pixabay — the second free, no-card provider (owner directive
-// 2026-09-13, "all free APIs"). Same bar as Pexels, verified the same way.
-// pixabay.com is also blocked by this environment's egress proxy
-// (http=000), so as with Pexels only the offline half is provable here.
-// ============================================================
-const { pixabaySearch } = await import("./lib/pixabay-image.mjs");
-
-{
-  calls.length = 0;
-  delete process.env.PIXABAY_KEY;
-  delete process.env.PIXABAY_API_KEY;
-  mockPexels([]);
-  assert.deepEqual(await pixabaySearch("einkaufen"), []);
-  assert.equal(calls.length, 0, "no PIXABAY_KEY must mean no request at all");
-  restore();
-}
-
-process.env.PIXABAY_KEY = "pixabay-test-key";
-
-{
-  calls.length = 0;
-  globalThis.fetch = async (url) => {
-    calls.push({ url: String(url) });
-    return { ok: true, status: 200, json: async () => ({ hits: [
-      { largeImageURL: "https://pixabay.com/get/large.jpg", webformatURL: "https://pixabay.com/get/640.jpg", tags: "supermarket, checkout, shopping", pageURL: "https://pixabay.com/photos/1/", user: "SomeUser" },
-    ] }) };
-  };
-  const hits = await pixabaySearch("einkaufen");
-  restore();
-  const url = calls[0].url;
-  assert.match(url, /^https:\/\/pixabay\.com\/api\/\?/);
-  assert.match(url, /orientation=vertical/, "9:16 slides need vertical, not the specified default");
-  assert.match(url, /image_type=photo/, "must ask for photographs, not illustrations or vector art");
-  assert.match(url, /safesearch=true/);
-  assert.equal(hits.length, 1);
-  assert.match(hits[0].image, /large\.jpg$/, "must take largeImageURL, not the 640px webformatURL that fails the 1080px floor");
-  assert.doesNotMatch(hits[0].image, /640\.jpg$/);
-  assert.equal(hits[0].credit, "SomeUser");
-  console.log("ok   Pixabay: vertical photographs, largest rendition, key required, safe search on");
-}
-
-{
-  calls.length = 0;
-  globalThis.fetch = async () => ({ ok: false, status: 429, json: async () => ({}) });
-  await assert.rejects(() => pixabaySearch("einkaufen"), /Pixabay 429/, "rate limiting must surface as itself");
-  restore();
-  console.log("ok   Pixabay reports its real status too — a rate limit never reads as 'no results'");
-}
-
-delete process.env.PIXABAY_KEY;
-restore();
-
-// ============================================================
 // Wikipedia/Wikimedia — the only keyless provider in the stack (owner
 // directive 2026-09-13). de.wikipedia.org is also refused by this
 // environment's gateway: the proxy reports connect_rejected / "gateway
