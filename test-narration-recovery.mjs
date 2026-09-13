@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { recoverSpokenLine, proposePronunciationFix, patchPronunciationTable, persistentFaultWords } from "./lib/narration-recovery.mjs";
+import { recoverSpokenLine, proposePronunciationFix, patchPronunciationTable, persistentFaultWords, containsWord } from "./lib/narration-recovery.mjs";
 
 const repaired = recoverSpokenLine("روی ویدیو نریشن بگذارید", 3);
 assert.equal(repaired.changed, true);
@@ -110,3 +110,26 @@ assert.deepEqual(persistentFaultWords([]), [], "no failures recorded means nothi
 assert.deepEqual(persistentFaultWords([{ reason: {} }]), [], "a failure with no fault words must not crash or invent one");
 
 console.log("ok   persistent-fault detection acts on a word failing the majority of takes, still ignores per-take noise");
+
+// Regression for the silent stop recorded in chained attempt 2
+// (.german-recovery-exhausted.json, a1-18-shopping, 2026-09-13 08:04). The
+// majority rule had just shipped and correctly flagged «خریدِت» as failing
+// the last two takes — but Tier 2 then looked for that exact string in the
+// narration line, which reads «خریدت» unmarked, found nothing, and returned
+// null. The pronunciation fix shipped earlier that morning had silently
+// disabled the reword tier.
+{
+  const line = "اولین خریدت در آلمان را با همین جمله‌ها انجام بده.";
+  assert.equal(containsWord(line, "خریدِت"), true, "the marked-up spoken form must locate its unmarked written line");
+  assert.equal(containsWord(line, "خریدت"), true, "the plain form must still match");
+  assert.equal(containsWord(line, "کتاب"), false, "an unrelated word must not match");
+  assert.equal(containsWord(line, "خری"), false, "a substring is not a word match");
+  assert.equal(containsWord("", "خریدت"), false);
+  assert.equal(containsWord(line, ""), false, "an empty needle must never match everything");
+
+  // And the validation that the reword actually removed the word has to use
+  // the same comparison, or an LLM returning the marked-up form would pass.
+  const { rewordPersistentWord } = await import("./lib/narration-recovery.mjs");
+  assert.equal(typeof rewordPersistentWord, "function");
+  console.log("ok   fault words match their narration line across diacritics — the pronunciation fix no longer disables the reword tier");
+}

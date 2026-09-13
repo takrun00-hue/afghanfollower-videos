@@ -39,7 +39,7 @@ import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
 import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS, narrationLineCheck } from "./lib/voice-settings.mjs";
 import { runWithRecovery, RecoveryExhausted } from "./lib/recovery-engine.mjs";
-import { rewordPersistentWord, patchSourceText, proposePronunciationFix, patchPronunciationTable, persistentFaultWords } from "./lib/narration-recovery.mjs";
+import { rewordPersistentWord, patchSourceText, proposePronunciationFix, patchPronunciationTable, persistentFaultWords, containsWord } from "./lib/narration-recovery.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -403,9 +403,13 @@ try {
 
               // Tier 2: reword — for when no known pronunciation pattern
               // applies, or Tier 1 already ran and the word still failed.
-              const escaped = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              // Diacritic-insensitive: Narration QC names the fault word from
+              // the SPOKEN copy, which lib/pronounce.mjs may already have
+              // marked up («خریدِت»), while the line itself is unmarked
+              // («خریدت»). Matching them literally silently found nothing and
+              // stopped recovery — a1-18-shopping chained attempt 2, 2026-09-13.
               const target = persianEntries.find((entry) =>
-                persistent.some((w) => new RegExp(`(^|\\s)${escaped(w)}(\\s|$)`, "u").test(entry.written)));
+                persistent.some((w) => containsWord(entry.written, w)));
               if (!target) {
                 console.error(`   German lesson narration recovery: persistent fault «${persistent.join("، ")}» not found verbatim in any tracked line — cannot target a reword.`);
                 return null;
