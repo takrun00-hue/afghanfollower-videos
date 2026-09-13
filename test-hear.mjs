@@ -7,6 +7,26 @@
 import { faults } from "./lib/hear.mjs";
 
 const cases = [
+  // Confirmed live 2026-09-13, a1-18-shopping line 4, across several takes and
+  // two separate runs. «می‌خواهی» /mixâhi/ drops its intervocalic ه in ordinary
+  // connected speech (/mixâi/, written «می‌خوای»); the transcriber spells that
+  // «میخوایی». The PLURAL «می‌خواهید»/«میخواید» was already allowed — the
+  // singular of the same verb simply had no entry.
+  ["pass", "«می‌خواهی» heard in its colloquial form",
+    "وقتی چیزی را می‌خواهی بخری، همین جمله کافی است.",
+    "وقتی چیزی را میخوایی بخری، همین جمله کافی است."],
+  ["pass", "«می‌خواهی» heard as the canonical colloquial spelling",
+    "وقتی چیزی را می‌خواهی بخری، همین جمله کافی است.",
+    "وقتی چیزی را میخوای بخری، همین جمله کافی است."],
+  // The same episode's OTHER rejections are genuinely different words and must
+  // keep blocking: «است» (is) is not «از» (from), and «خریدت» (your purchase)
+  // is not «خریده» (has bought) — a real, audible final consonant is missing.
+  ["fail", "«است» heard as «از» is a different word, not a spelling",
+    "وقتی چیزی را می‌خواهی بخری، همین جمله کافی است.",
+    "وقتی چیزی را می‌خواهی بخری، همین جمله کافی از."],
+  ["fail", "«خریدت» heard as «خریده» is a different word",
+    "اولین خریدت در آلمان را با همین جمله‌ها انجام بده.",
+    "اولین خریده در آلمان را با همین جمله‌ها انجام بده."],
   // Spelling decisions by the transcriber. The audio has no spaces in it and
   // Persian does not write short vowels, so none of these is a fault.
   ["pass", "the possessive heard as one word",
