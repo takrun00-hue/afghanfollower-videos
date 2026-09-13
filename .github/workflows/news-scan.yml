@@ -245,7 +245,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f .german-lesson-progress.json .german-lesson-batch-sent.json 2>/dev/null || true
+          # lib/narration.mjs / lib/german-a1.mjs may have been patched in-place
+          # by german-lesson-build.mjs's Recovery Loop (lib/recovery-engine.mjs +
+          # lib/narration-recovery.mjs rewordPersistentWord/patchSourceText) when
+          # a word failed Narration QC on every attempt of a cycle. Without
+          # committing them here, that fix lives only in this job's working
+          # copy and is silently lost — the next run resynthesizes the ORIGINAL,
+          # still-broken wording from a clean checkout.
+          git add -f .german-lesson-progress.json .german-lesson-batch-sent.json lib/narration.mjs lib/german-a1.mjs 2>/dev/null || true
           git diff --staged --quiet || git commit -m "german-lesson: advance to the next episode"
           if git push; then
             echo "progress pushed"

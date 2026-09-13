@@ -79,9 +79,20 @@ for (const [name, wf] of [["daily.yml", workflow], ["news-scan.yml", germanWorkf
 // TTS lines (hook + one per vocabulary item + outro), so a single retry (2
 // total attempts) was not enough — a1-17-adjectives failed narration QC on
 // FOUR separate takes across two runs, each time on a different word. Must
-// match the daily pipeline's own MAX_NARRATION_ATTEMPTS=3 budget instead of
+// match the daily pipeline's own bounded local-retry budget instead of
 // giving up after one retry.
-assert.match(readFileSync("german-lesson-build.mjs", "utf8"), /MAX_NARRATION_ATTEMPTS = 3/,
+assert.match(readFileSync("german-lesson-build.mjs", "utf8"), /maxLocalRetries: 3/,
   "a German-lesson narration manifest with many lines needs the same bounded-retry budget as the daily pipeline, not a single retry");
+
+// Regression guard for the owner's 2026-09-13 "Recovery Loop" directive: a
+// persistent word failing EVERY local attempt of a cycle (a1-17's «بد» did
+// this across 6 independent takes) must escalate to a genuinely different
+// strategy (reword the line) instead of a blind Nth identical resynthesis,
+// and must never silently end the job — RecoveryExhausted is only thrown
+// once that new strategy has also been tried and failed, or none exists.
+assert.match(readFileSync("german-lesson-build.mjs", "utf8"), /runWithRecovery/,
+  "a persistently failing narration word must escalate to the Recovery Engine, not just retry the identical text");
+assert.match(readFileSync("german-lesson-build.mjs", "utf8"), /rewordPersistentWord/,
+  "German-lesson narration recovery must actually generate a new strategy (reword the failing line), not just report the failure");
 
 console.log("production workflows keep delivery state serialized and correction paths explicit");

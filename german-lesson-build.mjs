@@ -38,6 +38,8 @@ import { fingerprint, check, register } from "./lib/dedupe.mjs";
 import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
 import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS, narrationLineCheck } from "./lib/voice-settings.mjs";
+import { runWithRecovery, RecoveryExhausted } from "./lib/recovery-engine.mjs";
+import { rewordPersistentWord, patchSourceText } from "./lib/narration-recovery.mjs";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -309,56 +311,104 @@ try {
       // 2026-09-13 on a1-17-adjectives — four attempts across two runs each
       // rejected a DIFFERENT word ("بزرگ", "توصیف"+"کلمه", "جفت"+"آسان",
       // "کوچک"+"جفت"), the signature of per-line synthesis noise across many
-      // lines, not one persistently mispronounced word. Matches
-      // music/plan-voice.mjs's MAX_NARRATION_ATTEMPTS=3 budget already used
-      // by the daily TikTok/Instagram pipeline for the same reason — still a
-      // hard block if genuinely unable to get a clean take in 3 attempts,
-      // never a bypass of the gate itself.
+      // lines, not one persistently mispronounced word — resynthesizing is
+      // the right response to THAT. But a1-17's «بد» later failed on EVERY
+      // single attempt across two full builds: a genuine TTS/ASR mismatch
+      // for that exact word, which no amount of identical resynthesis fixes.
+      //
+      // Owner directive 2026-09-13 ("Recovery Loop", explicit, after the
+      // manual «بد»→«بدیِ» fix): MAX_RETRY_REACHED must not mean
+      // JOB_FAILED. Local retries (resynthesizing the same text — this
+      // pipeline's per-cycle budget below) only absorb synthesis noise; once
+      // that budget for one cycle is spent, control must escalate to a
+      // recovery step that inspects the actual failure history, proposes a
+      // genuinely different strategy (reword the one line whose word failed
+      // every time), and tries again — never a blind Nth identical repeat,
+      // and never silently handed back to a human to debug. The Visual
+      // Truth Gate / Narration QC gate itself is never bypassed or weakened
+      // here — runQC() below is unchanged; only the WORDING fed into it may
+      // change, and only when the evidence (the same word failing on every
+      // attempt of a cycle) justifies it. If no such word is found, or no
+      // valid reword exists, recovery honestly admits defeat (returns null)
+      // and lib/recovery-engine.mjs throws RecoveryExhausted — a real stop,
+      // not a fabricated extra tier.
       if (process.env.NARRATION_QC !== "off") {
         const manifest = `${voiceDir}/german-${pack.id}-persian-qc.json`;
         const reportFile = resolve(dirname(manifest), "voice-qc-report.json");
-        const MAX_NARRATION_ATTEMPTS = 3;
         const runQC = () => {
           writeFileSync(manifest, JSON.stringify({ featureId: pack.id, entries: persianEntries }, null, 2));
           execFileSync("node", ["music/voice-qc.mjs", "--manifest", manifest], { stdio: "inherit" });
         };
-        // Owner directive 2026-09-13 ("recovery loop"): a failure must be
-        // analyzed, not just retried blindly. Track which word(s) each
-        // attempt's rejection actually named — production incident the same
-        // day showed the difference between random per-line synthesis noise
-        // (a different word failing each attempt, where a fresh take is the
-        // right response) and a genuinely broken word (the SAME word failing
-        // on every single attempt, where resynthesizing identical text a
-        // 3rd time changes nothing — a1-17-adjectives' «بد» did this across
-        // 6 independent takes). Never auto-rewrites text — that decision
-        // needs a person or a self-heal routine reading this diagnostic —
-        // but names the recurring word explicitly instead of leaving it
-        // buried in per-attempt logs someone has to cross-reference by hand.
-        const attemptFaultWords = [];
-        for (let attempt = 1; attempt <= MAX_NARRATION_ATTEMPTS; attempt++) {
-          try {
-            runQC();
-            break;
-          } catch (e) {
-            let faultWords = [];
-            try {
-              const report = JSON.parse(readFileSync(reportFile, "utf8"));
-              faultWords = report.report.flatMap((line) => line.faults.map((f) => f.want)).filter(Boolean);
-            } catch { /* diagnostic-only; a missing/unreadable report must not hide the real QC error */ }
-            attemptFaultWords.push(faultWords);
-            if (attempt === MAX_NARRATION_ATTEMPTS) {
-              const persistent = [...new Set(attemptFaultWords[0].filter((w) => attemptFaultWords.every((list) => list.includes(w))))];
-              if (persistent.length) {
-                console.error(`   ⚠ German lesson narration: «${persistent.join("، ")}» failed on ALL ${MAX_NARRATION_ATTEMPTS} attempts — a genuine TTS/ASR mismatch for this exact word, not synthesis noise. Resynthesizing again will not help; the text needs rewording.`);
-              }
-              throw e;
-            }
-            console.error(`German lesson Persian narration rejected (attempt ${attempt}/${MAX_NARRATION_ATTEMPTS}); synthesizing one fresh take.`);
-            for (const entry of persianEntries) {
-              rmSync(entry.file, { force: true });
-              ttsSynthesize(entry.spoken, null, entry.file);
-            }
+        const resynthAll = () => {
+          for (const entry of persianEntries) {
+            rmSync(entry.file, { force: true });
+            ttsSynthesize(entry.spoken, null, entry.file);
           }
+        };
+        try {
+          await runWithRecovery({
+            maxLocalRetries: 3,
+            maxRecoveryCycles: 2,
+            attempt: async (ctx, meta) => {
+              // The very first attempt uses the takes already synthesized
+              // above; every attempt after that (same-cycle retry, or the
+              // first try of a newly recovered wording) needs a fresh take.
+              if (!(meta.cycle === 0 && meta.localAttempt === 1)) resynthAll();
+              try {
+                runQC();
+                return { ok: true, value: true };
+              } catch (e) {
+                let faultWords = [];
+                try {
+                  const report = JSON.parse(readFileSync(reportFile, "utf8"));
+                  faultWords = report.report.flatMap((line) => line.faults.map((f) => f.want)).filter(Boolean);
+                } catch { /* diagnostic-only; a missing/unreadable report must not hide the real QC error */ }
+                return { ok: false, reason: { faultWords, error: e } };
+              }
+            },
+            recover: async (history) => {
+              const lastCycle = history[history.length - 1].cycle;
+              const cycleFailures = history.filter((h) => h.cycle === lastCycle && !h.ok);
+              const wordLists = cycleFailures.map((h) => h.reason.faultWords || []);
+              const persistent = wordLists.length
+                ? [...new Set(wordLists[0].filter((w) => wordLists.every((list) => list.includes(w))))]
+                : [];
+              if (!persistent.length) {
+                console.error("   German lesson narration recovery: no single word failed on every attempt this cycle — looks like synthesis noise, not a fixable wording issue. No further recovery strategy available.");
+                return null;
+              }
+              const escaped = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const target = persianEntries.find((entry) =>
+                persistent.some((w) => new RegExp(`(^|\\s)${escaped(w)}(\\s|$)`, "u").test(entry.written)));
+              if (!target) {
+                console.error(`   German lesson narration recovery: persistent fault «${persistent.join("، ")}» not found verbatim in any tracked line — cannot target a reword.`);
+                return null;
+              }
+              const reworded = await rewordPersistentWord({
+                sentence: target.written,
+                persistentWords: persistent,
+                topic: pack.title || pack.id,
+              });
+              if (!reworded) {
+                console.error(`   German lesson narration recovery: no valid reword found for «${persistent.join("، ")}» in "${target.written}" — recovery strategy space exhausted.`);
+                return null;
+              }
+              console.error(`   German lesson narration recovery: rewording persistent fault «${persistent.join("، ")}»\n     before: ${target.written}\n     after:  ${reworded}`);
+              const patchedNarration = patchSourceText("lib/narration.mjs", target.written, reworded);
+              const patchedCaption = patchSourceText("lib/german-a1.mjs", target.written, reworded);
+              if (!patchedNarration && !patchedCaption) {
+                console.error("   ⚠ German lesson narration recovery: reworded text did not patch lib/narration.mjs or lib/german-a1.mjs (no unique match) — fix applies to this render only, will not persist to the next build.");
+              }
+              target.written = reworded;
+              target.spoken = minimaxSpeakable(reworded);
+              return { context: {} };
+            },
+          });
+        } catch (e) {
+          if (e instanceof RecoveryExhausted) {
+            console.error(`   ✗ German lesson narration: local retries and every proposed recovery strategy failed. ${e.lastReason?.faultWords?.length ? `Last rejected word(s): «${e.lastReason.faultWords.join("، ")}».` : ""}`);
+          }
+          throw e;
         }
       }
 
