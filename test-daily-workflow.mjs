@@ -23,6 +23,10 @@ assert.match(workflow, /Mark incomplete delivery for retry/);
 assert.match(workflow, /Install Persian narration quality gate/);
 assert.match(workflow, /NARRATION_QC: "on"/);
 assert.match(workflow, /ASR_MODEL: "medium"/);
+assert.match(workflow, /LIVE_IMAGE_RESCUE: "off"/,
+  "unattended publishing must not wait on quota-limited image rescue");
+assert.match(workflow, /MAX_ATTEMPTS_PER_SLOT: "3"/,
+  "scheduled production must have a bounded per-slot retry budget");
 assert.match(workflow, /group: gapmedia-production/);
 
 const telegramWorkflow = readFileSync(".github/workflows/telegram.yml", "utf8");
@@ -39,8 +43,13 @@ assert.match(readFileSync("music/plan-voice.mjs", "utf8"), /MAX_NARRATION_ATTEMP
   "narration must use bounded recovery instead of stopping at its first rejected take");
 assert.match(readFileSync("daily-render.mjs", "utf8"), /dailyDeliveriesForDate\(date, new Set\(\[\.\.\.avoidIds, \.\.\.triedIds\]\)\)/,
   "a duplicate or failed automatic candidate must seek a different unused topic");
-assert.match(readFileSync("daily-render.mjs", "utf8"), /MAX_ATTEMPTS_PER_SLOT = isRerender \? 1 : 6/,
-  "only an explicit correction rerender may stay pinned to its original subject");
+const renderer = readFileSync("daily-render.mjs", "utf8");
+assert.match(renderer, /const LIVE_IMAGE_RESCUE = process\.env\.LIVE_IMAGE_RESCUE !== "off"/,
+  "live asset rescue must be explicitly controllable by the production runner");
+assert.match(renderer, /MAX_ATTEMPTS_PER_SLOT \|\| ""/,
+  "the retry budget must be centrally configurable by the runner");
+assert.match(renderer, /!LIVE_IMAGE_RESCUE \|\| !\(await rescuePackPhotos\(pack\)\)/,
+  "scheduled runs must skip missing-asset rescue rather than exhausting image quotas");
 
 const germanWorkflow = readFileSync(".github/workflows/news-scan.yml", "utf8");
 assert.match(germanWorkflow, /\.german-correction-request\.json/);

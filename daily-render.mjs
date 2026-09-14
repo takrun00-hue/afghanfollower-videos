@@ -134,9 +134,11 @@ if (featIdxEarly < 0) {
         // to source one automatically before giving up on this id entirely
         // — a real, verified photo is strictly better than skipping to the
         // next candidate and losing this id's turn in the rotation.
-        try {
-          if (await rescuePackPhotos(d.pack)) { assertVisualProof(d.pack); continue; }
-        } catch { /* still fails after rescue attempt — fall through below */ }
+        if (process.env.LIVE_IMAGE_RESCUE !== "off") {
+          try {
+            if (await rescuePackPhotos(d.pack)) { assertVisualProof(d.pack); continue; }
+          } catch { /* still fails after rescue attempt — fall through below */ }
+        }
       }
       const id = String(d.pack.id).toLowerCase();
       if (!avoidIds.has(id)) { avoidIds.add(id); progressed = true; }
@@ -237,7 +239,16 @@ const batchPrints = [];
 // requirement). 6 gives real room to clear a short run of cheap QC misses
 // after one expensive miss, without letting a slot stuck on QC failures
 // alone eat the whole job's time budget re-rendering repeatedly.
-const MAX_ATTEMPTS_PER_SLOT = isRerender ? 1 : 6;
+// An unattended run must not spend its entire window searching or generating
+// missing visuals. Scheduled production can opt out of live rescue and use
+// only catalogue items that already pass visual QC.
+const LIVE_IMAGE_RESCUE = process.env.LIVE_IMAGE_RESCUE !== "off";
+const configuredAttempts = Number.parseInt(process.env.MAX_ATTEMPTS_PER_SLOT || "", 10);
+const MAX_ATTEMPTS_PER_SLOT = isRerender
+  ? 1
+  : Number.isInteger(configuredAttempts) && configuredAttempts > 0
+    ? Math.min(configuredAttempts, 6)
+    : 6;
 for (const firstDelivery of deliveries) {
   let delivery = firstDelivery;
   const triedIds = new Set();
@@ -271,7 +282,7 @@ for (const firstDelivery of deliveries) {
         // a direct "--feature <id>" build skips that loop entirely, so it
         // gets one rescue attempt of its own here before being reported.
         try {
-          if (!(await rescuePackPhotos(pack))) throw firstErr;
+          if (!LIVE_IMAGE_RESCUE || !(await rescuePackPhotos(pack))) throw firstErr;
           assertVisualProof(pack);
         } catch (stillErr) {
           throw Object.assign(new Error(stillErr.message), { kind: "visualQc" });
