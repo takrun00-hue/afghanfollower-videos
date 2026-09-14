@@ -19,6 +19,50 @@ export function executionPlan(channel) {
   }, mode: 'legacy-adapter', migrationComplete: false };
 }
 
+const safeValue = (value, label) => {
+  if (!/^[a-zA-Z0-9_-]{1,100}$/.test(value || '')) throw new Error(`Invalid ${label}`);
+  return value;
+};
+
+function tomorrowBerlin() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: config.schedule.timeZone, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
+  const get = type => parts.find(part => part.type === type)?.value;
+  const utc = Date.UTC(Number(get('year')), Number(get('month')) - 1, Number(get('day'))) + 86400000;
+  return new Date(utc).toISOString().slice(0, 10);
+}
+
+// One controlled route for every video-producing command. The caller chooses
+// an action from config.videoActions, never a shell command or script path.
+export function videoPlan(action, { payload = '', slot = '', unit = '' } = {}) {
+  if (action === 'scheduled-tutorial') {
+    return { action, entry: config.legacyEntryPoints.tutorial, args: ['--only', safeValue(slot, 'slot')] };
+  }
+  if (action === 'scheduled-german') {
+    const args = unit ? ['--unit', safeValue(unit, 'unit')] : [];
+    return { action, entry: config.legacyEntryPoints.german, args };
+  }
+  const requested = config.videoActions[action];
+  if (!requested) throw new Error(`Video action is not allowed: ${action}`);
+  const args = [...(requested.args || [])];
+  if (requested.payload === 'append') {
+    if (!payload) throw new Error(`Video action ${action} requires payload`);
+    args.push(payload);
+  }
+  if (requested.payload === 'feature') {
+    args.push('--feature', safeValue(payload, 'feature id'));
+  }
+  if (requested.tomorrow) args.push(tomorrowBerlin());
+  args.push(...(requested.after || []));
+  return { action, entry: requested.script, args };
+}
+
+export function runVideo(action, options = {}) {
+  const plan = videoPlan(action, options);
+  const child = spawnSync(process.execPath, [resolve(root, plan.entry), ...plan.args], { cwd: root, stdio: 'inherit', env: process.env });
+  if (child.status !== 0) throw new Error(`Video action ${action} failed; inspect its diagnostics before retry`);
+  return { ...plan, status: 'process-completed-receipt-unverified' };
+}
+
 export function run(channel, { execute = false, jobId = '' } = {}) {
   const plan = executionPlan(channel);
   if (!execute) return plan;
@@ -53,6 +97,10 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
   if (args.includes('--dry-run') || process.env.npm_config_dry_run === 'true') {
     const {renderPreview} = await import('../video-engine/renderer.ts');
     console.log(JSON.stringify(await renderPreview()));
+  } else if (args.includes('--video-action')) {
+    const value = flag => args[args.indexOf(flag)+1] || '';
+    const action = value('--video-action');
+    console.log(JSON.stringify(runVideo(action, { payload:value('--payload'), slot:value('--slot'), unit:value('--unit') }), null, 2));
   } else {
   const value = flag => args[args.indexOf(flag)+1];
   console.log(JSON.stringify(run(args.includes('--channel') ? value('--channel') : 'tutorial', {

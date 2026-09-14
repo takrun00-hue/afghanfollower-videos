@@ -15,7 +15,9 @@ assert.match(workflow, /id: produce/);
 assert.match(workflow, /\.daily-delivery-progress\.json/);
 assert.match(workflow, /run_slot tiktok\s+run_slot instagram/s);
 assert.match(workflow, /run_slot ai-tiktok\s+run_slot ai-instagram/s);
-assert.match(workflow, /timeout --preserve-status 24m node daily-render\.mjs --only/);
+assert.match(workflow, /timeout --preserve-status 24m node core\/orchestrator\.ts --video-action scheduled-tutorial --slot/);
+assert.doesNotMatch(workflow, /^\s*(?:timeout[^\n]* )?node daily-render\.mjs/m,
+  "scheduled delivery must not bypass the orchestrator");
 assert.match(workflow, /steps\.produce\.outputs\.complete == 'yes'/);
 assert.match(workflow, /Mark incomplete delivery for retry/);
 assert.match(workflow, /Install Persian narration quality gate/);
@@ -44,5 +46,11 @@ const germanWorkflow = readFileSync(".github/workflows/news-scan.yml", "utf8");
 assert.match(germanWorkflow, /\.german-correction-request\.json/);
 assert.match(germanWorkflow, /steps\.gate\.outputs\.unit/);
 assert.match(germanWorkflow, /NARRATION_QC: "on"/);
+assert.match(germanWorkflow, /node core\/orchestrator\.ts --video-action scheduled-german/);
+assert.match(telegramWorkflow, /node core\/orchestrator\.ts --video-action/);
+assert.doesNotMatch(germanWorkflow, /^\s*node german-lesson-build\.mjs/m,
+  "German production must not bypass the orchestrator");
+assert.doesNotMatch(telegramWorkflow, /^\s*node (?:daily-render|approve-feature|content-draft|custom-content|build-current-app-pair)\.mjs/m,
+  "Telegram video production must not bypass the orchestrator");
 
 console.log("production workflows keep delivery state serialized and correction paths explicit");

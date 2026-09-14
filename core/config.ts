@@ -44,6 +44,22 @@ export const config = {
   },
   schedule: { timeZone: 'Europe/Berlin', slots: ['08:30', '17:00'] },
   legacyEntryPoints: { tutorial: 'daily-render.mjs', german: 'german-lesson-build.mjs' },
+  // The only allow-list for commands that can render or send a video. Workflows
+  // and Telegram may request an action, but cannot name an arbitrary script.
+  videoActions: {
+    'approved-feature': { script: 'approve-feature.mjs', payload: 'append' },
+    'rerender-feature': { script: 'daily-render.mjs', payload: 'feature', after: ['--rerender'] },
+    'content-approve': { script: 'content-draft.mjs', args: ['--build'] },
+    'custom-content': { script: 'custom-content.mjs', payload: 'append' },
+    'custom-content-media': { script: 'custom-content.mjs', payload: 'append' },
+    'build-app-pair': { script: 'build-current-app-pair.mjs' },
+    'build-tiktok': { script: 'daily-render.mjs', args: ['--only', 'tiktok'] },
+    'build-instagram': { script: 'daily-render.mjs', args: ['--only', 'instagram'] },
+    'build-tools': { script: 'daily-render.mjs', args: ['--only', 'ai-tiktok'] },
+    'build-all': { script: 'daily-render.mjs' },
+    'resend': { script: 'daily-render.mjs' },
+    'build-tomorrow': { script: 'daily-render.mjs', tomorrow: true },
+  },
 };
 
 export function modelFor(role, env = process.env) {

@@ -312,18 +312,9 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           if [ "$VOICE_MODE" = "off" ]; then export VOICE="off" REQUIRE_VOICE="off"; else export VOICE="on" REQUIRE_VOICE="on"; fi
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            approved-feature) node approve-feature.mjs "$PAYLOAD" ;;
-            rerender-feature) node daily-render.mjs --feature "$PAYLOAD" --rerender ;;
-            content-approve)  node content-draft.mjs --build ;;
-            custom-content|custom-content-media) node custom-content.mjs "$PAYLOAD" ;;
-            build-app-pair)  node build-current-app-pair.mjs ;;
-            build-instagram)  node daily-render.mjs --only instagram ;;
-            build-tools)      node daily-render.mjs --only ai-tiktok ;;
-            build-all|resend) node daily-render.mjs ;;
-            build-tomorrow)   TZ=Europe/Berlin node daily-render.mjs "$(TZ=Europe/Berlin date -d tomorrow +%F)" ;;
-            *)                node daily-render.mjs --only tiktok ;;
-          esac
+          # The workflow only supplies an approved action and optional payload.
+          # core/orchestrator.ts owns the allow-list and resolves the renderer.
+          node core/orchestrator.ts --video-action "${{ steps.cmd.outputs.ACTION }}" --payload "$PAYLOAD"
 
       # Keep only a non-sensitive stage label, never raw logs or user text.
       # It makes an opaque cloud failure actionable without exporting runner

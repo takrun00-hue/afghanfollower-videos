@@ -184,9 +184,9 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           if [ -n "${{ steps.gate.outputs.unit }}" ]; then
-            node german-lesson-build.mjs --unit "${{ steps.gate.outputs.unit }}"
+            node core/orchestrator.ts --video-action scheduled-german --unit "${{ steps.gate.outputs.unit }}"
           else
-            node german-lesson-build.mjs
+            node core/orchestrator.ts --video-action scheduled-german
           fi
 
       # Marks today's batch (morning/evening) delivered so a later poll the

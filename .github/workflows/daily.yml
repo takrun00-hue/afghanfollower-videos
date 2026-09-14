@@ -257,7 +257,7 @@ jobs:
             echo "▶ Producing $slot"
             # A stuck renderer must not consume the whole 60-minute job and
             # prevent its sibling format from being attempted.
-            if timeout --preserve-status 24m node daily-render.mjs --only "$slot"; then
+            if timeout --preserve-status 24m node core/orchestrator.ts --video-action scheduled-tutorial --slot "$slot"; then
               mark_done "$slot"
               echo "✓ $slot delivered and checkpointed."
             else
