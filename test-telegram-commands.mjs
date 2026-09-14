@@ -23,7 +23,9 @@ const emitted = [...new Set(
 )].sort();
 
 // The guard is the pipe-separated case list that decides what is allowed past.
-const guard = (flow.match(/approved-feature\|[^)]*/) || [""])[0]
+const inputCase = flow.match(/case\s+"\$INPUT_ACTION"\s+in\s*([\s\S]*?)\besac\b/);
+if (!inputCase) throw new Error('INPUT_ACTION guard not found; test cannot verify routing');
+const guard = (inputCase[1].match(/^\s*([a-z0-9|-]+)\)\s*;;/m) || ["", ""])[1]
   .split("|").map((s) => s.trim()).filter(Boolean);
 
 // Answered inside the worker, so they never reach GitHub.

@@ -1,0 +1,11 @@
+{
+  "deprecated": [
+    "patch-compact.mjs", "patch-cuts-fix.mjs", "patch-cuts.mjs",
+    "patch-dari.mjs", "patch-draw-on.mjs", "patch-feature-mode.mjs",
+    "patch-fix3.mjs", "patch-hook-safe-chips.mjs", "patch-live-css.mjs",
+    "patch-marks.mjs", "patch-music-seed.mjs", "patch-polish.mjs",
+    "patch-pron.mjs", "patch-tool-visuals.mjs", "patch-ui-steps.mjs",
+    "patch-vo-plan.mjs", "patch-vo-sync.mjs", "patch-voice-mix.mjs"
+  ],
+  "policy": "Retained for traceability; forbidden in autopilot. No files deleted."
+}

@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { ttsBody, voiceSettings, drift, trimDeadAir } from "../lib/voice-settings.mjs";
+import { loadEnv } from "../lib/telegram.mjs";
 
 const argv = process.argv.slice(2);
 const outAt = argv.indexOf("-o");
@@ -14,7 +15,9 @@ if (!text || !output) {
   process.exit(1);
 }
 
-const apiKey = process.env.MINIMAX_API_KEY || "";
+// Local runs use .env; cloud runs receive the same value through GitHub secrets.
+const localEnv = loadEnv(".env");
+const apiKey = process.env.MINIMAX_API_KEY || localEnv.MINIMAX_API_KEY || "";
 if (!apiKey) {
   console.error("MINIMAX_API_KEY is not set. Add it to .env locally and to GitHub Actions secrets.");
   process.exit(1);

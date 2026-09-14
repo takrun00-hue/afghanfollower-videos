@@ -7,6 +7,9 @@
 # generated / heavy
 node_modules/
 renders/
+output/
+public/preview-narration/
+public/typing.wav
 compositions/daily/
 snapshots/
 index.html

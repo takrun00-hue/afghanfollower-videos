@@ -25,7 +25,7 @@
 // applies here too — no photo found for a word means that episode does not
 // ship, same as any other feature with no real evidence.
 import { execSync, execFileSync } from "node:child_process";
-import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync, rmSync } from "node:fs";
+import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync, rmSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { buildInkHTML } from "./lib/build-ink.mjs";
@@ -38,6 +38,8 @@ import { fingerprint, check, register } from "./lib/dedupe.mjs";
 import { narrationFor } from "./lib/narration.mjs";
 import { minimaxSpeakable } from "./lib/pronounce.mjs";
 import { GERMAN_WORD_VOICE_ID, GERMAN_LESSON_NARRATION_OVERRIDE, GERMAN_WORD_VOICE_SETTINGS, narrationLineCheck } from "./lib/voice-settings.mjs";
+import { synthesize as edgeSynthesize } from "./lib/edge-tts.mjs";
+import { config } from "./core/config.ts";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 process.chdir(projectDir);
@@ -226,7 +228,7 @@ console.log(`\n=== german-lesson episode ${episodeNo}: ${unit.topic} (${unit.id}
 // uses lives in that one file) picks a real German-native voice for the
 // German-word clip specifically, leaving the approved Persian voice (used
 // for every other clip, hook, and outro) untouched.
-function ttsSynthesize(text, languageBoost, outFile, voiceId) {
+async function ttsSynthesize(text, languageBoost, outFile, voiceId) {
   // Persian explanatory lines must be validated before their text ever reaches
   // the engine. German vocabulary uses a separate native-German voice.
   if (!languageBoost) {
@@ -257,7 +259,31 @@ function ttsSynthesize(text, languageBoost, outFile, voiceId) {
     env.VOICE_SPEED = String(GERMAN_WORD_VOICE_SETTINGS.speed);
     env.MINIMAX_VOICE_VOL = String(GERMAN_WORD_VOICE_SETTINGS.vol);
   }
-  execFileSync("node", ["music/minimax-tts.mjs", text, "-o", outFile], { env, stdio: "inherit" });
+  // MiniMax is preferred when configured because its settings have been
+  // auditioned for this project. A missing, exhausted or rejected account
+  // must not turn a requested narrated lesson into a silent render: Edge's
+  // native Persian/German voices are the explicit, no-key fallback.
+  if (env.MINIMAX_API_KEY) {
+    try {
+      execFileSync("node", ["music/minimax-tts.mjs", text, "-o", outFile], { env, stdio: "inherit" });
+      if (statSync(outFile).size >= 1000) return { engine: "minimax" };
+      throw new Error("MiniMax returned an empty clip");
+    } catch (error) {
+      console.warn(`   ⚠ MiniMax clip failed; using Edge fallback: ${String(error.message).split("\n")[0]}`);
+    }
+  }
+  const edge = languageBoost
+    ? { voice: "de-DE-KatjaNeural", rate: "-4%", pitch: "+0Hz", volume: "+0%" }
+    : { voice: config.narration.fallback.voice, rate: config.narration.fallback.rate, pitch: config.narration.fallback.pitch, volume: config.narration.fallback.volume };
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      writeFileSync(outFile, await edgeSynthesize({ text, ...edge }));
+      if (statSync(outFile).size < 1000) throw new Error("Edge returned an empty clip");
+      return { engine: "edge", voice: edge.voice };
+    } catch (error) { lastError = error; }
+  }
+  throw new Error(`TTS failed after MiniMax and 3 Edge attempts: ${lastError?.message || "unknown error"}`);
 }
 function ffprobeDuration(file) {
   const out = execFileSync("ffprobe", [
@@ -281,25 +307,25 @@ try {
     mkdirSync(voiceDir, { recursive: true });
     try {
       const persianEntries = [];
-      const makePersian = (written, file) => {
+      const makePersian = async (written, file) => {
         const spoken = minimaxSpeakable(written);
-        ttsSynthesize(spoken, null, file);
+        await ttsSynthesize(spoken, null, file);
         persianEntries.push({ written, spoken, file });
       };
       const hookFile = `${voiceDir}/german-${pack.id}-hook.mp3`;
-      makePersian(vo.hook, hookFile);
+      await makePersian(vo.hook, hookFile);
 
       const tips = [];
       for (let i = 0; i < unit.items.length; i++) {
         const deFile = `${voiceDir}/german-${pack.id}-de${i}.mp3`;
         const faFile = `${voiceDir}/german-${pack.id}-fa${i}.mp3`;
-        ttsSynthesize(unit.items[i].de, "German", deFile, GERMAN_WORD_VOICE_ID);
-        makePersian(vo.steps[i], faFile);
+        await ttsSynthesize(unit.items[i].de, "German", deFile, GERMAN_WORD_VOICE_ID);
+        await makePersian(vo.steps[i], faFile);
         tips.push({ deFile, faFile });
       }
 
       const outroFile = `${voiceDir}/german-${pack.id}-outro.mp3`;
-      makePersian(vo.outro, outroFile);
+      await makePersian(vo.outro, outroFile);
 
       // These are the exact Persian clips that will be mixed into the final
       // bilingual episode. One fresh take is permitted after an ASR rejection;
@@ -316,7 +342,7 @@ try {
           console.error("German lesson Persian narration rejected; synthesizing one fresh take.");
           for (const entry of persianEntries) {
             rmSync(entry.file, { force: true });
-            ttsSynthesize(entry.spoken, null, entry.file);
+            await ttsSynthesize(entry.spoken, null, entry.file);
           }
           runQC();
         }

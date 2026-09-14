@@ -3,10 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "autopilot": "node core/orchestrator.ts",
     "test": "node test-locked-rules.mjs && node test-viral-readiness.mjs && node test-motion-contract.mjs && node test-pronunciation.mjs && node test-narration-recovery.mjs && node test-hear.mjs && node test-voice-timing.mjs && node test-dedupe-ledger.mjs && node test-daily-program.mjs && node test-daily-workflow.mjs && node test-english-path.mjs && node test-telegram-paths.mjs && node test-telegram-commands.mjs && node test-bot-commands.mjs && node test-pick-resolves.mjs && node test-custom-draft.mjs && node test-screens-manifest.mjs && node test-content-search.mjs",
     "dev": "npx --yes hyperframes@0.8.16 preview",
     "check": "npx --yes hyperframes@0.8.16 check",
     "render": "npx --yes hyperframes@0.8.16 render",
     "publish": "npx --yes hyperframes@0.8.16 publish"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.524",
+    "@remotion/renderer": "4.0.524",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.524"
   }
 }
