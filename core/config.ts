@@ -26,6 +26,14 @@ export const config = {
     textFallback: { provider: 'groq', id: 'openai/gpt-oss-120b' },
     image: { provider: 'gemini', id: 'gemini-2.5-flash-image' },
   },
+  mediaRecovery: {
+    // Order is deliberate: verified public evidence before any generated
+    // substitute. A provider that reports quota/auth failure is circuit-broken
+    // for the rest of that render and never retried in a long publish loop.
+    realSearch: ['exa'],
+    relevanceChecks: ['gemini', 'groq'],
+    generatedFallbacks: ['gemini-image', 'local-contextual-svg'],
+  },
   narration: {
     primary: { provider: 'minimax', voice: 'Arabic_CalmWoman', requiresSecret: 'minimax' },
     fallback: { provider: 'edge', voice: 'fa-IR-FaridNeural', rate: '+4%', pitch: '+0Hz', volume: '+0%' },

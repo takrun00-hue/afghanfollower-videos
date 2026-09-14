@@ -23,8 +23,8 @@ assert.match(workflow, /Mark incomplete delivery for retry/);
 assert.match(workflow, /Install Persian narration quality gate/);
 assert.match(workflow, /NARRATION_QC: "on"/);
 assert.match(workflow, /ASR_MODEL: "medium"/);
-assert.match(workflow, /LIVE_IMAGE_RESCUE: "off"/,
-  "unattended publishing must not wait on quota-limited image rescue");
+assert.match(workflow, /LIVE_IMAGE_RESCUE: "on"/,
+  "unattended publishing must search for real evidence before using a generated fallback");
 assert.match(workflow, /MAX_ATTEMPTS_PER_SLOT: "3"/,
   "scheduled production must have a bounded per-slot retry budget");
 assert.match(workflow, /group: gapmedia-production/);

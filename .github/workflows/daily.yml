@@ -211,10 +211,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          # Scheduled delivery must use a topic whose real visual evidence is
-          # already present. Live search/image generation is quota-limited and
-          # belongs to interactive repair, never an unattended publish loop.
-          LIVE_IMAGE_RESCUE: "off"
+          # Search for real evidence first. Provider quota/auth failures are
+          # circuit-broken in lib/auto-image.mjs, then a labelled local visual
+          # fallback is built for that one slide instead of looping forever.
+          LIVE_IMAGE_RESCUE: "on"
           MAX_ATTEMPTS_PER_SLOT: "3"
         shell: bash
         run: |
