@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { existsSync, rmSync } from "node:fs";
-import { generateLocalFallbackImage } from "./lib/auto-image.mjs";
+import { FREE_IMAGE_SEARCH_PROVIDERS, generateLocalFallbackImage } from "./lib/auto-image.mjs";
 import { imageSize, imageType } from "./lib/media-guard.mjs";
 
 const asset = generateLocalFallbackImage("آموزش رشد ویدیو", "نمودار ماندگاری ویدیو را بررسی کن");
 try {
+  assert.deepEqual(FREE_IMAGE_SEARCH_PROVIDERS, ["wikimedia-commons", "openverse"]);
   assert.equal(asset.sourceType, "generated-fallback");
   assert.match(asset.sourceUrl, /^generated-fallback:/);
   assert.ok(existsSync(asset.photo), "local fallback must create an actual image file");

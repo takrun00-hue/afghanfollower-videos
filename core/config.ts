@@ -30,7 +30,10 @@ export const config = {
     // Order is deliberate: verified public evidence before any generated
     // substitute. A provider that reports quota/auth failure is circuit-broken
     // for the rest of that render and never retried in a long publish loop.
-    realSearch: ['exa'],
+    // Exa is used when its key/quota is available. The next two sources need
+    // no account or API key and keep real-media discovery working on a free
+    // path. Only Public Domain / CC0 media is eligible from those sources.
+    realSearch: ['exa', 'wikimedia-commons', 'openverse'],
     relevanceChecks: ['gemini', 'groq'],
     generatedFallbacks: ['gemini-image', 'local-contextual-svg'],
   },
