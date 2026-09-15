@@ -7,6 +7,7 @@
 //   بفرست           → resend today's videos
 //   وضعیت           → what exists for today
 //   فردا            → build tomorrow's set early
+//   دیاگنوز         → list open/escalated failures (see lib/diagnose.mjs)
 //   راهنما          → this list
 import { execSync, execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -14,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
 import { loadEnv, telegramConfig, sendMessage, getUpdates } from "./lib/telegram.mjs";
 import { parseCommand, normalize, HELP_TEXT } from "./lib/commands.mjs";
+import { reportFailure, sweep, recordOwnerReply, listOpenCases } from "./lib/diagnose.mjs";
 
 process.chdir(dirname(fileURLToPath(import.meta.url)));
 const tg = telegramConfig(loadEnv());
@@ -31,13 +33,26 @@ const HELP = HELP_TEXT;
 const norm = normalize;
 const has = (c, ...words) => words.some((w) => c.includes(w));
 
-// one place that runs a build, so every command reports failures the same way
-function build(args, label) {
+// One place every failed command is tracked, instead of a bare "✗ خطا: ..."
+// that only the person watching the chat at that exact moment ever sees.
+// reportFailure() (not runTracked()) because every command reachable from
+// here may already have sent a video/message or deleted one — see
+// lib/diagnose.mjs's own comment on why those are never auto-retried
+// unattended (2026-09-11's duplicate-publish incident).
+async function fail(source, command, e) {
+  const error = [e.stdout, e.stderr, e.message].filter(Boolean).join(String.fromCharCode(10)).trim();
+  await reportFailure({ source, command, error });
+}
+
+// one place that runs a build, so every command tracks failures the same way
+async function build(args, source) {
+  const command = `node daily-render.mjs ${args}`.trim();
   try {
-    execSync(`node daily-render.mjs ${args}`, { stdio: "inherit", cwd: process.cwd() });
+    execSync(command, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", cwd: process.cwd() });
     return { ok: true };
   } catch (e) {
-    return { ok: false, err: String(e.message).split(String.fromCharCode(10))[0] };
+    await fail(source, command, e);
+    return { ok: false };
   }
 }
 
@@ -56,16 +71,16 @@ export async function handle(text) {
 
   if (has(c, "بفرست", "send", "ارسال")) {
     await say("✈ در حال ارسال ویدیوهای امروز…");
-    try { execSync("node send-telegram.mjs", { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    try { execSync("node send-telegram.mjs", { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); }
+    catch (e) { await fail("بات:بفرست", "node send-telegram.mjs", e); }
     return;
   }
 
   if (has(c, "فردا", "tomorrow")) {
     const d = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     await say(`🎬 در حال ساخت ویدیوهای فردا (${d})…`);
-    const r = build(d);
-    return say(r.ok ? `✅ ویدیوهای ${d} آماده و ارسال شد.` : "✗ خطا: " + r.err);
+    const r = await build(d, "بات:فردا");
+    return r.ok ? say(`✅ ویدیوهای ${d} آماده و ارسال شد.`) : undefined;
   }
 
   const cmd = parseCommand(text);
@@ -84,8 +99,8 @@ export async function handle(text) {
   if (cmd && BUILD_SLOT[cmd.action]) {
     const label = BUILD_LABEL[cmd.action];
     await say(`🎬 در حال ساخت ویدیوی ${label}…`);
-    const r = build(`--only ${BUILD_SLOT[cmd.action]}`);
-    return say(r.ok ? `✅ ویدیوی ${label} ساخته و ارسال شد.` : "✗ خطا: " + r.err);
+    const r = await build(`--only ${BUILD_SLOT[cmd.action]}`, `بات:${cmd.action}`);
+    return r.ok ? say(`✅ ویدیوی ${label} ساخته و ارسال شد.`) : undefined;
   }
 
   // Content-selection (proposal, not build) commands. commands.mjs already
@@ -95,67 +110,84 @@ export async function handle(text) {
   // itself (to the same Telegram chat) and never renders anything.
   const PLAN_CATEGORY = { "plan-tiktok": "tiktok", "plan-instagram": "instagram", "plan-tools": "tools" };
   if (cmd && PLAN_CATEGORY[cmd.action]) {
-    try { execSync(`node topic-plan.mjs --category=${PLAN_CATEGORY[cmd.action]}`, { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    const command = `node topic-plan.mjs --category=${PLAN_CATEGORY[cmd.action]}`;
+    try { execSync(command, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); }
+    catch (e) { await fail(`بات:${cmd.action}`, command, e); }
     return;
   }
   if (cmd && cmd.action === "plan-tomorrow") {
-    try { execSync("node topic-plan.mjs", { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    const command = "node topic-plan.mjs";
+    try { execSync(command, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); }
+    catch (e) { await fail("بات:plan-tomorrow", command, e); }
     return;
   }
   if (cmd && cmd.action === "plan-week") {
-    try { execSync("node topic-plan.mjs --week", { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    const command = "node topic-plan.mjs --week";
+    try { execSync(command, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); }
+    catch (e) { await fail("بات:plan-week", command, e); }
     return;
   }
   if (cmd && cmd.action === "approved-feature") {
     await say("🎬 در حال ساخت موضوع تأییدشده…");
-    try { execFileSync("node", ["approve-feature.mjs", text], { stdio: "inherit" }); return say("✅ ساخته و فرستاده شد."); }
-    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    try { execFileSync("node", ["approve-feature.mjs", text], { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); return say("✅ ساخته و فرستاده شد."); }
+    catch (e) { return fail("بات:approved-feature", `node approve-feature.mjs "${text}"`, e); }
   }
   if (cmd && cmd.action === "approved-screen") {
-    try { execFileSync("node", ["approve-screen.mjs", text], { stdio: "inherit" }); }
-    catch (e) { return say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-    return;   // approve-screen.mjs reports the result itself
+    const command = `node approve-screen.mjs "${text}"`;
+    try { execFileSync("node", ["approve-screen.mjs", text], { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); }
+    catch (e) { await fail("بات:approved-screen", command, e); }
+    return;   // approve-screen.mjs reports the result itself on success
   }
   if (cmd && cmd.action === "voice-list") {
-    try { execSync("node music/minimax-voices.mjs", { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    const command = "node music/minimax-voices.mjs";
+    try { execSync(command, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); }
+    catch (e) { await fail("بات:voice-list", command, e); }
     return;
   }
   if (cmd && cmd.action === "content-radar") {
     await say("📡 در حال رتبه‌بندی نامزدهای محتوا…");
-    try { execSync("node content-radar.mjs", { stdio: "inherit" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
+    const command = "node content-radar.mjs";
+    try { execSync(command, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); }
+    catch (e) { await fail("بات:content-radar", command, e); }
     return;
   }
   if (cmd && cmd.action === "undo") {
-    try { execSync("node undo-send.mjs", { encoding: "utf8" }); }
-    catch (e) { await say("✗ خطا: " + String(e.message).split(String.fromCharCode(10))[0]); }
-    return;   // undo-send.mjs reports the result itself
+    const command = "node undo-send.mjs";
+    try { execSync(command, { encoding: "utf8" }); }
+    catch (e) { await fail("بات:undo", command, e); }
+    return;   // undo-send.mjs reports the result itself on success
   }
+
+  if (cmd && cmd.action === "diagnose-status") return say(listOpenCases());
 
   if (cmd && cmd.action === "research") {
     await say("🔎 در حال جستجوی آپدیت‌های تازه…");
+    const command = "node research.mjs";
     try {
-      const out = execSync("node research.mjs", { encoding: "utf8" });
+      const out = execSync(command, { encoding: "utf8" });
       const line = out.trim().split(String.fromCharCode(10)).pop() || "";
       if (/sent digest/.test(line)) return;                 // the digest speaks for itself
       if (/not set/.test(line)) return;                     // research.mjs already explained
       await say("⚠️ جستجو تمام شد ولی گزارشی فرستاده نشد: " + line.slice(0, 160));
     } catch (e) {
-      const msg = [e.stdout, e.stderr, e.message].filter(Boolean).join(" ").trim();
-      await say("✗ خطای جستجو: " + msg.split(String.fromCharCode(10)).slice(-1)[0].slice(0, 200));
+      await fail("بات:research", command, e);
     }
     return;
   }
 
   if (has(c, "بساز", "make", "today", "ساخت")) {
     await say("🎬 در حال ساخت ۳ ویدیوی امروز… چند دقیقه صبر کن.");
-    const r = build("");
-    return say(r.ok ? "✅ هر ۳ ویدیوی امروز ساخته و ارسال شد." : "✗ خطا: " + r.err);
+    const r = await build("", "بات:بساز-همه");
+    return r.ok ? say("✅ هر ۳ ویدیوی امروز ساخته و ارسال شد.") : undefined;
   }
+
+  // Nothing matched — if there's an open Diagnose case waiting for an
+  // answer, treat this free-text message as the owner's reply to it rather
+  // than silently doing nothing (the exact "typed a command, got no reply
+  // at all" gap test-bot-commands.mjs was written to catch, just for the
+  // one case a fixed command list can never cover: an actual conversation).
+  const reply = await recordOwnerReply(text);
+  if (reply) await say(reply.message);
 }
 
 // Only start long-polling when this file is run directly (`node bot.mjs`),
@@ -179,6 +211,10 @@ if (isMain) {
         if (!msg || String(msg.chat.id) !== String(tg.chatId)) continue;  // owner only
         if (msg.text) await handle(msg.text);
       }
+      // Cheap on every tick (checks timestamps only) — this is what makes
+      // "escalated to Telegram, then nobody answered" resume on its own
+      // instead of sitting open forever; see lib/diagnose.mjs's file header.
+      await sweep();
     } catch (e) {
       console.error("poll error:", e.message);
       await new Promise((r) => setTimeout(r, 3000));

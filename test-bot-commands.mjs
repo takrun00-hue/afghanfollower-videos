@@ -34,6 +34,7 @@ const CASES = [
   ["تأیید تصویر trial-reels 2", "approved-screen"],
   ["صداها", "voice-list"],
   ["رادار محتوا", "content-radar"],
+  ["دیاگنوز", "diagnose-status"],
   ["فردا", "build-tomorrow"],
   ["بفرست", "resend"],
   ["وضعیت", "status"],

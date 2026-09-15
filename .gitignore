@@ -15,6 +15,7 @@ music/*.wav
 c.txt
 css.txt
 .telegram-offset
+.diagnose-board.json
 music/auto/
 music/voice/
 .thumbnails/
