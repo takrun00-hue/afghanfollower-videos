@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { authorize } from "./core/gateway.mjs";
+const hash = createHash("sha256").update("owner-code").digest("hex");
+assert.equal(authorize({ action: "build-tiktok", source: "telegram" }).accepted, true);
+assert.equal(authorize({ action: "scheduled-daily", source: "schedule" }).branch, "production");
+assert.throws(() => authorize({ action: "build-tiktok", source: "schedule" }), /non-scheduled/);
+assert.throws(() => authorize({ action: "not-real", source: "telegram" }), /unknown action/);
+assert.throws(() => authorize({ action: "undo", source: "telegram" }), /not configured/);
+assert.equal(authorize({ action: "undo", source: "telegram", approvalProof: hash }, { GATEWAY_APPROVAL_CODE_HASH: hash }).accepted, true);
+assert.throws(() => authorize({ action: "undo", source: "telegram", approvalProof: "wrong" }, { GATEWAY_APPROVAL_CODE_HASH: hash }), /approval required/);
+console.log("external commands are admitted only by the central gateway");

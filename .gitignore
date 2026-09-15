@@ -35,5 +35,7 @@ public/broll/*.mp4
 public/screens/*.img
 .topic-rejected.json
 .topic-offered.json
+core/.gateway-admission.json
+core/.gateway-admission.json.tmp
 out/tune/
 out/verify/

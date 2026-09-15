@@ -2,7 +2,7 @@
 // local-PC bot test: the phone uses worker/src/index.js, so it needs its own
 // regression test for the exact commands the creator actually types.
 import assert from "node:assert/strict";
-import worker, { NUMBERED_ACTIONS, menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick, parseChatIntent } from "./src/index.js";
+import worker, { NUMBERED_ACTIONS, menuCode, videoAction, commandFromPending, acknowledgementFor, bareTopicPick, parseChatIntent, stripApprovalCode, approvalProofFor } from "./src/index.js";
 
 assert.equal(videoAction("تیک تاک بساز").action, "build-tiktok");
 assert.equal(videoAction("انستا بساز").action, "build-instagram");
@@ -36,6 +36,8 @@ assert.equal(videoAction("جستجوی محتوا").action, "content-search");
 assert.equal(videoAction("جستجوی جدید: درآمد از تیک‌تاک").action, "content-search-live");
 assert.equal(videoAction("موضوع: چطور از قابلیت تازهٔ اینستاگرام مشتری جذب کنیم").action, "custom-content");
 assert.equal(videoAction("رد ۲").action, "topic-reject");
+assert.equal(stripApprovalCode("پاک کن کد: owner-code"), "پاک کن");
+assert.match(await approvalProofFor("پاک کن کد: owner-code"), /^[a-f0-9]{64}$/);
 
 // A bare "۱".."۵" is ambiguous with the fixed numbered menu (NUMBERED_ACTIONS)
 // and must only resolve to picking a content-search topic when that list is
