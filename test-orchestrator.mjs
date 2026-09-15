@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { existsSync, unlinkSync } from "node:fs";
+import { resolve } from "node:path";
 import { config } from "./core/config.mjs";
-import { plan } from "./core/orchestrator.mjs";
+import { execute, plan } from "./core/orchestrator.mjs";
 assert.equal(plan("build-tiktok").script, "daily-render.mjs");
 assert.equal(plan("autopilot").script, "daily-render.mjs");
 assert.deepEqual(plan("content-search-live", { payload: "ترند امروز" }).args, ["--query", "ترند امروز"]);
 assert.throws(() => plan("not-registered"), /Unregistered action/);
 assert.throws(() => plan("custom-content"), /requires payload/);
+const admission = resolve("core/.gateway-admission.json");
+if (existsSync(admission)) unlinkSync(admission);
+assert.throws(() => execute("content-search", { jobId: "gateway-test" }), /Gateway admission is required/);
 assert.ok(config.actions["news-scan"]);
 console.log("ok unified orchestrator registry blocks arbitrary execution");

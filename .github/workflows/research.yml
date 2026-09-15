@@ -51,4 +51,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RESEARCH_DAYS: ${{ github.event.inputs.days }}
-        run: node core/orchestrator.mjs --action research --job-id "research-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        run: |
+          node core/gateway.mjs --action research --source schedule
+          node core/orchestrator.mjs --action research --job-id "research-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"

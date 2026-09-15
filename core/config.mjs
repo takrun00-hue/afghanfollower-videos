@@ -10,7 +10,15 @@ export const config = Object.freeze({
     narration: { provider: "edge", voice: "fa-IR-FaridNeural" },
   }),
   designSystem: Object.freeze({ realMediaFirst: true, minLongEdge: 1080, minPixels: 700000, styles: { tiktok: "dynamic cutout", instagram: "editorial photo-led", tools: "product proof", news: "clear factual" } }),
-  secrets: Object.freeze({ telegram: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"], search: ["EXA_API_KEY"], ai: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY"], media: ["PEXELS_API_KEY"], narration: ["MINIMAX_API_KEY", "MINIMAX_VOICE_ID"] }),
+  secrets: Object.freeze({ telegram: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"], search: ["EXA_API_KEY"], ai: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY"], media: ["PEXELS_API_KEY"], narration: ["MINIMAX_API_KEY", "MINIMAX_VOICE_ID"], gateway: ["GATEWAY_APPROVAL_CODE_HASH"] }),
+  // All external commands must enter through core/gateway.mjs before an action
+  // can reach the orchestrator. The hash is a GitHub secret; the passcode is
+  // never committed, logged or retained in state.
+  ingress: Object.freeze({
+    permittedSources: ["telegram", "telegram-poll", "schedule", "repository-trigger", "workflow-dispatch", "internal"],
+    scheduledActions: ["scheduled-daily", "scheduled-german", "scheduled-german-unit", "lesson-recovery", "research", "content-radar"],
+    approvalRequired: ["undo", "approved-screen", "user-photo", "news-custom"],
+  }),
   // Workflows can pass an action and data only; never an arbitrary script.
   actions: Object.freeze({
     "build-tiktok": ["daily-render.mjs", "--only", "tiktok"], "build-instagram": ["daily-render.mjs", "--only", "instagram"], "build-tools": ["daily-render.mjs", "--only", "ai-tiktok"], "build-all": ["daily-render.mjs"], "resend": ["daily-render.mjs"],

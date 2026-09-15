@@ -267,8 +267,10 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           if [ -n "${{ steps.gate.outputs.unit }}" ]; then
+            node core/gateway.mjs --action scheduled-german-unit --source schedule
             node core/orchestrator.mjs --action scheduled-german-unit --payload "${{ steps.gate.outputs.unit }}" --job-id "lesson-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           else
+            node core/gateway.mjs --action scheduled-german --source schedule
             node core/orchestrator.mjs --action scheduled-german --job-id "lesson-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           fi
 
@@ -287,7 +289,9 @@ jobs:
       # exits 0 having done nothing, same as if it didn't exist.
       - name: Chain an automatic Recovery Loop retry, or stand down for real
         if: failure() && steps.gate.outputs.go == 'yes'
-        run: node core/orchestrator.mjs --action lesson-recovery --job-id "lesson-recovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        run: |
+          node core/gateway.mjs --action lesson-recovery --source schedule
+          node core/orchestrator.mjs --action lesson-recovery --job-id "lesson-recovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       # Marks today's batch (morning/evening) delivered so a later poll the
       # same day — however much later — does not send a second episode for

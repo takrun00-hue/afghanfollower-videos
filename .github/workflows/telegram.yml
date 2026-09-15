@@ -68,6 +68,11 @@ on:
         required: false
         default: "on"
         type: string
+      approval_proof:
+        description: "SHA-256 proof supplied only by the Telegram gateway for a sensitive action"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   # Its OWN group. It used to share "gapmedia-production" with daily.yml so
@@ -188,6 +193,7 @@ jobs:
           INPUT_PAYLOAD: ${{ inputs.payload }}
           INPUT_VOICE_ID: ${{ inputs.voice_id }}
           INPUT_VOICE_MODE: ${{ inputs.voice_mode }}
+          INPUT_APPROVAL_PROOF: ${{ inputs.approval_proof }}
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -229,7 +235,7 @@ jobs:
             # from custom-content, which already builds arbitrary content.
             case "$request_action" in custom-content|content-radar|approved-feature|rerender-feature) ;; *) request_action="none" ;; esac
             case "$request_voice" in on|off) ;; *) request_voice="on" ;; esac
-            printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
+            printf 'ACTION=%s\nPICK=1\nPAYLOAD=%s\nVOICE_ID=\nVOICE_MODE=%s\nAPPROVAL_PROOF=\nSOURCE=repository-trigger\n' "$request_action" "$request_payload" "$request_voice" >> "$GITHUB_OUTPUT"
           elif [ -n "$INPUT_ACTION" ]; then
             case "$INPUT_ACTION" in
               approved-feature|rerender-feature|approved-screen|user-photo|topic-pick|topic-reject|topic-unreject|topic-rejected-list|search-topic-pick|content-preview|content-edit-hook|content-edit-steps|content-approve|content-source-pick|content-topic-preview|build-tiktok|build-instagram|build-tools|build-all|build-tomorrow|build-app-pair|resend|research|content-radar|demand-research|content-search|content-search-live|custom-content|custom-content-media|voice-list|undo|plan-today|plan-tomorrow|plan-week|plan-tiktok|plan-instagram|plan-tools) ;;
@@ -239,11 +245,13 @@ jobs:
             safe_payload=$(printf '%s' "$INPUT_PAYLOAD" | tr '\r\n' ' ' | cut -c1-900)
             safe_voice=$(printf '%s' "$INPUT_VOICE_ID" | tr -cd 'A-Za-z0-9_.-' | cut -c1-120)
             case "$INPUT_VOICE_MODE" in on|off) safe_voice_mode="$INPUT_VOICE_MODE" ;; *) safe_voice_mode="on" ;; esac
-            printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\nVOICE_MODE=%s\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" "$safe_voice_mode" >> "$GITHUB_OUTPUT"
+            safe_proof=$(printf '%s' "$INPUT_APPROVAL_PROOF" | tr -cd 'a-fA-F0-9' | cut -c1-64)
+            printf 'ACTION=%s\nPICK=%s\nPAYLOAD=%s\nVOICE_ID=%s\nVOICE_MODE=%s\nAPPROVAL_PROOF=%s\nSOURCE=workflow-dispatch\n' "$INPUT_ACTION" "${safe_pick:-1}" "$safe_payload" "$safe_voice" "$safe_voice_mode" "$safe_proof" >> "$GITHUB_OUTPUT"
           else
             cl_out=$(node cloud-listen.mjs)
             echo "$cl_out"
             printf '%s\n' "$cl_out" >> "$GITHUB_OUTPUT"
+            echo "SOURCE=telegram-poll" >> "$GITHUB_OUTPUT"
             cl_action=$(printf '%s\n' "$cl_out" | sed -n 's/^ACTION=//p' | tail -1)
             # Opportunistic auto-research: an idle poll (no real Telegram
             # command pending) doubles as the "keep researching, every couple
@@ -273,6 +281,15 @@ jobs:
               fi
             fi
           fi
+
+      - name: Admit command through the central gateway
+        if: steps.cmd.outputs.ACTION != '' && steps.cmd.outputs.ACTION != 'none'
+        env:
+          ACTION: ${{ steps.cmd.outputs.ACTION }}
+          SOURCE: ${{ steps.cmd.outputs.SOURCE }}
+          APPROVAL_PROOF: ${{ steps.cmd.outputs.APPROVAL_PROOF }}
+          GATEWAY_APPROVAL_CODE_HASH: ${{ secrets.GATEWAY_APPROVAL_CODE_HASH }}
+        run: node core/gateway.mjs --action "$ACTION" --source "$SOURCE" --approval-proof "$APPROVAL_PROOF"
 
       # Only the actions that actually render a video need ffmpeg and a headless
       # browser. Listing news or deleting a message does not.

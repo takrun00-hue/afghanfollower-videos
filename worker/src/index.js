@@ -55,6 +55,21 @@ function normalize(value = "") {
   return String(value).trim().replace(/^\//, "").replace(/‌/g, " ").replace(/\s+/g, " ").toLowerCase();
 }
 
+// The passcode itself is removed before any command, AI prompt or chat history
+// sees the message. Only its SHA-256 proof travels to GitHub, where the central
+// gateway compares it with the owner's secret hash.
+function stripApprovalCode(value = "") {
+  return String(value).replace(/(?:\s|^)(?:کد(?:\s*عبور)?|passcode)\s*[:：#]\s*[A-Za-z0-9_-]{4,128}\s*$/i, "").trim();
+}
+
+async function approvalProofFor(value = "") {
+  const match = String(value).match(/(?:^|\s)(?:کد(?:\s*عبور)?|passcode)\s*[:：#]\s*([A-Za-z0-9_-]{4,128})\s*$/i);
+  if (!match) return "";
+  const bytes = new TextEncoder().encode(match[1]);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 function audioFor(text) {
   const raw = String(text || "");
   if (/بدون\s*صدا|بی\s*صدا|mute/i.test(raw)) return { voiceMode: "off", voiceId: "" };
@@ -195,7 +210,7 @@ async function dispatchWorkflow(env, command) {
       "user-agent": "GapMedia-Telegram-Worker",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ ref: "main", inputs: { action: command.action, pick: command.pick || "1", payload: command.payload || "", voice_id: command.voiceId || "", voice_mode: command.voiceMode || "on" } }),
+    body: JSON.stringify({ ref: "main", inputs: { action: command.action, pick: command.pick || "1", payload: command.payload || "", voice_id: command.voiceId || "", voice_mode: command.voiceMode || "on", approval_proof: command.approvalProof || "" } }),
   });
   if (!response.ok) throw new Error(`GitHub dispatch failed: ${response.status}`);
 }
@@ -453,7 +468,9 @@ export default {
     if (env.TELEGRAM_WEBHOOK_SECRET && request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.TELEGRAM_WEBHOOK_SECRET) return new Response("Unauthorized", { status: 401 });
     const update = await request.json().catch(() => null);
     const message = update?.message;
-    const input = message?.text || message?.caption || "";
+    const rawInput = message?.text || message?.caption || "";
+    const input = stripApprovalCode(rawInput);
+    const approvalProof = await approvalProofFor(rawInput);
     if (!input || !message?.chat?.id) return new Response("ok");
     const chatId = String(message.chat.id);
     if (env.ALLOWED_CHAT_ID && chatId !== String(env.ALLOWED_CHAT_ID)) return new Response("ok");
@@ -469,7 +486,7 @@ export default {
         // A topic is picked once.  Leaving this marker alive made a later
         // menu digit (for example «۱» for a new search) reopen an old result.
         await clearSelection(env, chatId);
-        await dispatchWorkflow(env, topicPick);
+        await dispatchWorkflow(env, { ...topicPick, approvalProof });
         await reply(env, chatId, acknowledgementFor(topicPick));
         return new Response("ok");
       }
@@ -556,7 +573,7 @@ export default {
           // bare digit after either action must resolve to picking one of
           // ITS topics, not the fixed menu — see bareTopicPick() below.
           if (["content-search", "content-search-live"].includes(command.action)) await setSelection(env, chatId, "search");
-          await dispatchWorkflow(env, command);
+          await dispatchWorkflow(env, { ...command, approvalProof });
           await reply(env, chatId, acknowledgementFor(command));
         }
       } else {
@@ -571,4 +588,4 @@ export default {
 };
 
 // Kept outside the HTTP handler solely for deterministic local command tests.
-export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareTopicLocally, acknowledgementFor, bareTopicPick, parseChatIntent };
+export { NUMBERED_ACTIONS, menuCode, commandFromPending, videoAction, prepareTopicLocally, acknowledgementFor, bareTopicPick, parseChatIntent, stripApprovalCode, approvalProofFor };

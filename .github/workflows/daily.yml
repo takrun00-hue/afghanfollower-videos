@@ -380,6 +380,7 @@ jobs:
             # been 90 minutes for some time, so the old arithmetic was stale
             # as well as too tight. test-daily-workflow.mjs now ties the two
             # numbers together so neither can drift out from under the other.
+            node core/gateway.mjs --action scheduled-daily --source schedule
             if timeout --preserve-status 32m node core/orchestrator.mjs --action scheduled-daily --payload "$slot" --job-id "daily-${date}-${batch}-${slot}"; then
               mark_done "$slot"
               echo "✓ $slot delivered and checkpointed."
