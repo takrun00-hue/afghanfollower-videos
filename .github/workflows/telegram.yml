@@ -296,14 +296,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            plan-today)     node topic-plan.mjs --today ;;
-            plan-week)      node topic-plan.mjs --week ;;
-            plan-tiktok)    node topic-plan.mjs --tomorrow --category=tiktok ;;
-            plan-instagram) node topic-plan.mjs --tomorrow --category=instagram ;;
-            plan-tools)     node topic-plan.mjs --tomorrow --category=tools ;;
-            *)              node topic-plan.mjs --tomorrow ;;
-          esac
+          node core/orchestrator.mjs --action "${{ steps.cmd.outputs.ACTION }}" --job-id "tg-plan-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       # «جستجوی محتوا» (bare) and «جستجوی جدید: X» — the live-search-first
       # discovery engine from the 2026-09-03 content-search rules. Deliberately
@@ -321,11 +314,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-        run: |
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            content-search-live) node content-search.mjs --query "$PAYLOAD" ;;
-            *)                   node content-search.mjs ;;
-          esac
+        run: node core/orchestrator.mjs --action "${{ steps.cmd.outputs.ACTION }}" --payload "$PAYLOAD" --job-id "tg-search-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       # A bare "۱".."۵" after content-search — routed here by the Worker's own
       # selection-kind check (worker/src/index.js bareTopicPick), not by any
@@ -336,7 +325,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PICK: ${{ steps.cmd.outputs.PICK }}
-        run: node content-search.mjs --pick "${PICK:-1}"
+        run: node core/orchestrator.mjs --action search-topic-pick --pick "${PICK:-1}" --job-id "tg-pick-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Verify content-search draft for cache
         if: steps.cmd.outputs.ACTION == 'search-topic-pick'
@@ -448,13 +437,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PICK: ${{ steps.cmd.outputs.PICK }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-        run: |
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            topic-pick)          node topic-plan.mjs --preview "${PICK:-1}" ;;
-            content-edit-hook)   node content-draft.mjs --edit-hook "$PAYLOAD" ;;
-            content-edit-steps)  node content-draft.mjs --edit-steps "$PAYLOAD" ;;
-            *)                   node content-draft.mjs --preview ;;
-          esac
+        run: node core/orchestrator.mjs --action "${{ steps.cmd.outputs.ACTION }}" --payload "$PAYLOAD" --pick "${PICK:-1}" --job-id "tg-draft-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Preview selected content source
         if: steps.cmd.outputs.ACTION == 'content-source-pick'
@@ -462,7 +445,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PICK: ${{ steps.cmd.outputs.PICK }}
-        run: node source-draft.mjs "${PICK:-1}"
+        run: node core/orchestrator.mjs --action content-source-pick --pick "${PICK:-1}" --job-id "tg-source-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Analyse creator-supplied tutorial topic
         if: steps.cmd.outputs.ACTION == 'content-topic-preview'
@@ -474,7 +457,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-        run: node custom-draft.mjs "$PAYLOAD"
+        run: node core/orchestrator.mjs --action content-topic-preview --payload "$PAYLOAD" --job-id "tg-topic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Verify tutorial draft for cache
         if: contains(fromJSON('["topic-pick","content-edit-hook","content-edit-steps"]'), steps.cmd.outputs.ACTION)
@@ -505,7 +488,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
         run: |
-          node approve-screen.mjs "$PAYLOAD"
+          node core/orchestrator.mjs --action approved-screen --payload "$PAYLOAD" --job-id "tg-screen-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f public/screens/candidates.json 2>/dev/null || true
@@ -527,7 +510,7 @@ jobs:
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
           PHOTO_FILE_ID: ${{ steps.cmd.outputs.PHOTO_FILE_ID }}
         run: |
-          node save-user-photo.mjs "$PAYLOAD" "$PHOTO_FILE_ID"
+          node core/orchestrator.mjs --action user-photo --payload "$PAYLOAD" --photo-file-id "$PHOTO_FILE_ID" --job-id "tg-photo-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A public/user-photos/ 2>/dev/null || true
@@ -541,7 +524,7 @@ jobs:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node research.mjs
+        run: node core/orchestrator.mjs --action research --job-id "tg-research-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Content radar — daily scored shortlist
         if: steps.cmd.outputs.ACTION == 'content-radar'
@@ -549,7 +532,7 @@ jobs:
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node content-radar.mjs
+        run: node core/orchestrator.mjs --action content-radar --job-id "tg-radar-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       # Temporary — content-radar.json is cache-only (never committed), and
       # the owner needs its candidates read from outside Telegram right now.
@@ -578,11 +561,8 @@ jobs:
           # (music/minimax-voices.mjs --lang).
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
         run: |
-          if [ -n "$PAYLOAD" ]; then
-            node music/minimax-voices.mjs --telegram --lang "$PAYLOAD"
-          else
-            node music/minimax-voices.mjs --telegram
-          fi
+          if [ -n "$PAYLOAD" ]; then action=voice-list-language; else action=voice-list; fi
+          node core/orchestrator.mjs --action "$action" --payload "$PAYLOAD" --job-id "tg-voice-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Real search demand for a topic
         if: steps.cmd.outputs.ACTION == 'demand-research'
@@ -590,7 +570,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
-        run: node demand.mjs "$PAYLOAD"
+        run: node core/orchestrator.mjs --action demand-research --payload "$PAYLOAD" --job-id "tg-demand-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Reject or restore a topic
         if: contains(fromJSON('["topic-reject","topic-unreject","topic-rejected-list"]'), steps.cmd.outputs.ACTION)
@@ -600,11 +580,9 @@ jobs:
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
           PICK: ${{ steps.cmd.outputs.PICK }}
         run: |
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            topic-reject)        node reject-topic.mjs "${PAYLOAD:-${PICK:-1}}" ;;
-            topic-unreject)      node reject-topic.mjs --undo "$PAYLOAD" ;;
-            topic-rejected-list) node reject-topic.mjs --list ;;
-          esac
+          payload="$PAYLOAD"
+          if [ "${{ steps.cmd.outputs.ACTION }}" = "topic-reject" ] && [ -z "$payload" ]; then payload="${PICK:-1}"; fi
+          node core/orchestrator.mjs --action "${{ steps.cmd.outputs.ACTION }}" --payload "$payload" --job-id "tg-reject-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       # ---- deleting --------------------------------------------------------
       - name: Undo the last send
@@ -612,4 +590,4 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node undo-send.mjs 3 --daily
+        run: node core/orchestrator.mjs --action undo --job-id "tg-undo-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
