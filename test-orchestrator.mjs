@@ -1,0 +1,9 @@
+import assert from "node:assert/strict";
+import { config } from "./core/config.mjs";
+import { plan } from "./core/orchestrator.mjs";
+assert.equal(plan("build-tiktok").script, "daily-render.mjs");
+assert.deepEqual(plan("content-search-live", { payload: "ترند امروز" }).args, ["--query", "ترند امروز"]);
+assert.throws(() => plan("not-registered"), /Unregistered action/);
+assert.throws(() => plan("custom-content"), /requires payload/);
+assert.ok(config.actions["news-scan"]);
+console.log("ok unified orchestrator registry blocks arbitrary execution");

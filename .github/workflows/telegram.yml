@@ -377,6 +377,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAYLOAD: ${{ steps.cmd.outputs.PAYLOAD }}
           PICK: ${{ steps.cmd.outputs.PICK }}
+          ORCHESTRATOR_ACTION: ${{ steps.cmd.outputs.ACTION }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_VOICE_ID: ${{ steps.cmd.outputs.VOICE_ID || secrets.MINIMAX_VOICE_ID }}
           VOICE_MODE: ${{ steps.cmd.outputs.VOICE_MODE }}
@@ -413,18 +414,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           if [ "$VOICE_MODE" = "off" ]; then export VOICE="off" REQUIRE_VOICE="off"; else export VOICE="on" REQUIRE_VOICE="on"; fi
-          case "${{ steps.cmd.outputs.ACTION }}" in
-            approved-feature) node approve-feature.mjs "$PAYLOAD" ;;
-            rerender-feature) node daily-render.mjs --feature "$PAYLOAD" --rerender ;;
-            content-approve)  node content-draft.mjs --build ;;
-            custom-content|custom-content-media) node custom-content.mjs "$PAYLOAD" ;;
-            build-app-pair)  node build-current-app-pair.mjs ;;
-            build-instagram)  node daily-render.mjs --only instagram ;;
-            build-tools)      node daily-render.mjs --only ai-tiktok ;;
-            build-all|resend) node daily-render.mjs ;;
-            build-tomorrow)   TZ=Europe/Berlin node daily-render.mjs "$(TZ=Europe/Berlin date -d tomorrow +%F)" ;;
-            *)                node daily-render.mjs --only tiktok ;;
-          esac
+          node core/orchestrator.mjs --action "$ORCHESTRATOR_ACTION" --payload "$PAYLOAD" --pick "$PICK" --job-id "tg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       # Keep only a non-sensitive stage label, never raw logs or user text.
       # It makes an opaque cloud failure actionable without exporting runner
